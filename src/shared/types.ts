@@ -8,6 +8,7 @@ export interface CalendarEvent {
   description?: string;
   location?: string;
   uid?: string;
+  pending?: boolean;
 }
 
 export interface WeatherForecast {

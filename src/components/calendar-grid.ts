@@ -167,6 +167,7 @@ export class LucarneCalendarGrid extends LitElement {
   @property({ type: String }) bandEnd = '21:00';
   @property({ type: Array }) calendars: CalendarConfig[] = [];
   @property({ type: Number }) hourHeightPx = 60;
+  @property({ type: Boolean }) showCreateButton = false;
 
   private get _colorMap(): Map<string, string> {
     const m = new Map<string, string>();
@@ -181,6 +182,26 @@ export class LucarneCalendarGrid extends LitElement {
       return colorMap.get(entityId) ?? '#a8d8b9';
     }
     return '#a8d8b9';
+  }
+
+  private _onBandClick(e: MouseEvent, day: Date) {
+    if (!this.showCreateButton) return;
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const [bandStartH] = this.bandStart.split(':').map(Number);
+    const [bandEndH] = this.bandEnd.split(':').map(Number);
+    const bandH = bandEndH - bandStartH;
+    const yRatio = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const rawHour = bandStartH + yRatio * bandH;
+    // Round to nearest 0.5h; clamp so default 1h event fits within band
+    const startHour = Math.min(bandEndH - 1, Math.round(rawHour * 2) / 2);
+    this.dispatchEvent(
+      new CustomEvent('lucarne-create-event-tap', {
+        detail: { day, startHour },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private _buildEventColorMap(events: CalendarEvent[]): Map<string, string> {
@@ -233,7 +254,11 @@ export class LucarneCalendarGrid extends LitElement {
             `
           : ''}
 
-        <div class="day-col" style="height:${totalHeight}px">
+        <div
+          class="day-col"
+          style="height:${totalHeight}px${this.showCreateButton ? '; cursor: crosshair' : ''}"
+          @click=${(e: MouseEvent) => this._onBandClick(e, day)}
+        >
           ${hours.slice(0, -1).map(
             (_, i) => html`
               <div

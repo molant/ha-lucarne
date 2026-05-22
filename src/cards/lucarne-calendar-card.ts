@@ -10,6 +10,7 @@ import type { CalendarLayoutResult } from '../shared/calendar-layout.js';
 import '../components/visibility-pills.js';
 import '../components/calendar-grid.js';
 import '../components/calendar-event-popover.js';
+import '../components/create-event-popover.js';
 
 export interface LucarneCalendarCardConfig {
   type: 'custom:lucarne-calendar-card';
@@ -98,10 +99,15 @@ export class LucarneCalendarCard extends LitElement {
   @state() private _openEvent: CalendarEvent | null = null;
   @state() private _openEventColor = '';
   @state() private _openEventCalLabel = '';
+  @state() private _createDay: Date | null = null;
+  @state() private _createStartHour = 9;
+  // Cached stable array — only replaced when entity list or support changes
+  @state() private _creatableCalendars: CalendarConfig[] = [];
 
   private _intervalId?: ReturnType<typeof setInterval>;
   private _fetchSeq = 0;
   private _rawEvents: Map<string, CalendarEvent[]> = new Map();
+  private _pendingEvents: CalendarEvent[] = [];
 
   setConfig(config: LucarneCalendarCardConfig) {
     if (!config.calendars || !Array.isArray(config.calendars) || config.calendars.length === 0) {
@@ -134,6 +140,7 @@ export class LucarneCalendarCard extends LitElement {
     }
     this._config = normalizedConfig;
     this._visibleIds = new Set(config.calendars.map((c) => c.entity));
+    if (this.hass) this._updateCreatableCalendars();
     if (this.isConnected) {
       this._teardown();
       this._setup();
@@ -164,6 +171,10 @@ export class LucarneCalendarCard extends LitElement {
     return 6;
   }
 
+  static getConfigElement() {
+    return document.createElement('lucarne-calendar-card-editor');
+  }
+
   connectedCallback() {
     super.connectedCallback();
     this._setup();
@@ -181,6 +192,7 @@ export class LucarneCalendarCard extends LitElement {
     if (!prevHass && this.hass && !this._intervalId) {
       this._setup();
     }
+    this._updateCreatableCalendars();
   }
 
   private _setup() {
@@ -224,6 +236,7 @@ export class LucarneCalendarCard extends LitElement {
       );
     }
     this._rawEvents = tagged;
+    this._pendingEvents = []; // real data arrived, discard optimistic events
     this._recompute();
   }
 
@@ -235,9 +248,29 @@ export class LucarneCalendarCard extends LitElement {
         allEvents.push(...events);
       }
     }
+    allEvents.push(
+      ...this._pendingEvents.filter((e) => {
+        const entityId = e.uid?.split('::')[0];
+        return entityId ? this._visibleIds.has(entityId) : true;
+      }),
+    );
     const bandStart = this._config.visible_hours?.start ?? '07:00';
     const bandEnd = this._config.visible_hours?.end ?? '21:00';
     this._layout = layoutEvents(allEvents, this._weekStart, bandStart, bandEnd, this._config.week_starts_on ?? 'monday');
+  }
+
+  private _supportsCreate(entityId: string): boolean {
+    const supported = this.hass?.states[entityId]?.attributes?.['supported_features'] as number | undefined;
+    return supported !== undefined && (supported & 1) !== 0;
+  }
+
+  private _updateCreatableCalendars() {
+    if (!this._config || !this.hass) return;
+    const next = this._config.calendars.filter((c) => this._supportsCreate(c.entity));
+    const same =
+      next.length === this._creatableCalendars.length &&
+      next.every((c, i) => c.entity === this._creatableCalendars[i]?.entity);
+    if (!same) this._creatableCalendars = next;
   }
 
   private _onVisibilityChange(e: CustomEvent<Set<string>>) {
@@ -261,6 +294,23 @@ export class LucarneCalendarCard extends LitElement {
 
   private _closePopover() {
     this._openEvent = null;
+  }
+
+  private _onCreateEventTap(e: CustomEvent<{ day: Date; startHour: number }>) {
+    const { day, startHour } = e.detail;
+    this._createDay = day;
+    this._createStartHour = startHour;
+  }
+
+  private _closeCreatePopover() {
+    this._createDay = null;
+  }
+
+  private _onEventCreated(e: CustomEvent<{ entityId: string; event: CalendarEvent }>) {
+    const { event } = e.detail;
+    this._pendingEvents = [...this._pendingEvents, event];
+    this._recompute();
+    this._closeCreatePopover();
   }
 
   private _navWeek(delta: number) {
@@ -302,12 +352,17 @@ export class LucarneCalendarCard extends LitElement {
           ></lucarne-visibility-pills>
         </div>
 
-        <div class="grid-area" @lucarne-event-tap=${this._onEventTap}>
+        <div
+          class="grid-area"
+          @lucarne-event-tap=${this._onEventTap}
+          @lucarne-create-event-tap=${this._onCreateEventTap}
+        >
           <lucarne-calendar-grid
             .layout=${this._layout}
             .bandStart=${bandStart}
             .bandEnd=${bandEnd}
             .calendars=${this._config.calendars}
+            .showCreateButton=${(this._config.show_create_button ?? true) && this._creatableCalendars.length > 0}
           ></lucarne-calendar-grid>
         </div>
 
@@ -319,6 +374,19 @@ export class LucarneCalendarCard extends LitElement {
                 .calendarLabel=${this._openEventCalLabel}
                 @popover-close=${this._closePopover}
               ></lucarne-calendar-event-popover>
+            `
+          : ''}
+
+        ${this._createDay !== null
+          ? html`
+              <lucarne-create-event-popover
+                .hass=${this.hass}
+                .day=${this._createDay}
+                .startHour=${this._createStartHour}
+                .calendars=${this._creatableCalendars}
+                @popover-close=${this._closeCreatePopover}
+                @lucarne-event-created=${this._onEventCreated}
+              ></lucarne-create-event-popover>
             `
           : ''}
       </ha-card>

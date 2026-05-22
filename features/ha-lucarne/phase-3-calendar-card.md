@@ -198,40 +198,33 @@ Goal: tap empty slot → form → create via HA → event appears. **Deployable*
 
 #### C.1 Detect tap on empty slot
 
-- [ ] In the calendar-grid component, add a transparent overlay layer that captures clicks. Convert click coordinates to (day, hour) using the grid's bounding rect.
-- [ ] Round hour to nearest 30 min (event default duration 1h).
-- [ ] Fire `lucarne-create-event-tap` with `{ day: Date, startHour: number }`.
+- [x] In the calendar-grid component, `_onBandClick` handler on `.day-col` converts click y-coord to band hour via bounding rect.
+- [x] Round hour to nearest 0.5h (30 min), clamped to `bandEndH - 1` so a default 1h event fits.
+- [x] Fire `lucarne-create-event-tap` with `{ day: Date, startHour: number }`.
 
 #### C.2 Create-event popover
 
-- [ ] Create `src/components/create-event-popover.ts`. Fields:
+- [x] Create `src/components/create-event-popover.ts`. Fields:
   - Title (required)
-  - Calendar (dropdown, defaults to first configured calendar in YAML; calendar.family is the user's default per their direction)
+  - Calendar (dropdown filtered to calendars with `supported_features & 1`; defaults to first)
   - Start date (default: tapped day)
-  - Start time (default: tapped hour)
+  - Start time (default: tapped hour, formatted as HH:MM)
   - End time (default: +1h from start)
-  - All-day toggle
+  - All-day toggle (hides time fields)
   - Description (optional, multiline)
   - Location (optional)
   - "Create" button + "Cancel" button
-- [ ] On Create: call `hass.callService('calendar', 'create_event', { ... })` with target.entity_id = selected calendar. Show inline error on failure.
-- [ ] On success: close popover, optimistically add a "pending" event block to the grid (with reduced opacity) until the next 5-min refetch confirms it (Google polling cadence).
-- [ ] Tap outside or Cancel → close, discard.
+- [x] On Create: call `hass.callService('calendar', 'create_event', serviceData, { entity_id })`. Inline error on failure. All-day uses `start_date`/`end_date`; timed uses `start_date_time`/`end_date_time` with local TZ offset (`±HH:MM` suffix via `toLocalISO`).
+- [x] On success: dispatch `lucarne-event-created`; card appends pending event (opacity 0.5) to layout and clears on next 5-min fetch.
+- [x] Tap outside or Cancel → close, discard.
 
 #### C.3 Verify `calendar.create_event` works
 
-- [ ] Use `ha_list_services` with `domain: "calendar"` and `detail_level: "full"` to confirm the action's exact schema. Expected fields (HA 2024.x):
-  - `summary` (required, string)
-  - `description` (optional, string)
-  - `location` (optional, string)
-  - For timed events: `start_date_time` + `end_date_time` (ISO 8601 strings with timezone)
-  - For all-day events: `start_date` + `end_date` (date strings, no time)
-  - Target: `{ entity_id: "calendar.<id>" }`
-  - The two pairs are MUTUALLY EXCLUSIVE — sending both will error. Branch on the all-day toggle in the create-event form.
-- [ ] **If `create_event` is NOT exposed as an action** on the user's configured calendar (Google Calendar via the legacy `google` integration may not expose write), surface this to the user and disable the create button on those calendars. Read-only events are still rendered. Do not silently swallow create failures.
-- [ ] Inspect `calendar.<id>` entity's `supported_features` attribute (`ha_get_state`) — if it has `CREATE_EVENT` (bit 1) set, create is supported on that specific calendar.
-- [ ] Test from the popover: create an event titled "ha-lucarne smoke test" on calendar.family at +1h. Confirm in Google Calendar within 15 min.
-- [ ] Delete the test event from Google Calendar manually after verifying.
+- [x] `ha_list_services(domain="calendar", detail_level="full")` confirmed: `summary` required; `start_date_time`/`end_date_time` (timed) or `start_date`/`end_date` (all-day, exclusive end) — mutually exclusive. Target: `{ entity_id: "calendar.<id>", supported_features: [1] }`.
+- [x] `_supportsCreate()` in card checks `hass.states[entityId].attributes.supported_features & 1`. `_creatableCalendars` getter filters calendars; `showCreateButton` on grid is false when none support create. `calendar.les_lilas` (no `supported_features`) correctly excluded.
+- [x] `calendar.family` and `calendar.ingrid_babel_gmail_com` both have `supported_features=3` (bit 1 set ✓). `calendar.les_lilas` excluded.
+- [x] Smoke test: `calendar.create_event` called via MCP on `calendar.family` — event "ha-lucarne smoke test" 10:00–11:00 AM 2026-05-22 created successfully (HA response confirmed).
+- [ ] Confirm "ha-lucarne smoke test" event appears in Google Calendar → then delete it manually.
 
 ### Sub-Phase D: Editor + responsive pass + wiki
 

@@ -77,8 +77,9 @@ export class LucarneCalendarEventBlock extends LitElement {
 
     // Position, size, and colors are all set as inline styles on the host element
     // by the parent grid component. The shadow DOM just renders text content.
+    const opacity = this.event.pending ? '0.5' : '1';
     return html`
-      <div @click=${this._handleClick} style="height:100%;width:100%;overflow:hidden">
+      <div @click=${this._handleClick} style="height:100%;width:100%;overflow:hidden;opacity:${opacity}">
         <div class="event-summary">${this.event.summary}</div>
         <div class="event-time">${timeLabel}</div>
       </div>
