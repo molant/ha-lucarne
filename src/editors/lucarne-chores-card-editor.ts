@@ -3,6 +3,7 @@ import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, KidConfig } from '../shared/types.js';
 import type { LucarneChoresCardConfig } from '../cards/lucarne-chores-card.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
+import { ensureHaFormElements } from '../shared/ha-elements.js';
 import { fireEvent } from 'custom-card-helpers';
 
 @customElement('lucarne-chores-card-editor')
@@ -114,11 +115,27 @@ export class LucarneChoresCardEditor extends LitElement {
       button.add:hover {
         background: rgba(0, 0, 0, 0.04);
       }
+      .loading {
+        color: var(--lucarne-on-surface-muted);
+        font-size: var(--lucarne-fs-sm);
+        text-align: center;
+        padding: var(--lucarne-spacing-lg);
+      }
     `,
   ];
 
   @property({ attribute: false }) hass!: HomeAssistant;
   @state() private _config?: LucarneChoresCardConfig;
+  @state() private _haReady = false;
+
+  connectedCallback() {
+    super.connectedCallback();
+    ensureHaFormElements()
+      .catch((err) => console.warn('[lucarne] HA editor elements load failed; rendering anyway', err))
+      .then(() => {
+        this._haReady = true;
+      });
+  }
 
   setConfig(config: LucarneChoresCardConfig) {
     this._config = config;
@@ -212,6 +229,7 @@ export class LucarneChoresCardEditor extends LitElement {
 
   render() {
     if (!this._config) return html``;
+    if (!this._haReady) return html`<div class="loading">Loading editor…</div>`;
     const kids = this._config.kids ?? [];
 
     return html`
@@ -239,7 +257,7 @@ export class LucarneChoresCardEditor extends LitElement {
                   @change=${(e: Event) => this._kidFieldChanged(kidIdx, 'avatar', e)}
                 ></ha-textfield>
               </div>
-              <button class="remove" @click=${() => this._removeKid(kidIdx)} title="Remove kid">✕</button>
+              <button type="button" class="remove" @click=${() => this._removeKid(kidIdx)} title="Remove kid">✕</button>
             </div>
 
             <div class="color-row">
@@ -277,15 +295,15 @@ export class LucarneChoresCardEditor extends LitElement {
                     allow-custom-entity
                     @value-changed=${(e: CustomEvent) => this._choreEntityChanged(kidIdx, choreIdx, e)}
                   ></ha-entity-picker>
-                  <button class="remove" @click=${() => this._removeChore(kidIdx, choreIdx)} title="Remove">✕</button>
+                  <button type="button" class="remove" @click=${() => this._removeChore(kidIdx, choreIdx)} title="Remove">✕</button>
                 </div>
               `,
             )}
-            <button class="add" @click=${() => this._addChore(kidIdx)}>+ Add chore</button>
+            <button type="button" class="add" @click=${() => this._addChore(kidIdx)}>+ Add chore</button>
           </div>
         `,
       )}
-      <button class="add" @click=${this._addKid}>+ Add kid</button>
+      <button type="button" class="add" @click=${this._addKid}>+ Add kid</button>
     `;
   }
 }

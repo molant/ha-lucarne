@@ -2,6 +2,8 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { fetchCalendarEvents } from '../shared/ha-subscriptions.js';
+import { installPreviewColumnOverride, type PreviewOverrideHandle } from '../shared/grid-preview-override.js';
+import { resolveCalendars, resolveCalendarLabel } from '../shared/calendar-helpers.js';
 import { layoutEvents } from '../shared/calendar-layout.js';
 import { startOfWeek, endOfWeek } from '../shared/date-helpers.js';
 import type { HomeAssistant, CalendarConfig, CalendarEvent } from '../shared/types.js';
@@ -111,6 +113,7 @@ export class LucarneCalendarCard extends LitElement {
 
   private _intervalId?: ReturnType<typeof setInterval>;
   private _fetchSeq = 0;
+  private _previewOverride?: PreviewOverrideHandle | null;
   private _rawEvents: Map<string, CalendarEvent[]> = new Map();
   private _pendingEvents: CalendarEvent[] = [];
 
@@ -119,8 +122,8 @@ export class LucarneCalendarCard extends LitElement {
       throw new Error('lucarne-calendar-card: "calendars" must be a non-empty array');
     }
     for (const cal of config.calendars) {
-      if (!cal.entity || !cal.color || !cal.label) {
-        throw new Error('lucarne-calendar-card: each calendar requires "entity", "color", and "label"');
+      if (!cal.entity || !cal.color) {
+        throw new Error('lucarne-calendar-card: each calendar requires "entity" and "color"');
       }
     }
     // Normalize visible_hours to whole-hour boundaries — band math only operates on integer hours
@@ -160,12 +163,11 @@ export class LucarneCalendarCard extends LitElement {
     const calendars: CalendarConfig[] = calIds.map((id, i) => ({
       entity: id,
       color: palettes[i] ?? '#a8d8b9',
-      label: hass.states[id]?.attributes?.['friendly_name'] ?? id,
     }));
     return {
       type: 'custom:lucarne-calendar-card',
       title: 'Calendar',
-      calendars: calendars.length ? calendars : [{ entity: 'calendar.example', color: '#a8d8b9', label: 'Calendar' }],
+      calendars: calendars.length ? calendars : [{ entity: 'calendar.example', color: '#a8d8b9' }],
       visible_hours: { start: '07:00', end: '21:00' },
       week_starts_on: 'monday',
       show_create_button: true,
@@ -187,11 +189,16 @@ export class LucarneCalendarCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._setup();
+    requestAnimationFrame(() => {
+      this._previewOverride = installPreviewColumnOverride(this);
+    });
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this._teardown();
+    this._previewOverride?.uninstall();
+    this._previewOverride = undefined;
   }
 
   updated(changedProps: Map<string, unknown>) {
@@ -295,7 +302,7 @@ export class LucarneCalendarCard extends LitElement {
     if (event.uid?.includes('::')) {
       const entityId = event.uid.split('::')[0];
       const cal = this._config?.calendars.find((c) => c.entity === entityId);
-      this._openEventCalLabel = cal?.label ?? '';
+      this._openEventCalLabel = cal ? resolveCalendarLabel(cal, this.hass) : '';
     } else {
       this._openEventCalLabel = '';
     }
@@ -341,6 +348,8 @@ export class LucarneCalendarCard extends LitElement {
     if (!this._config) return html``;
     const bandStart = this._config.visible_hours?.start ?? '07:00';
     const bandEnd = this._config.visible_hours?.end ?? '21:00';
+    const resolvedCalendars = resolveCalendars(this._config.calendars, this.hass);
+    const resolvedCreatable = resolveCalendars(this._creatableCalendars, this.hass);
 
     return html`
       <ha-card>
@@ -355,7 +364,7 @@ export class LucarneCalendarCard extends LitElement {
 
         <div class="pills-row">
           <lucarne-visibility-pills
-            .calendars=${this._config.calendars}
+            .calendars=${resolvedCalendars}
             .visibleIds=${this._visibleIds}
             @visibility-change=${this._onVisibilityChange}
           ></lucarne-visibility-pills>
@@ -370,7 +379,7 @@ export class LucarneCalendarCard extends LitElement {
             .layout=${this._layout}
             .bandStart=${bandStart}
             .bandEnd=${bandEnd}
-            .calendars=${this._config.calendars}
+            .calendars=${resolvedCalendars}
             .showCreateButton=${(this._config.show_create_button ?? true) && this._creatableCalendars.length > 0}
           ></lucarne-calendar-grid>
         </div>
@@ -392,7 +401,7 @@ export class LucarneCalendarCard extends LitElement {
                 .hass=${this.hass}
                 .day=${this._createDay}
                 .startHour=${this._createStartHour}
-                .calendars=${this._creatableCalendars}
+                .calendars=${resolvedCreatable}
                 @popover-close=${this._closeCreatePopover}
                 @lucarne-event-created=${this._onEventCreated}
               ></lucarne-create-event-popover>

@@ -45,5 +45,11 @@ export interface PersonPresence {
 export interface CalendarConfig {
   entity: string;
   color: string;
-  label: string;
+  /**
+   * Deprecated and ignored at display time. Previously a per-card label
+   * override; the cards now read the calendar entity's `friendly_name`
+   * (editable via Settings → Devices & services → Entities). Kept in the
+   * type so old saved configs / YAML still parse without errors.
+   */
+  label?: string;
 }

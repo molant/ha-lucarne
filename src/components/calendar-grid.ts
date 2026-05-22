@@ -25,7 +25,6 @@ export class LucarneCalendarGrid extends LitElement {
     css`
       :host {
         display: block;
-        overflow: auto;
         position: relative;
       }
       .grid-wrapper {
@@ -354,7 +353,7 @@ export class LucarneCalendarGrid extends LitElement {
               class="day-header ${isSameDay(day, now) ? 'today' : ''}"
               style="grid-column: ${idx + 2}"
             >
-              <div>${weekdayFmt.format(day).toUpperCase()}</div>
+              <div>${weekdayFmt.format(day)}</div>
               <div class="day-num">${day.getDate()}</div>
             </div>
           `,

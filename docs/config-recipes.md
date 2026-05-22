@@ -20,18 +20,18 @@ views:
   - title: Family
     path: family
     cards:
+      # Calendar display names come from each calendar entity's friendly_name in HA.
+      # The `label:` field is deprecated and ignored — rename via Settings →
+      # Devices & services → Entities.
       - type: custom:lucarne-today-card
         title: Today
         calendars:
           - entity: calendar.family
             color: "#a8d8b9"
-            label: Family
           - entity: calendar.partner_a
             color: "#a8c5e8"
-            label: A
           - entity: calendar.partner_b
             color: "#c8b4e0"
-            label: B
         weather: weather.forecast_home
         tasks: todo.shared_tasks
         presence:
@@ -45,13 +45,10 @@ views:
         calendars:
           - entity: calendar.family
             color: "#a8d8b9"
-            label: Family
           - entity: calendar.partner_a
             color: "#a8c5e8"
-            label: A
           - entity: calendar.partner_b
             color: "#c8b4e0"
-            label: B
         visible_hours:
           start: "07:00"
           end:   "22:00"
@@ -146,7 +143,6 @@ type: custom:lucarne-today-card
 calendars:
   - entity: calendar.personal
     color: "#a8c5e8"
-    label: Me
 tasks: todo.shared_tasks    # any local_todo entity — no bridge needed
 ```
 
