@@ -1,1 +1,2 @@
-import "./cards/lucarne-today-card";
+import './cards/lucarne-today-card';
+import './editors/lucarne-today-card-editor';

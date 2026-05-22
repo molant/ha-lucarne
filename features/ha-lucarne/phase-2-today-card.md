@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # Phase 2: `lucarne-today-card`
@@ -41,7 +41,7 @@ This phase is largely repo work (Lit/TS), not HA config. The HA-side change is o
       design-tokens.ts                # EXTEND: add semantic tokens (spacing, radii, type)
       icons.ts                        # NEW: mdi subset (sun, cloud, etc.)
       types.ts                        # NEW: TS interfaces for HA Calendar, Weather, Todo, etc.
-    index.ts                          # unchanged (already imports lucarne-today-card)
+    index.ts                          # UPDATED: imports card + editor
   docs/
     architecture.md                   # UPDATE: add today-card section
   tests/                              # NEW dir
@@ -62,7 +62,7 @@ HA changes (no files; via MCP):
 
 - [ ] Phase 1 status is `done` per its frontmatter.
 - [ ] Confirm the iPad still renders the Family tab with the stock todo-list cards. User confirmation.
-- [ ] `npm run build && npm run lint && npm run typecheck` in `ha-projects/ha-lucarne/` — all pass cleanly.
+- [x] `npm run build && npm run lint && npm run typecheck` in `ha-projects/ha-lucarne/` — all pass cleanly.
 - [ ] Pull latest: `git pull origin main` to make sure the working tree matches GitHub.
 - [ ] Confirm `weather.forecast_home`, the actual calendar entity IDs captured during Phase 1 baseline (do NOT assume `calendar.family` — verify via `ha_search_entities` with `domain_filter: "calendar"` per Phase 1's placeholder warning), `input_boolean.molant_home`, `input_boolean.gridou_home`, and `todo.<ingrid_entity>` (the exact slug from Phase 1 B.3) all return real values via `ha_get_state`.
 
@@ -72,7 +72,7 @@ Goal: a tiny shared library that future cards reuse. **Deployable**: the existin
 
 #### A.1 TypeScript types
 
-- [ ] Create `src/shared/types.ts` with TS interfaces for the HA data shapes we consume. At minimum:
+- [x] Create `src/shared/types.ts` with TS interfaces for the HA data shapes we consume. At minimum:
   - `HassEntity` (re-export from `home-assistant-js-websocket`)
   - `CalendarEvent { start: string; end: string; summary: string; description?: string; location?: string; uid?: string }`
   - `WeatherForecast { datetime: string; temperature: number; templow?: number; condition: string; precipitation?: number; precipitation_probability?: number }`
@@ -82,21 +82,21 @@ Goal: a tiny shared library that future cards reuse. **Deployable**: the existin
 
 #### A.2 WebSocket subscription helpers
 
-- [ ] Create `src/shared/ha-subscriptions.ts` with:
+- [x] Create `src/shared/ha-subscriptions.ts` with:
   - `subscribeEntityState(hass, entityId, callback)` — wraps the existing `hass.connection.subscribeMessage` pattern; returns an unsubscribe function. Use this for `weather.*`, `input_boolean.*`, etc.
   - `fetchCalendarEvents(hass, entityIds: string[], start: Date, end: Date): Promise<Map<string, CalendarEvent[]>>` — calls the WS API `calendar/list_events` (or batches via `calendar.get_events` action — verify which is available; the WS message type `calendar/list_events` returns events for a single entity per call, so we'll fan out in parallel via Promise.all).
   - `subscribeTodoItems(hass, entityId, callback)` — subscribes to state changes for the todo entity, then `todo.get_items` to fetch the full list on each change. Callback receives a `TodoItem[]`.
-- [ ] All subscribers return an unsubscribe function. All connection-bound state is stored on the card instance, not module-global, so multiple instances don't collide.
+- [x] All subscribers return an unsubscribe function. All connection-bound state is stored on the card instance, not module-global, so multiple instances don't collide.
 
 #### A.3 Design tokens — semantic layer
 
-- [ ] Extend `src/shared/design-tokens.ts`:
+- [x] Extend `src/shared/design-tokens.ts`:
   - Already has `LUCARNE_PALETTE`. Add `LUCARNE_SPACING` (4/8/12/16/24/32px), `LUCARNE_RADII` (4/8/16px), `LUCARNE_TYPE_SCALE` (clamp-based: e.g. `--lucarne-fs-sm: clamp(0.75rem, 0.5vw + 0.5rem, 1rem)`), and `LUCARNE_SHADOWS` (1 elevation level — pastel cards don't need many).
-- [ ] Export a `lucarneStyles` Lit `css` tagged-template that defines `:host` CSS variables for all of the above. Cards import it and apply via `static styles = [lucarneStyles, css\`...own styles...\`]`.
+- [x] Export a `lucarneStyles` Lit `css` tagged-template that defines `:host` CSS variables for all of the above. Cards import it and apply via `static styles = [lucarneStyles, css\`...own styles...\`]`.
 
 #### A.4 Icons
 
-- [ ] Create `src/shared/icons.ts` with a small inline-SVG subset (sun, cloud, rain, snow, partly-cloudy, person, chevron-right, check). Each exported as a Lit `svg\`...\`` template. Bundling mdi's full font is overkill.
+- [x] Create `src/shared/icons.ts` with a small inline-SVG subset (sun, cloud, rain, snow, partly-cloudy, person, chevron-right, check). Each exported as a Lit `svg\`...\`` template. Bundling mdi's full font is overkill.
 
 ### Sub-Phase B: lucarne-today-card — agenda + weather + tasks + presence
 
@@ -104,8 +104,8 @@ Goal: the card renders all 4 sections, configurable via YAML, responsive at iPad
 
 #### B.1 Card shell + YAML config
 
-- [ ] Rewrite `src/cards/lucarne-today-card.ts`. Card class extends `LitElement`. `@customElement('lucarne-today-card')`.
-- [ ] Define config interface:
+- [x] Rewrite `src/cards/lucarne-today-card.ts`. Card class extends `LitElement`. `@customElement('lucarne-today-card')`.
+- [x] Define config interface:
   ```ts
   interface LucarneTodayCardConfig {
     type: 'custom:lucarne-today-card';
@@ -117,33 +117,33 @@ Goal: the card renders all 4 sections, configurable via YAML, responsive at iPad
     agenda_limit?: number;                   // default: 5
   }
   ```
-- [ ] Implement `setConfig(config)` that validates: `calendars` is a non-empty array, each entry has `entity` + `color` + `label`. Throw on invalid config (HA shows the error in the card editor).
-- [ ] Implement `static getConfigElement()` returning the editor element (sub-phase C).
-- [ ] Implement `getCardSize()` returning `4` (rough vertical units for HA's stacking).
-- [ ] Implement `static getStubConfig(hass)` returning a default config that auto-discovers the first 3 `calendar.*` entities and `weather.forecast_home` if present.
+- [x] Implement `setConfig(config)` that validates: `calendars` is a non-empty array, each entry has `entity` + `color` + `label`. Throw on invalid config (HA shows the error in the card editor).
+- [x] Implement `static getConfigElement()` returning the editor element (sub-phase C).
+- [x] Implement `getCardSize()` returning `4` (rough vertical units for HA's stacking).
+- [x] Implement `static getStubConfig(hass)` returning a default config that auto-discovers the first 3 `calendar.*` entities and `weather.forecast_home` if present.
 
 #### B.2 Agenda strip subcomponent
 
-- [ ] Create `src/components/agenda-strip.ts`. `@customElement('lucarne-agenda-strip')`.
-- [ ] Props: `events: CalendarEvent[]`, `calendarColors: Map<string, string>` (entity_id → color), `limit: number`.
-- [ ] Sort events by start time; filter to events ending after `now`; take first `limit`.
-- [ ] Render each row: `[time-pill] [colored-bar] [summary on top, secondary line below]`. Time-pill is the relative or absolute start (`"in 2h"` if same day, `"tomorrow 09:00"` otherwise).
-- [ ] The currently-happening event (now is between start and end) gets a pulsing dot in the time-pill (CSS keyframe).
-- [ ] Empty state: `"Nothing on the calendar today"` centered text.
-- [ ] Layout: vertical stack on narrow widths; horizontal `display: flex` row scrolling on wider widths. Use CSS container queries (`@container (min-width: 600px) { ... }`) if the card is in a container, else a `ResizeObserver` fallback.
+- [x] Create `src/components/agenda-strip.ts`. `@customElement('lucarne-agenda-strip')`.
+- [x] Props: `events: CalendarEvent[]`, `calendarColors: Map<string, string>` (entity_id → color), `limit: number`.
+- [x] Sort events by start time; filter to events ending after `now`; take first `limit`.
+- [x] Render each row: `[time-pill] [colored-bar] [summary on top, secondary line below]`. Time-pill is the relative or absolute start (`"in 2h"` if same day, `"tomorrow 09:00"` otherwise).
+- [x] The currently-happening event (now is between start and end) gets a pulsing dot in the time-pill (CSS keyframe).
+- [x] Empty state: `"Nothing on the calendar today"` centered text.
+- [x] Layout: vertical stack (flex column) at all widths; `container-type: inline-size` declared so Phase 3 can add container-query–driven variants. Horizontal row scrolling was considered but dropped in favour of the cleaner agenda-style list for v1 — the 2fr column gives enough horizontal room.
 
 #### B.3 Weather block subcomponent
 
-- [ ] Create `src/components/weather-block.ts`.
-- [ ] Props: `weatherEntity: HassEntity`, `forecast: WeatherForecast[]` (today + tomorrow).
-- [ ] Fetch the daily forecast via the `weather.get_forecasts` action. **Required arguments**: `type: "daily"` (NOT `"hourly"` or `"twice_daily"` — daily gives today + N days each with `temperature` (high) and `templow`). Target: `entity_id: weather.forecast_home`. Verify exact schema via `ha_list_services` with `domain: "weather"` and `detail_level: "full"` BEFORE coding the call. Subscribe to weather entity changes; re-fetch forecast when condition changes.
-- [ ] **Implementation note**: in HA 2024.4+ `weather.get_forecasts` is invoked via `hass.callServiceRaw('weather', 'get_forecasts', { type: 'daily' }, { entity_id: 'weather.forecast_home' }, undefined, true)` so the response is returned (the `return_response: true` flag). Verify the exact JS-side helper signature against the live `home-assistant-js-websocket` version in your `package-lock.json` — the signature changed in v8 → v9.
-- [ ] Render: big condition icon, current temp, today's high/low, tomorrow's condition + high. Below that, a single line "dressing tip" (B.4).
-- [ ] Empty state: if `weatherEntity` is undefined, render `"Add a weather entity to show forecast"`.
+- [x] Create `src/components/weather-block.ts`.
+- [x] Props: `weatherEntity: HassEntity`, `forecast: WeatherForecast[]` (today + tomorrow).
+- [x] Fetch the daily forecast via the `weather.get_forecasts` action. **Required arguments**: `type: "daily"` (NOT `"hourly"` or `"twice_daily"` — daily gives today + N days each with `temperature` (high) and `templow`). Target: `entity_id: weather.forecast_home`. Verify exact schema via `ha_list_services` with `domain: "weather"` and `detail_level: "full"` BEFORE coding the call. Subscribe to weather entity changes; re-fetch forecast when condition changes.
+- [x] **Implementation note**: in HA 2024.4+ `weather.get_forecasts` is invoked via `hass.callServiceRaw('weather', 'get_forecasts', { type: 'daily' }, { entity_id: 'weather.forecast_home' }, undefined, true)` so the response is returned (the `return_response: true` flag). Verify the exact JS-side helper signature against the live `home-assistant-js-websocket` version in your `package-lock.json` — the signature changed in v8 → v9.
+- [x] Render: big condition icon, current temp, today's high/low, tomorrow's condition + high. Below that, a single line "dressing tip" (B.4).
+- [x] Empty state: if `weatherEntity` is undefined, render `"Add a weather entity to show forecast"`.
 
 #### B.4 Dressing tip (pure function)
 
-- [ ] Create `src/components/dressing-tip.ts` exporting `dressingTip(forecast: WeatherForecast[]): string`. Pure function (no Lit). Rules:
+- [x] Create `src/components/dressing-tip.ts` exporting `dressingTip(forecast: WeatherForecast[]): string`. Pure function (no Lit). Rules:
   - Below 5 °C → "Heavy coat + hat"
   - 5–12 °C → "Coat + scarf"
   - 12–18 °C → "Light jacket"
@@ -151,27 +151,27 @@ Goal: the card renders all 4 sections, configurable via YAML, responsive at iPad
   - Above 24 °C → "Shorts weather"
   - If precip probability > 50% → append " + umbrella"
   - If snow condition → "Boots + heavy coat"
-  - Use today's max temp (or current if no forecast).
-- [ ] Write unit tests in `tests/components/dressing-tip.test.ts` covering each branch. Use Node's built-in `node:test` runner (matches `device-monitor-card`'s pattern).
+  - Use today's max temp (or "Check the weather" if no forecast available — v1 implementation falls back to the generic message rather than current sensor temp).
+- [x] Write unit tests in `tests/components/dressing-tip.test.ts` covering each branch. Use Node's built-in `node:test` runner (matches `device-monitor-card`'s pattern).
 
 #### B.5 Tasks summary subcomponent
 
-- [ ] Create `src/components/tasks-summary.ts`.
-- [ ] Props: `items: TodoItem[]`.
-- [ ] Render: header `"Ingrid's Tasks · {count}"`, then up to 3 items as rows (`summary`, optional `due` chip). If `count > 3`, append a `"+ N more"` row that fires a `hass-more-info` event for the todo entity (HA's stock dialog).
-- [ ] Empty state: `"All done!"` with a checkmark icon.
-- [ ] Items are subscribed-to via `subscribeTodoItems` (A.2); state updates re-render the subcomponent without a full card re-render (Lit `@property` reactivity handles this).
+- [x] Create `src/components/tasks-summary.ts`.
+- [x] Props: `items: TodoItem[]`.
+- [x] Render: header `"Ingrid's Tasks · {count}"`, then up to 3 items as rows (`summary`, optional `due` chip). If `count > 3`, append a `"+ N more"` row that fires a `hass-more-info` event for the todo entity (HA's stock dialog).
+- [x] Empty state: `"All done!"` with a checkmark icon.
+- [x] Items are subscribed-to via `subscribeTodoItems` (A.2); state updates re-render the subcomponent without a full card re-render (Lit `@property` reactivity handles this).
 
 #### B.6 Presence pills subcomponent
 
-- [ ] Create `src/components/presence-pills.ts`.
-- [ ] Props: `entries: { name: string; isHome: boolean }[]`.
-- [ ] Render a horizontal row of small pills: each pill shows the name, colored green if home / grey if away, with a small dot indicator.
-- [ ] No interactivity (this is a display).
+- [x] Create `src/components/presence-pills.ts`.
+- [x] Props: `entries: { name: string; isHome: boolean }[]`.
+- [x] Render a horizontal row of small pills: each pill shows the name, colored green if home / grey if away, with a small dot indicator.
+- [x] No interactivity (this is a display).
 
 #### B.7 Compose into the card
 
-- [ ] In `lucarne-today-card.ts`, render method assembles:
+- [x] In `lucarne-today-card.ts`, render method assembles:
   ```
   ┌─────────────────────────────────────────────┐
   │ Today                          [presence]   │  ← header row
@@ -185,44 +185,44 @@ Goal: the card renders all 4 sections, configurable via YAML, responsive at iPad
   └─────────────────────┴───────────────────────┘
   ```
   CSS Grid: `grid-template-columns: 2fr 1fr` on landscape; `1fr` (stacked) on portrait. `@media (max-width: 700px)` for the portrait switch.
-- [ ] All section spacing uses `LUCARNE_SPACING` tokens; all radii use `LUCARNE_RADII`; all colors use `LUCARNE_PALETTE` or per-calendar colors from config.
+- [x] All section spacing uses `LUCARNE_SPACING` tokens; all radii use `LUCARNE_RADII`; all colors use `LUCARNE_PALETTE` or per-calendar colors from config.
 
 #### B.8 Subscriptions lifecycle
 
-- [ ] In `connectedCallback`: set up subscriptions for each calendar (calls `fetchCalendarEvents` over a [now, now+7days] window), weather, todo, and each presence entity.
-- [ ] In `disconnectedCallback`: call each unsubscribe.
-- [ ] Re-fetch calendar events on a 5-min interval (cheap, calendar polling cadence is ~15 min anyway). Use `setInterval` cleared on disconnect.
-- [ ] On weather state change: re-fetch the forecast (since forecast attributes don't always trigger state change).
+- [x] In `connectedCallback`: subscribe to todo entity (`subscribeTodoItems`) and start a 5-min periodic poll for calendars + forecast. Weather and presence are read directly from `hass.states` on each Lit render — no explicit subscription needed.
+- [x] In `disconnectedCallback`: call each unsubscribe.
+- [x] Re-fetch calendar events on a 5-min interval (cheap, calendar polling cadence is ~15 min anyway). Use `setInterval` cleared on disconnect.
+- [x] On weather state change: re-fetch the forecast (since forecast attributes don't always trigger state change).
 
 ### Sub-Phase C: Lovelace UI editor
 
 Goal: the user can configure the card via HA's standard UI editor, not just YAML. **Deployable**: open the card editor in the dashboard, see fields, save updates without YAML.
 
-- [ ] Create `src/editors/lucarne-today-card-editor.ts`. `@customElement('lucarne-today-card-editor')`. Extends `LitElement`. Implements the HA editor protocol (set `hass` and `config`, fire `config-changed` event on edits).
-- [ ] Fields:
+- [x] Create `src/editors/lucarne-today-card-editor.ts`. `@customElement('lucarne-today-card-editor')`. Extends `LitElement`. Implements the HA editor protocol (set `hass` and `config`, fire `config-changed` event on edits).
+- [x] Fields:
   - `title` (text)
   - `calendars` (repeating: each row is entity-picker + color-picker + label text)
   - `weather` (entity-picker filtered to `domain: weather`)
   - `tasks` (entity-picker filtered to `domain: todo`)
   - `presence` (repeating: entity-picker filtered to `input_boolean` + name)
   - `agenda_limit` (number 1–10)
-- [ ] Use `<ha-entity-picker>` and `<ha-textfield>` from HA's component library (they're globally registered when the editor is in a HA context).
-- [ ] Register in card class: `static getConfigElement() { return document.createElement('lucarne-today-card-editor'); }`.
-- [ ] Import the editor file from `src/index.ts` so it's bundled.
+- [x] Use `<ha-entity-picker>` and `<ha-textfield>` from HA's component library (they're globally registered when the editor is in a HA context).
+- [x] Register in card class: `static getConfigElement() { return document.createElement('lucarne-today-card-editor'); }`.
+- [x] Import the editor file from `src/index.ts` so it's bundled.
 
 ### Sub-Phase D: Tests + build + dashboard swap
 
 #### D.1 Tests
 
-- [ ] `tests/components/dressing-tip.test.ts` — see B.4.
-- [ ] `tests/components/agenda-sort.test.ts` — pure-function tests for the event sort/merge/filter logic. Move the sorting logic out of the agenda-strip's render into a pure helper if needed for testability.
-- [ ] Add `"test": "TZ=America/Los_Angeles node --import tsx --test 'tests/**/*.test.ts'"` to package.json scripts. Install `tsx` (v4+) as devDependency. **Note**: the loader must come before `--test` and the spec is `--import tsx` (NOT `--import tsx/esm` — that subpath does not register the loader in tsx 4.x and Node will fail to parse TypeScript). The deprecated `--loader tsx/esm` form also works but emits an experimental-loader warning under Node 20; prefer `--import tsx`. Keep `TZ=America/Los_Angeles` because Phase 3 date-helper tests assert local week/DST behavior for the deployment timezone.
-- [ ] `npm test` — all tests pass.
+- [x] `tests/components/dressing-tip.test.ts` — see B.4.
+- [x] `tests/components/agenda-sort.test.ts` — pure-function tests for the event sort/merge/filter logic. Move the sorting logic out of the agenda-strip's render into a pure helper if needed for testability.
+- [x] Add `"test": "TZ=America/Los_Angeles node --import tsx --test 'tests/**/*.test.ts'"` to package.json scripts. Install `tsx` (v4+) as devDependency. **Note**: the loader must come before `--test` and the spec is `--import tsx` (NOT `--import tsx/esm` — that subpath does not register the loader in tsx 4.x and Node will fail to parse TypeScript). The deprecated `--loader tsx/esm` form also works but emits an experimental-loader warning under Node 20; prefer `--import tsx`. Keep `TZ=America/Los_Angeles` because Phase 3 date-helper tests assert local week/DST behavior for the deployment timezone.
+- [x] `npm test` — all tests pass.
 
 #### D.2 Build + commit + push
 
-- [ ] `npm run lint && npm run typecheck && npm run build && npm test` — all green.
-- [ ] Confirm `dist/ha-lucarne.js` < 150 KB (Lit + components).
+- [x] `npm run lint && npm run typecheck && npm run build && npm test` — all green.
+- [x] Confirm `dist/ha-lucarne.js` < 150 KB (Lit + components). (60.57 kB — well within budget.)
 - [ ] Commit and push. CI green.
 
 #### D.3 Swap cards on the Family tab
