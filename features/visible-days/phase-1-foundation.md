@@ -102,29 +102,29 @@ Deployable when: `layoutEvents` accepts a days array; the card calls it with the
 
 #### Tests first (TDD)
 
-- [ ] Update `tests/shared/calendar-layout.test.ts`: change all existing test call sites from `layoutEvents(events, weekStart, '07:00', '21:00', 'monday')` to `layoutEvents(events, days, '07:00', '21:00')` where `days` is built via a small `mkDays(start, n)` helper at the top of the test file.
-- [ ] Add a new test: layout 5 consecutive days starting on a Wednesday — assert `result.days.length === 5` (the `weekDays` field is renamed to `days` in this sub-phase; the existing test on line 24 (`result.weekDays.length === 7`) is updated to `result.days.length === 7`).
-- [ ] Add a new test: layout 3 consecutive days, with an all-day event that spans 7 days — assert the event appears on all 3 visible days.
-- [ ] Add a new test: layout 7 days starting on a date that is NOT a week start (e.g. Wednesday) — assert events on the correct days (no `startOfWeek` snap-back).
+- [x] Update `tests/shared/calendar-layout.test.ts`: change all existing test call sites from `layoutEvents(events, weekStart, '07:00', '21:00', 'monday')` to `layoutEvents(events, days, '07:00', '21:00')` where `days` is built via a small `mkDays(start, n)` helper at the top of the test file.
+- [x] Add a new test: layout 5 consecutive days starting on a Wednesday — assert `result.days.length === 5` (the `weekDays` field is renamed to `days` in this sub-phase; the existing test on line 24 (`result.weekDays.length === 7`) is updated to `result.days.length === 7`).
+- [x] Add a new test: layout 3 consecutive days, with an all-day event that spans 7 days — assert the event appears on all 3 visible days.
+- [x] Add a new test: layout 7 days starting on a date that is NOT a week start (e.g. Wednesday) — assert events on the correct days (no `startOfWeek` snap-back).
 
 #### Implementation
 
-- [ ] Modify `src/shared/calendar-layout.ts`:
+- [x] Modify `src/shared/calendar-layout.ts`:
   - Rename `weekDays` field in `CalendarLayoutResult` to `days` (the term "week" is no longer accurate).
   - Change `layoutEvents` signature: `layoutEvents(events: CalendarEvent[], days: Date[], bandStart: string, bandEnd: string): CalendarLayoutResult`. Remove the `weekStart` and `weekStartsOn` parameters.
   - Remove the internal `weekDays(startOfWeek(weekStart, weekStartsOn))` call; use the passed-in `days` array directly.
   - **Also remove the now-unused imports** at `calendar-layout.ts:2-6`: drop `weekDays` and `startOfWeek` from the `date-helpers` import (keep `eventBandPortion`). This is required for Sub-Phase C to delete the helpers without leaving dangling imports here.
   - Verify the per-day loop and lane-assignment logic is unchanged (it iterates `days`, which was already flexible).
-- [ ] Modify `src/cards/lucarne-calendar-card.ts`:
+- [x] Modify `src/cards/lucarne-calendar-card.ts`:
   - The card does not reference `layout.weekDays` directly today (only the grid component does), so no `weekDays → days` rename is needed here — the change is in the call to `layoutEvents`.
   - **Introduce a `_currentDays(): Date[]` private method** on the card (see Technical Details below for the full body). Both `_recompute` and `_fetchEvents` MUST call `_currentDays()` rather than inlining the 7-day computation — Sub-Phase C deletes `_weekStart`/`_weekEnd` and assumes this single source of truth already exists.
   - In `_recompute`, build the days array via `const days = this._currentDays();` and pass it to `layoutEvents`. Drop the trailing `week_starts_on` argument from the call (see updated `layoutEvents` signature above).
   - In `_fetchEvents`, derive the fetch range from `_currentDays()`: `const days = this._currentDays(); const start = days[0]; const end = new Date(days[6].getTime() + 86_400_000);` (end-exclusive).
-- [ ] Modify `src/components/calendar-grid.ts`:
+- [x] Modify `src/components/calendar-grid.ts`:
   - Replace `this.layout.weekDays` with `this.layout.days` throughout (line 350, 364, 408).
   - Replace `grid-template-columns: 40px repeat(7, minmax(0, 1fr));` (line 32) with `grid-template-columns: 40px repeat(var(--lucarne-day-count, 7), minmax(0, 1fr));`. Keep `min-width: 480px` for now (Phase 2 makes it dynamic).
-- [ ] Run `npm test` — all tests pass.
-- [ ] Run `npm run typecheck` — zero errors.
+- [x] Run `npm test` — all tests pass.
+- [x] Run `npm run typecheck` — zero errors.
 
 ### Sub-Phase C: Delete unused week helpers and `week_starts_on`
 
