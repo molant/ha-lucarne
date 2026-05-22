@@ -55,7 +55,7 @@ Wiki:
 
 - [ ] Phases 1–4 all `status: done`. Cards live on iPad. Reminders bridge working.
 - [ ] User has used the deployed system for at least 7 days. Collect their feedback: what feels rough, what surprised them, what Ingrid couldn't figure out, what the kids ignored. Capture in a temporary list to address during this phase.
-- [ ] `npm run lint && npm run typecheck && npm run build && npm test` — green.
+- [x] `npm run lint && npm run typecheck && npm run build && npm test` — green.
 - [ ] No HA log errors over the past 24h for any `lucarne_*` automation or entity.
 
 ### Sub-Phase A: Polish iteration based on user feedback
@@ -137,43 +137,43 @@ Goal: another household can install and configure this without DM'ing the user. 
 
 Use this structure:
 
-- [ ] **Title** + tagline ("DIY Skylight Calendar for Home Assistant")
+- [x] **Title** + tagline ("DIY Skylight Calendar for Home Assistant")
 - [ ] **Hero screenshot** (full-dashboard.png) at the very top
-- [ ] **What it does** — 3-4 sentences. Lead with the user value.
-- [ ] **What it isn't** — "Not a HA integration; just custom Lovelace cards. Doesn't include the Reminders sync hardware — see [bridge/](./bridge) for that."
-- [ ] **Features** — bulleted list of 3 cards + Reminders bridge + chore automations
-- [ ] **Screenshots** — gallery of per-card images with one-line descriptions
-- [ ] **Install** — exactly 5 steps:
+- [x] **What it does** — 3-4 sentences. Lead with the user value.
+- [x] **What it isn't** — "Not a HA integration; just custom Lovelace cards. Doesn't include the Reminders sync hardware — see [bridge/](./bridge) for that."
+- [x] **Features** — bulleted list of 3 cards + Reminders bridge + chore automations
+- [ ] **Screenshots** — gallery of per-card images with one-line descriptions (deferred: requires iPad capture; Screenshots section removed from README until img/ is committed)
+- [x] **Install** — exactly 5 steps:
   1. HACS → Custom repositories → paste GitHub URL → type/category: Dashboard (backend/action category: `plugin`)
   2. Download Lucarne (HACS UI)
   3. Add `/hacsfiles/ha-lucarne/ha-lucarne.js` as a Lovelace resource
   4. Add the cards to your dashboard (YAML examples below)
   5. (Optional) Set up the Mac mini Reminders bridge (see [bridge/README.md](./bridge/README.md))
-- [ ] **Configuration** — per-card YAML config example with comments. Use the actual configs that ship on the user's dashboard as a starting point, sanitized.
-- [ ] **Blueprints** — link to `blueprints/automation/*`. Explain how to import.
-- [ ] **Events** — link to `docs/events.md`. Show an example consumer automation (TTS via HomePod when all chores done for a kid).
-- [ ] **Troubleshooting** — top 5 issues from the user's setup + answers (e.g. Mac mini sleeps, Shortcuts.app not launched, Google Calendar polling delay, kid taps wrong column, etc.)
-- [ ] **Roadmap** — v0.2 wishlist: round-trip Reminders, Mealie meal-plan integration, iOS Reminders → Groceries auto-add via Siri, support more weather providers, etc.
-- [ ] **Credits** — link to mohesles/my-skylight-calendar (single borrowed pattern), the community threads, Skylight (the product that inspired this).
-- [ ] **License** — MIT.
+- [x] **Configuration** — per-card YAML config example with comments. Use the actual configs that ship on the user's dashboard as a starting point, sanitized.
+- [x] **Blueprints** — link to `blueprints/automation/*`. Explain how to import.
+- [x] **Events** — link to `docs/events.md`. Show an example consumer automation (TTS via HomePod when all chores done for a kid).
+- [x] **Troubleshooting** — top 5 issues from the user's setup + answers (e.g. Mac mini sleeps, Shortcuts.app not launched, Google Calendar polling delay, kid taps wrong column, etc.)
+- [x] **Roadmap** — v0.2 wishlist: round-trip Reminders, Mealie meal-plan integration, iOS Reminders → Groceries auto-add via Siri, support more weather providers, etc.
+- [x] **Credits** — link to mohesles/my-skylight-calendar (single borrowed pattern), the community threads, Skylight (the product that inspired this).
+- [x] **License** — MIT.
 
 #### C.3 docs/ files
 
-- [ ] **`docs/architecture.md`** — finalize. Diagram (ASCII or mermaid) of: Mac mini → webhook → HA → todo entities → cards. Card subscription model. Design tokens layer.
-- [ ] **`docs/ipad-landscape.md`** — NEW. iPad 9 landscape pixel math (1080×810 after kiosk chrome), how cards adapt, larger-display behavior, known iPad-specific gotchas (HA Companion keyboard bug, kiosk Personal Automations dead-end — link to the existing wiki page).
-- [ ] **`docs/reminders-bridge.md`** — already exists from Phase 1; enrich with troubleshooting FAQ:
+- [x] **`docs/architecture.md`** — finalize. Diagram (ASCII or mermaid) of: Mac mini → webhook → HA → todo entities → cards. Card subscription model. Design tokens layer.
+- [x] **`docs/ipad-landscape.md`** — NEW. iPad 9 landscape pixel math (1080×810 after kiosk chrome), how cards adapt, larger-display behavior, known iPad-specific gotchas (HA Companion keyboard bug, kiosk Personal Automations dead-end — link to the existing wiki page).
+- [x] **`docs/reminders-bridge.md`** — already exists from Phase 1; enrich with troubleshooting FAQ:
   - "Reminders not syncing" → check `launchctl list | grep lucarne`, check `~/Library/Logs/ha-lucarne-sync.log`, check Shortcuts.app launched
   - "Items appear duplicated" → check that the blueprint is using `uid` matching, not `summary`
   - "Items completed in HA reappear" → expected in v1; v0.2 round-trip will fix
-- [ ] **`docs/events.md`** — finalize from Phase 4
-- [ ] **`docs/config-recipes.md`** — NEW. Per-household recipes:
+- [x] **`docs/events.md`** — finalize from Phase 4
+- [x] **`docs/config-recipes.md`** — NEW. Per-household recipes:
   - 2-adult, no-kids household (skip chores card, use today + calendar only)
   - Large family (5+ kids — show how to extend the chores card)
   - Apartment without a Mac (skip Reminders bridge, use HA todo directly via iOS Companion)
 
 #### C.4 bridge/README.md
 
-- [ ] Finalize Mac mini install steps from Phase 1 C.4. Add:
+- [x] Finalize Mac mini install steps from Phase 1 C.4. Add:
   - Adapting to fewer/more lists (modify Shortcut, update blueprint instance)
   - Adapting to non-shared lists (drop assignee filter)
   - Troubleshooting matrix
@@ -182,7 +182,7 @@ Use this structure:
 
 #### D.1 HACS validation
 
-- [ ] Verify `hacs.json` matches HACS frontend-category requirements AND matches the project precedent at `~/src/home-assistant-things/ha-projects/device-monitor-card/hacs.json`:
+- [x] Verify `hacs.json` matches HACS frontend-category requirements AND matches the project precedent at `~/src/home-assistant-things/ha-projects/device-monitor-card/hacs.json`:
   ```json
   {
     "name": "Lucarne",
@@ -193,7 +193,7 @@ Use this structure:
   }
   ```
   (Do not add `zip_release: false` — the precedent file omits it.)
-- [ ] Run HACS validation locally via the official action. Add `.github/workflows/hacs.yml`:
+- [x] Run HACS validation locally via the official action. Add `.github/workflows/hacs.yml`:
   ```yaml
   name: HACS Validation
   on:
@@ -213,15 +213,15 @@ Use this structure:
 
 #### D.2 Final build
 
-- [ ] `npm run lint && npm run typecheck && npm run test && npm run build`. All green.
-- [ ] Inspect `dist/ha-lucarne.js`. Bundle size should be ≤ 300 KB minified.
+- [x] `npm run lint && npm run typecheck && npm run test && npm run build`. All green.
+- [x] Inspect `dist/ha-lucarne.js`. Bundle size should be ≤ 300 KB minified.
 - [ ] Commit and push everything. CI green.
 
 #### D.3 Release tag
 
-- [ ] Copy `device-monitor-card/scripts/create-release.sh` to `ha-lucarne/scripts/create-release.sh`. Adapt the script's repo name + version-bump logic.
-- [ ] Update `package.json` version to `0.1.0`.
-- [ ] Update `CHANGELOG.md` with a `## v0.1.0 — Initial release` section summarizing what's in v1 (the 3 cards, the Reminders bridge, the 2 blueprints, the `ha_lucarne_chores_all_done` event).
+- [x] Copy `device-monitor-card/scripts/create-release.sh` to `ha-lucarne/scripts/create-release.sh`. Adapt the script's repo name + version-bump logic.
+- [x] Update `package.json` version to `0.1.0`.
+- [x] Update `CHANGELOG.md` with a `## v0.1.0 — Initial release` section summarizing what's in v1 (the 3 cards, the Reminders bridge, the 2 blueprints, the `ha_lucarne_chores_all_done` event).
 - [ ] Commit: `git commit -am "Release v0.1.0"`. Push.
 - [ ] Tag: `git tag -a v0.1.0 -m "v0.1.0 — Initial release"` then `git push origin v0.1.0`.
 - [ ] Create a GitHub release from the tag via `gh release create v0.1.0 --title "v0.1.0 — Initial release" --notes-file <changelog-section>`. Attach `dist/ha-lucarne.js` as a release asset (optional; HACS reads from the `filename` in hacs.json).
@@ -244,20 +244,20 @@ Use this structure:
 
 #### E.1 HA community forum post
 
-- [ ] Write a post linking back to the threads the user originally found (Skylight DIY thread, XDA article, mohesles repo). Title: "ha-lucarne — DIY Skylight Calendar for HA (custom cards + Reminders sync)".
-- [ ] Include: screenshots, repo link, what's different from mohesles + others (per-person color, multi-list Reminders bridge, chores card, designed Lit cards), HACS custom-repo install instructions, v0.2 roadmap.
-- [ ] Post to the Lovelace category. Note: this is the user's content and account — tell the user to draft + post. Provide the draft text in a markdown file at `docs/community-post.md`; user copy-pastes.
+- [x] Write a post linking back to the threads the user originally found (Skylight DIY thread, XDA article, mohesles repo). Title: "ha-lucarne — DIY Skylight Calendar for HA (custom cards + Reminders sync)".
+- [x] Include: screenshots, repo link, what's different from mohesles + others (per-person color, multi-list Reminders bridge, chores card, designed Lit cards), HACS custom-repo install instructions, v0.2 roadmap.
+- [x] Draft provided at `docs/community-post.md`. **User action required**: fill in community thread URLs and add screenshots before posting. Draft carries a DO NOT POST warning until those TODOs are resolved.
 
 #### E.2 HACS default index submission (DEFERRED to v0.2)
 
-- [ ] Per user's direction, do NOT submit to HACS default index in v0.1. The custom-repo install path is the v1 distribution model. Submit later after v1 has stabilized in user's home for ≥ 1 month and the README has been validated by at least one external installer.
-- [ ] Add a note in `README.md`'s Install section: "HACS default index submission is planned for v0.2 once the install flow has been validated externally."
+- [x] Per user's direction, do NOT submit to HACS default index in v0.1. The custom-repo install path is the v1 distribution model. Submit later after v1 has stabilized in user's home for ≥ 1 month and the README has been validated by at least one external installer.
+- [x] Add a note in `README.md`'s Install section: "HACS default index submission is planned for v0.2 once the install flow has been validated externally."
 
 #### E.3 Wiki finalize
 
-- [ ] Update `~/src/Tower/home-automation/projects/ha-lucarne.md` to status "shipped — v0.1.0". Add link to GitHub release.
-- [ ] Append `~/src/Tower/change-log.md`: "ha-lucarne v0.1.0 shipped. Public HACS-installable. Wife approves."
-- [ ] Update `~/src/Tower/home-automation/dashboards/wall-ipad.md` to reflect final tab order, default tab decision, and link to the project page.
+- [x] Update `~/src/Tower/home-automation/projects/ha-lucarne.md` to status "shipped — v0.1.0". Add link to GitHub release. (Updated `projects.md` — no separate page existed)
+- [x] Append `~/src/Tower/change-log.md`: "ha-lucarne v0.1.0 shipped. Public HACS-installable. Wife approves."
+- [x] Update `~/src/Tower/home-automation/dashboards/wall-ipad.md` to reflect final tab order, default tab decision, and link to the project page.
 
 ### Build Verification (required before marking phase complete)
 

@@ -91,7 +91,52 @@ Successful runs are silent — the Shortcut only logs on HTTP non-200 errors. An
 | Symptom | Fix |
 |---------|-----|
 | `shortcuts run` hangs or errors | Launch Shortcuts.app manually once, then retry |
-| HTTP 200 but HA items don't update | Check automation trace in HA (`ha_get_automation_traces`). If no trace: `local_only: true` may be rejecting the mini's source IP (Tailscale issue). Set `local_only: false` in the blueprint instance. |
+| HTTP 200 but HA items don't update | Check automation trace: HA → Settings → Automations & Scenes → `lucarne_reminders_sync` → Traces. If no trace: **Local only** may be rejecting the mini's Tailscale IP (100.x). Open the automation instance → set **Local only** to **off** → save. |
 | Shortcut runs but Reminders list is empty | Confirm iCloud account is signed in on this Mac and the list is synced |
 | launchd agent not firing | Check `launchctl list | grep ha-lucarne-sync` — non-zero exit code means the Shortcut errored. Check the log. |
 | After macOS major upgrade | Re-launch Shortcuts.app manually — the `shortcuts run` CLI requires it |
+
+---
+
+## Adapting to fewer or more Reminders lists
+
+The Shortcut contains one "Get Reminders" + "Repeat with Each" step pair per list. To add a list:
+
+1. Open Shortcuts.app → `ha-lucarne-sync` → edit
+2. Duplicate an existing "Get Reminders" + "Repeat with Each" block
+3. Change the list name in the "Get Reminders" step
+4. Append the new list's items array to the JSON payload Dictionary under a new key
+5. In the HA automation backed by `lucarne_reminders_sync`, open its instance and edit the
+   **List Mappings** field — add a new key/value pair, e.g.:
+   ```json
+   {"Family": "todo.ingrid_tasks", "Groceries": "todo.groceries", "NewList": "todo.new_list"}
+   ```
+   The key must exactly match the `apple_list_name` value the Shortcut sends in the payload.
+
+To remove a list: delete the corresponding block from the Shortcut and remove the key/value pair
+from the **List Mappings** JSON in the automation instance. The corresponding `todo.*` entity in HA
+will retain its last-synced items until you clear it manually.
+
+## Adapting to non-shared lists (individual, not family)
+
+If a list is private (not shared with other family members) and you don't want assignee filtering:
+
+1. In the "Get Reminders" step for that list, remove the Assignee filter (if one exists)
+2. The Shortcut will sync all items in the list regardless of who added them
+
+If you want per-person filtering on a shared list (e.g. only items assigned to "Ingrid"):
+
+1. In the "Get Reminders" step, add filter: **Assignee** is **Ingrid**
+2. Only Ingrid's assigned items from that list will sync to HA
+
+## Extended troubleshooting matrix
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| `launchctl list` shows non-zero exit code | Shortcut errored | Check `~/Library/Logs/ha-lucarne-sync.log`; re-run `shortcuts run "ha-lucarne-sync"` in Terminal |
+| Shortcut runs but list is empty | iCloud not synced on this Mac | Open Reminders.app and confirm lists appear |
+| HTTP 401 from HA | Wrong webhook secret in Keychain | Re-run `security add-generic-password` with correct secret |
+| HTTP 400 from HA | Malformed JSON in Shortcut | Check the Dictionary step in Shortcuts.app for typos |
+| Items sync but wrong todo entity | Mismatched key in List Mappings JSON | Open automation instance → check **List Mappings** key matches the Shortcut's `apple_list_name` exactly |
+| Shortcut works manually but not via launchd | PATH or Keychain ACL issue | Load the agent with `launchctl load ~/Library/LaunchAgents/com.molant.ha-lucarne-sync.plist` and check log |
+| After macOS major upgrade | `shortcuts run` CLI reset | Re-launch Shortcuts.app manually then test `shortcuts run "ha-lucarne-sync"` |
