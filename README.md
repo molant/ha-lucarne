@@ -121,12 +121,13 @@ Skip this step if you prefer to manage todo items directly in HA.
 type: custom:lucarne-today-card
 title: Today            # optional, default "Today"
 calendars:
+  # Display names come from each calendar's `friendly_name` in HA — rename via
+  # Settings → Devices & services → Entities. The `label:` field is deprecated
+  # and ignored; safe to remove from existing configs.
   - entity: calendar.family
     color: "#a8d8b9"    # any CSS color; shown as left-border dot on events
-    label: Family
   - entity: calendar.ingrid
     color: "#c8b4e0"
-    label: Ingrid
 weather: weather.forecast_home      # optional; omit and the weather block shows an "add entity" hint
 tasks: todo.ingrid_tasks            # optional; shows task-count badge
 presence:                           # optional; shows home/away pills in header
@@ -143,15 +144,13 @@ agenda_limit: 5         # optional, default 5; events shown in agenda strip
 type: custom:lucarne-calendar-card
 title: Calendar         # optional, default "Calendar"
 calendars:
+  # Display names come from each calendar's `friendly_name`; see note above.
   - entity: calendar.family
     color: "#a8d8b9"
-    label: Family
   - entity: calendar.ingrid
     color: "#c8b4e0"
-    label: Ingrid
   - entity: calendar.anton
     color: "#a8c5e8"
-    label: Anton
 visible_hours:          # optional; crop the time grid to these hours
   start: "07:00"
   end:   "21:00"

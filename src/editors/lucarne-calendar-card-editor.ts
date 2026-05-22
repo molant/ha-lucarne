@@ -1,102 +1,28 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from '../shared/types.js';
 import type { LucarneCalendarCardConfig } from '../cards/lucarne-calendar-card.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
+import { editorBaseStyles } from '../shared/editor-styles.js';
+import { ensureHaFormElements } from '../shared/ha-elements.js';
 import { fireEvent } from 'custom-card-helpers';
 
 @customElement('lucarne-calendar-card-editor')
 export class LucarneCalendarCardEditor extends LitElement {
-  static styles = [
-    lucarneStyles,
-    css`
-      :host {
-        display: flex;
-        flex-direction: column;
-        gap: var(--lucarne-spacing-md);
-        padding: var(--lucarne-spacing-lg);
-        box-sizing: border-box;
-        width: 100%;
-      }
-      .section-label {
-        font-size: var(--lucarne-fs-sm);
-        font-weight: 600;
-        color: var(--lucarne-on-surface-muted);
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        margin: var(--lucarne-spacing-md) 0 var(--lucarne-spacing-xs);
-      }
-      .section-label:first-of-type {
-        margin-top: 0;
-      }
-      .row {
-        display: flex;
-        gap: var(--lucarne-spacing-sm);
-        align-items: flex-start;
-      }
-      .row > * {
-        flex: 1;
-      }
-      .cal-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr auto auto;
-        gap: var(--lucarne-spacing-sm);
-        align-items: center;
-        padding: var(--lucarne-spacing-xs) 0;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-      }
-      .cal-row ha-entity-picker,
-      .cal-row ha-textfield {
-        width: 100%;
-        min-width: 0;
-      }
-      .cal-color {
-        width: 32px;
-        height: 32px;
-        border-radius: var(--lucarne-radius-sm);
-        border: 1px solid rgba(0, 0, 0, 0.2);
-        cursor: pointer;
-        flex-shrink: 0;
-      }
-      button.remove {
-        background: none;
-        border: none;
-        color: var(--error-color, #f44336);
-        cursor: pointer;
-        font-size: 1.1em;
-        padding: 4px 8px;
-        border-radius: var(--lucarne-radius-sm);
-      }
-      button.add {
-        background: none;
-        border: 1px dashed rgba(0, 0, 0, 0.2);
-        border-radius: var(--lucarne-radius-md);
-        padding: var(--lucarne-spacing-sm) var(--lucarne-spacing-md);
-        cursor: pointer;
-        color: var(--lucarne-on-surface-muted);
-        font-size: var(--lucarne-fs-sm);
-        width: 100%;
-        text-align: center;
-        margin-top: var(--lucarne-spacing-xs);
-      }
-      button.add:hover {
-        background: rgba(0, 0, 0, 0.04);
-      }
-      .toggle-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: var(--lucarne-spacing-xs) 0;
-      }
-      .toggle-label {
-        font-size: var(--lucarne-fs-sm);
-        color: var(--lucarne-on-surface);
-      }
-    `,
-  ];
+  static styles = [lucarneStyles, editorBaseStyles];
 
   @property({ attribute: false }) hass!: HomeAssistant;
   @state() private _config?: LucarneCalendarCardConfig;
+  @state() private _haReady = false;
+
+  connectedCallback() {
+    super.connectedCallback();
+    ensureHaFormElements()
+      .catch((err) => console.warn('[lucarne] HA editor elements load failed; rendering anyway', err))
+      .then(() => {
+        this._haReady = true;
+      });
+  }
 
   setConfig(config: LucarneCalendarCardConfig) {
     this._config = config;
@@ -134,7 +60,7 @@ export class LucarneCalendarCardEditor extends LitElement {
   }
 
   private _showCreateChanged(e: Event) {
-    const checked = (e.target as HTMLInputElement & { checked: boolean }).checked;
+    const checked = (e.target as HTMLInputElement).checked;
     this._fire({ ...this._config!, show_create_button: checked });
   }
 
@@ -150,12 +76,6 @@ export class LucarneCalendarCardEditor extends LitElement {
     this._fire({ ...this._config!, calendars: cals });
   }
 
-  private _calLabelChanged(index: number, e: Event) {
-    const cals = [...(this._config?.calendars ?? [])];
-    cals[index] = { ...cals[index], label: (e.target as HTMLInputElement).value };
-    this._fire({ ...this._config!, calendars: cals });
-  }
-
   private _removeCalendar(index: number) {
     const cals = [...(this._config?.calendars ?? [])];
     if (cals.length <= 1) return;
@@ -166,18 +86,16 @@ export class LucarneCalendarCardEditor extends LitElement {
   private _addCalendar() {
     const firstCalendar = Object.keys(this.hass?.states ?? {}).find((id) => id.startsWith('calendar.'));
     const defaultEntity = firstCalendar ?? 'calendar.example';
-    const defaultLabel = firstCalendar
-      ? (this.hass.states[firstCalendar]?.attributes?.['friendly_name'] as string | undefined) ?? 'Calendar'
-      : 'Calendar';
     const cals = [
       ...(this._config?.calendars ?? []),
-      { entity: defaultEntity, color: '#a8d8b9', label: defaultLabel },
+      { entity: defaultEntity, color: '#a8d8b9' },
     ];
     this._fire({ ...this._config!, calendars: cals });
   }
 
   render() {
     if (!this._config) return html``;
+    if (!this._haReady) return html`<div class="loading">Loading editor…</div>`;
 
     const calendars = this._config.calendars ?? [];
     const bandStart = this._config.visible_hours?.start ?? '07:00';
@@ -186,45 +104,57 @@ export class LucarneCalendarCardEditor extends LitElement {
     const showCreate = this._config.show_create_button ?? true;
 
     return html`
-      <div class="section-label">General</div>
-      <ha-textfield
-        label="Card title"
-        .value=${this._config.title ?? ''}
-        @change=${this._titleChanged}
-      ></ha-textfield>
+      <label class="field">
+        <span class="field-label">Card title</span>
+        <input
+          class="text-input"
+          type="text"
+          .value=${this._config.title ?? ''}
+          @change=${this._titleChanged}
+        />
+      </label>
 
-      <div class="section-label">Visible Hours</div>
       <div class="row">
-        <ha-textfield
-          label="Band start (HH:MM)"
-          .value=${bandStart}
-          @change=${this._bandStartChanged}
-        ></ha-textfield>
-        <ha-textfield
-          label="Band end (HH:MM)"
-          .value=${bandEnd}
-          @change=${this._bandEndChanged}
-        ></ha-textfield>
+        <label class="field">
+          <span class="field-label">Visible hours start (HH:MM)</span>
+          <input
+            class="text-input"
+            type="text"
+            .value=${bandStart}
+            @change=${this._bandStartChanged}
+          />
+        </label>
+        <label class="field">
+          <span class="field-label">Visible hours end (HH:MM)</span>
+          <input
+            class="text-input"
+            type="text"
+            .value=${bandEnd}
+            @change=${this._bandEndChanged}
+          />
+        </label>
       </div>
 
-      <div class="section-label">Week Settings</div>
-      <ha-select
-        label="Week starts on"
-        .value=${weekStartsOn}
-        @selected=${this._weekStartsOnChanged}
-        @closed=${(e: Event) => e.stopPropagation()}
-      >
-        <ha-list-item value="monday">Monday</ha-list-item>
-        <ha-list-item value="sunday">Sunday</ha-list-item>
-      </ha-select>
+      <label class="field">
+        <span class="field-label">Week starts on</span>
+        <select
+          class="select-input"
+          .value=${weekStartsOn}
+          @change=${this._weekStartsOnChanged}
+        >
+          <option value="monday" ?selected=${weekStartsOn === 'monday'}>Monday</option>
+          <option value="sunday" ?selected=${weekStartsOn === 'sunday'}>Sunday</option>
+        </select>
+      </label>
 
-      <div class="toggle-row">
+      <label class="toggle-row">
         <span class="toggle-label">Show create-event button</span>
-        <ha-switch
+        <input
+          type="checkbox"
           .checked=${showCreate}
           @change=${this._showCreateChanged}
-        ></ha-switch>
-      </div>
+        />
+      </label>
 
       <div class="section-label">Calendars</div>
       ${calendars.map(
@@ -238,11 +168,6 @@ export class LucarneCalendarCardEditor extends LitElement {
               allow-custom-entity
               @value-changed=${(e: CustomEvent) => this._calEntityChanged(i, e)}
             ></ha-entity-picker>
-            <ha-textfield
-              label="Label"
-              .value=${cal.label}
-              @change=${(e: Event) => this._calLabelChanged(i, e)}
-            ></ha-textfield>
             <input
               type="color"
               class="cal-color"
@@ -250,11 +175,11 @@ export class LucarneCalendarCardEditor extends LitElement {
               @input=${(e: Event) => this._calColorChanged(i, e)}
               title="Calendar color"
             />
-            <button class="remove" @click=${() => this._removeCalendar(i)} title="Remove">✕</button>
+            <button type="button" class="remove" @click=${() => this._removeCalendar(i)} title="Remove">✕</button>
           </div>
         `,
       )}
-      <button class="add" @click=${this._addCalendar}>+ Add calendar</button>
+      <button type="button" class="add" @click=${this._addCalendar}>+ Add calendar</button>
     `;
   }
 }

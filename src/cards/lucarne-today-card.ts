@@ -2,6 +2,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { fetchCalendarEvents, subscribeTodoItems } from '../shared/ha-subscriptions.js';
+import { installPreviewColumnOverride, type PreviewOverrideHandle } from '../shared/grid-preview-override.js';
 import { STRINGS } from '../shared/strings.js';
 import type { HomeAssistant, CalendarConfig, CalendarEvent, TodoItem } from '../shared/types.js';
 
@@ -36,9 +37,12 @@ export class LucarneTodayCard extends LitElement {
     css`
       :host {
         display: block;
+        width: 100%;
         font-family: var(--primary-font-family, sans-serif);
+        container-type: inline-size;
       }
       ha-card {
+        width: 100%;
         padding: 0;
         overflow: hidden;
       }
@@ -76,7 +80,7 @@ export class LucarneTodayCard extends LitElement {
         flex: 1;
         overflow: auto;
       }
-      @media (max-width: 700px) {
+      @container (max-width: 500px) {
         .card-body {
           grid-template-columns: 1fr;
         }
@@ -102,14 +106,15 @@ export class LucarneTodayCard extends LitElement {
   private _todoUnsub?: () => void;
   private _fetchingForecast = false;
   private _lastWeatherState = '';
+  private _previewOverride?: PreviewOverrideHandle | null;
 
   setConfig(config: LucarneTodayCardConfig) {
     if (!config.calendars || !Array.isArray(config.calendars) || config.calendars.length === 0) {
       throw new Error('lucarne-today-card: "calendars" must be a non-empty array');
     }
     for (const cal of config.calendars) {
-      if (!cal.entity || !cal.color || !cal.label) {
-        throw new Error('lucarne-today-card: each calendar entry requires "entity", "color", and "label"');
+      if (!cal.entity || !cal.color) {
+        throw new Error('lucarne-today-card: each calendar entry requires "entity" and "color"');
       }
     }
     this._config = config;
@@ -133,7 +138,6 @@ export class LucarneTodayCard extends LitElement {
     const calendars: CalendarConfig[] = calendarIds.map((id, i) => ({
       entity: id,
       color: palettes[i] ?? '#a8d8b9',
-      label: hass.states[id]?.attributes?.['friendly_name'] ?? id,
     }));
 
     const hasWeather = 'weather.forecast_home' in hass.states;
@@ -141,7 +145,7 @@ export class LucarneTodayCard extends LitElement {
     return {
       type: 'custom:lucarne-today-card',
       title: STRINGS.today,
-      calendars: calendars.length ? calendars : [{ entity: 'calendar.example', color: '#a8d8b9', label: 'Calendar' }],
+      calendars: calendars.length ? calendars : [{ entity: 'calendar.example', color: '#a8d8b9' }],
       weather: hasWeather ? 'weather.forecast_home' : undefined,
     };
   }
@@ -151,17 +155,22 @@ export class LucarneTodayCard extends LitElement {
   }
 
   getGridOptions() {
-    return { columns: 3, rows: 'auto', min_columns: 3, max_columns: 6 };
+    return { columns: 6, rows: 'auto', min_columns: 3, max_columns: 6 };
   }
 
   connectedCallback() {
     super.connectedCallback();
     this._setupSubscriptions();
+    requestAnimationFrame(() => {
+      this._previewOverride = installPreviewColumnOverride(this);
+    });
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     this._teardownSubscriptions();
+    this._previewOverride?.uninstall();
+    this._previewOverride = undefined;
   }
 
   private _setupSubscriptions() {
