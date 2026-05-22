@@ -138,7 +138,7 @@ Goal: card renders the week view, with visibility pills + tap-to-detail. No crea
   }
   ```
 - [x] `setConfig`, `getCardSize` (return ~6), `getStubConfig` (auto-discover first 3 calendars, defaults for the rest).
-- [ ] `getConfigElement` — deferred to sub-phase D.1 (editor not yet built).
+- [x] `getConfigElement` — implemented (returns `lucarne-calendar-card-editor` element).
 - [x] Register on `window.customCards`.
 
 #### B.2 Subscriptions
@@ -230,13 +230,13 @@ Goal: tap empty slot → form → create via HA → event appears. **Deployable*
 
 #### D.1 UI editor
 
-- [ ] `src/editors/lucarne-calendar-card-editor.ts` — fields:
+- [x] `src/editors/lucarne-calendar-card-editor.ts` — fields:
   - title (text)
   - calendars (repeating: entity + color + label)
-  - visible_hours.start + end (time pickers)
-  - week_starts_on (select: monday / sunday)
-  - show_create_button (toggle)
-- [ ] Wire into card via `getConfigElement`. Import from `src/index.ts`.
+  - visible_hours.start + end (HH:MM text fields)
+  - week_starts_on (ha-select: monday / sunday)
+  - show_create_button (ha-switch toggle)
+- [x] Wire into card via `getConfigElement`. Import from `src/index.ts`.
 
 #### D.2 Responsive pass
 
@@ -250,8 +250,8 @@ Goal: tap empty slot → form → create via HA → event appears. **Deployable*
 
 #### D.3 Tests + build
 
-- [ ] `npm run lint && npm run typecheck && npm run build && npm test` — green.
-- [ ] Bundle size: `dist/ha-lucarne.js` should be ≤ 220 KB (Lit + 2 cards + components). If above, audit.
+- [x] `npm run lint && npm run typecheck && npm run build && npm test` — green.
+- [x] Bundle size: `dist/ha-lucarne.js` should be ≤ 220 KB (Lit + 2 cards + components). If above, audit. (122 KB ✓)
 - [ ] Commit + push. CI green.
 
 #### D.4 Wiki
