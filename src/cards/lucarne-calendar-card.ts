@@ -71,6 +71,7 @@ export class LucarneCalendarCard extends LitElement {
         color: var(--lucarne-on-surface-muted);
         min-height: 44px;
         min-width: 44px;
+        touch-action: manipulation;
       }
       .nav-btn:hover {
         background: rgba(0, 0, 0, 0.04);
@@ -86,6 +87,10 @@ export class LucarneCalendarCard extends LitElement {
       }
       .grid-area {
         overflow: auto;
+        max-height: calc(100vh - 280px);
+        max-height: calc(100dvh - 280px);
+        touch-action: pan-x pan-y;
+        -webkit-overflow-scrolling: touch;
       }
     `,
   ];
@@ -169,6 +174,10 @@ export class LucarneCalendarCard extends LitElement {
 
   getCardSize() {
     return 6;
+  }
+
+  getGridOptions() {
+    return { columns: 9, rows: 'auto', min_columns: 6, max_columns: 12 };
   }
 
   static getConfigElement() {

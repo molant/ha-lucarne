@@ -69,3 +69,25 @@ const CONDITION_ICON_MAP: Record<string, ReturnType<typeof svg>> = {
 export function weatherConditionIcon(condition: string): ReturnType<typeof svg> {
   return CONDITION_ICON_MAP[condition] ?? CONDITION_ICON_MAP[condition.toLowerCase()] ?? iconCloud;
 }
+
+const CONDITION_COLOR_MAP: Record<string, string> = {
+  sunny: '#f4b740',
+  'clear-night': '#7a86c8',
+  cloudy: '#8aa0b8',
+  partlycloudy: '#9bb3cf',
+  rainy: '#5a8fc0',
+  pouring: '#4a7aa8',
+  snowy: '#a8c5e8',
+  'snowy-rainy': '#86a8d0',
+  fog: '#a8a8a8',
+  hail: '#7ac0d8',
+  lightning: '#c89c4a',
+  'lightning-rainy': '#a08358',
+  windy: '#7a8a95',
+  'windy-variant': '#7a8a95',
+  exceptional: '#c87060',
+};
+
+export function weatherConditionColor(condition: string): string {
+  return CONDITION_COLOR_MAP[condition.toLowerCase()] ?? '#8aa0b8';
+}

@@ -36,15 +36,23 @@ export async function fetchCalendarEvents(
 ): Promise<Map<string, CalendarEvent[]>> {
   const results = await Promise.all(
     entityIds.map((entityId) =>
-      hass
-        .callWS<{ events: CalendarEvent[] }>({
-          type: 'calendar/list_events',
-          entity_id: entityId,
-          start_date_time: start.toISOString(),
-          end_date_time: end.toISOString(),
+      hass.connection
+        .sendMessagePromise<{ response: Record<string, { events: CalendarEvent[] }> }>({
+          type: 'call_service',
+          domain: 'calendar',
+          service: 'get_events',
+          service_data: {
+            start_date_time: start.toISOString(),
+            end_date_time: end.toISOString(),
+          },
+          target: { entity_id: entityId },
+          return_response: true,
         })
-        .then((result) => [entityId, result?.events ?? []] as const)
-        .catch(() => [entityId, [] as CalendarEvent[]] as const),
+        .then((result) => [entityId, result?.response?.[entityId]?.events ?? []] as const)
+        .catch((err) => {
+          console.warn(`[lucarne] calendar.get_events failed for ${entityId}:`, err);
+          return [entityId, [] as CalendarEvent[]] as const;
+        }),
     ),
   );
   return new Map(results);
@@ -68,7 +76,8 @@ export function subscribeTodoItems(
         return_response: true,
       });
       callback(result?.response?.[entityId]?.items ?? []);
-    } catch {
+    } catch (err) {
+      console.warn(`[lucarne] todo.get_items failed for ${entityId}:`, err);
       callback([]);
     }
   };

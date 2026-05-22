@@ -30,14 +30,21 @@ export class LucarneCalendarGrid extends LitElement {
       }
       .grid-wrapper {
         display: grid;
-        grid-template-columns: 48px repeat(7, 1fr);
+        grid-template-columns: 40px repeat(7, minmax(0, 1fr));
         grid-template-rows: auto auto 1fr;
-        min-width: 600px;
+        min-width: 480px;
       }
       /* Header row: day names */
       .header-spacer {
         grid-column: 1;
         grid-row: 1;
+        position: sticky;
+        top: 0;
+        left: 0;
+        z-index: 4;
+        background: var(--lucarne-surface);
+        border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+        border-right: 1px solid rgba(0, 0, 0, 0.07);
       }
       .day-header {
         grid-row: 1;
@@ -48,6 +55,10 @@ export class LucarneCalendarGrid extends LitElement {
         color: var(--lucarne-on-surface-muted);
         border-bottom: 1px solid rgba(0, 0, 0, 0.07);
         user-select: none;
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        background: var(--lucarne-surface);
       }
       .day-header .day-num {
         display: inline-flex;
@@ -77,6 +88,10 @@ export class LucarneCalendarGrid extends LitElement {
         justify-content: center;
         padding: 2px;
         min-height: 24px;
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: var(--lucarne-surface);
       }
       .allday-cell {
         grid-row: 2;
@@ -103,7 +118,10 @@ export class LucarneCalendarGrid extends LitElement {
         grid-column: 1;
         grid-row: 3;
         border-right: 1px solid rgba(0, 0, 0, 0.07);
-        position: relative;
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: var(--lucarne-surface);
       }
       .hour-label {
         position: absolute;
@@ -117,8 +135,10 @@ export class LucarneCalendarGrid extends LitElement {
       .day-col {
         grid-row: 3;
         position: relative;
+        isolation: isolate;
         border-right: 1px solid rgba(0, 0, 0, 0.05);
         overflow: visible;
+        touch-action: manipulation;
       }
       .hour-line {
         position: absolute;

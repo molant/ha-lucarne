@@ -15,6 +15,8 @@ export class LucarneChoresCardEditor extends LitElement {
         flex-direction: column;
         gap: var(--lucarne-spacing-md);
         padding: var(--lucarne-spacing-lg);
+        box-sizing: border-box;
+        width: 100%;
       }
       .section-label {
         font-size: var(--lucarne-fs-sm);
@@ -68,6 +70,13 @@ export class LucarneChoresCardEditor extends LitElement {
         align-items: center;
         padding: var(--lucarne-spacing-xs) 0;
         border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+      }
+      .chore-row ha-entity-picker,
+      .chore-row ha-textfield,
+      .kid-header-fields ha-entity-picker,
+      .kid-header-fields ha-textfield {
+        width: 100%;
+        min-width: 0;
       }
       .chore-row:last-of-type {
         border-bottom: none;

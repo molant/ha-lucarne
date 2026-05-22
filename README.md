@@ -80,7 +80,30 @@ Type: JavaScript Module
 Open your dashboard in edit mode and add the cards via YAML (see [Configuration](#configuration)).
 Each card has a visual editor — click **Visual editor** after adding.
 
-### 5. (Optional) Set up the Mac mini Reminders bridge
+### 5. (Optional) Install the Lucarne theme
+
+A Skylight-inspired pastel theme ships with the repo at `themes/lucarne.yaml`. It pairs the
+cards with the calm cream/pastel palette they were designed against, and — critically —
+widens HA's `type: sections` views past the default 500 px section cap (via
+`ha-view-sections-column-max-width: 1200px`) so the cards can render side-by-side at full
+iPad width.
+
+1. Copy `themes/lucarne.yaml` to your HA `<config>/themes/` directory.
+   - Samba: drop into `\\homeassistant\config\themes\`.
+   - SSH: `scp themes/lucarne.yaml <user>@<host>:/config/themes/lucarne.yaml`.
+2. Ensure `configuration.yaml` contains a frontend theme include (most setups already have this):
+
+   ```yaml
+   frontend:
+     themes: !include_dir_merge_named themes
+   ```
+3. Reload themes: **Developer tools → Services → `frontend.reload_themes`**.
+4. Per-user theme selection: **Profile → Theme → Lucarne** (per HA user).
+
+You can skip this step and use any other light theme — but the sections-view widening
+won't apply unless you set the `ha-view-sections-column-*` variables yourself.
+
+### 6. (Optional) Set up the Mac mini Reminders bridge
 
 Follow [bridge/README.md](bridge/README.md) to install the launchd sync job on a Mac mini.
 Skip this step if you prefer to manage todo items directly in HA.

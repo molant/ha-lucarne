@@ -50,7 +50,7 @@ export class LucarneChoresCard extends LitElement {
       }
       .kids-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       }
       .kid-cell {
         border-right: 1px solid rgba(0, 0, 0, 0.07);
@@ -105,6 +105,10 @@ export class LucarneChoresCard extends LitElement {
 
   getCardSize() {
     return 5;
+  }
+
+  getGridOptions() {
+    return { columns: 12, rows: 'auto', min_columns: 6, max_columns: 12 };
   }
 
   static getStubConfig() {

@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
-import { weatherConditionIcon } from '../shared/icons.js';
+import { weatherConditionIcon, weatherConditionColor } from '../shared/icons.js';
 import { STRINGS } from '../shared/strings.js';
 import { dressingTip } from './dressing-tip.js';
 import type { HassEntity, WeatherForecast } from '../shared/types.js';
@@ -30,7 +30,6 @@ export class LucarneWeatherBlock extends LitElement {
       .condition-icon {
         width: 48px;
         height: 48px;
-        color: var(--lucarne-on-surface);
         flex-shrink: 0;
       }
       .temp-group {
@@ -60,7 +59,6 @@ export class LucarneWeatherBlock extends LitElement {
       .tomorrow-icon {
         width: 18px;
         height: 18px;
-        opacity: 0.7;
         flex-shrink: 0;
       }
       .dressing-tip {
@@ -98,7 +96,7 @@ export class LucarneWeatherBlock extends LitElement {
 
     return html`
       <div class="current">
-        <span class="condition-icon">${weatherConditionIcon(condition)}</span>
+        <span class="condition-icon" style="color: ${weatherConditionColor(condition)}">${weatherConditionIcon(condition)}</span>
         <div class="temp-group">
           <div class="current-temp">${currentTemp !== undefined ? `${Math.round(currentTemp)}${unit}` : STRINGS.errorUnavailable}</div>
           ${today
@@ -112,7 +110,7 @@ export class LucarneWeatherBlock extends LitElement {
       ${tomorrow
         ? html`
             <div class="tomorrow-row">
-              <span class="tomorrow-icon">${weatherConditionIcon(tomorrow.condition)}</span>
+              <span class="tomorrow-icon" style="color: ${weatherConditionColor(tomorrow.condition)}">${weatherConditionIcon(tomorrow.condition)}</span>
               <span>Tomorrow ↑${Math.round(tomorrow.temperature)}${unit}${tomorrow.templow !== undefined ? ` ↓${Math.round(tomorrow.templow)}${unit}` : ''}</span>
             </div>
           `

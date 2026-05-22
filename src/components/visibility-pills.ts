@@ -27,6 +27,7 @@ export class LucarneVisibilityPills extends LitElement {
         border: 1.5px solid transparent;
         min-height: 44px;
         box-sizing: border-box;
+        touch-action: manipulation;
       }
       .pill.visible {
         opacity: 1;

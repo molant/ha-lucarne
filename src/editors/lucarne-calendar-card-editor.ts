@@ -15,6 +15,8 @@ export class LucarneCalendarCardEditor extends LitElement {
         flex-direction: column;
         gap: var(--lucarne-spacing-md);
         padding: var(--lucarne-spacing-lg);
+        box-sizing: border-box;
+        width: 100%;
       }
       .section-label {
         font-size: var(--lucarne-fs-sm);
@@ -42,6 +44,11 @@ export class LucarneCalendarCardEditor extends LitElement {
         align-items: center;
         padding: var(--lucarne-spacing-xs) 0;
         border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+      }
+      .cal-row ha-entity-picker,
+      .cal-row ha-textfield {
+        width: 100%;
+        min-width: 0;
       }
       .cal-color {
         width: 32px;
