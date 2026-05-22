@@ -5,8 +5,19 @@ import type { CalendarEvent } from '../../src/shared/types.js';
 
 // TZ=America/Los_Angeles is set in the npm test script
 
+/** Build an array of n consecutive Date objects starting at start (local midnight). */
+function mkDays(start: Date, n: number): Date[] {
+  return Array.from({ length: n }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+}
+
 // Week of 2026-01-05 (Monday) through 2026-01-11 (Sunday)
 const WEEK_START = new Date('2026-01-05T00:00:00');
+const DAYS_7 = mkDays(WEEK_START, 7);
 const BAND_START = '07:00';
 const BAND_END = '21:00';
 
@@ -19,19 +30,19 @@ function makeAllDay(dateStart: string, dateEnd: string, summary = 'AllDay'): Cal
 }
 
 describe('layoutEvents', () => {
-  it('returns 7 week days', () => {
-    const result = layoutEvents([], WEEK_START, BAND_START, BAND_END, 'monday');
-    assert.equal(result.weekDays.length, 7);
+  it('returns 7 days', () => {
+    const result = layoutEvents([], DAYS_7, BAND_START, BAND_END);
+    assert.equal(result.days.length, 7);
   });
 
   it('perDay map has an entry for each of the 7 days', () => {
-    const result = layoutEvents([], WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents([], DAYS_7, BAND_START, BAND_END);
     assert.equal(result.perDay.size, 7);
   });
 
   it('1 in-band event → 1 inBand entry with lane=0, laneCount=1', () => {
     const events = [makeEvent('2026-01-05T10:00:00', '2026-01-05T11:00:00')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.inBand.length, 1);
     assert.equal(day.inBand[0].lane, 0);
@@ -44,7 +55,7 @@ describe('layoutEvents', () => {
     // topPercent = 3/14 * 100 = ~21.43%
     // heightPercent = 1/14 * 100 = ~7.14%
     const events = [makeEvent('2026-01-05T10:00:00', '2026-01-05T11:00:00')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const block = result.perDay.get('2026-01-05')!.inBand[0];
     const expectedTop = (3 / 14) * 100;
     const expectedHeight = (1 / 14) * 100;
@@ -57,7 +68,7 @@ describe('layoutEvents', () => {
       makeEvent('2026-01-05T10:00:00', '2026-01-05T12:00:00', 'A'),
       makeEvent('2026-01-05T11:00:00', '2026-01-05T13:00:00', 'B'),
     ];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.inBand.length, 2);
     const lanes = new Set(day.inBand.map((b) => b.lane));
@@ -73,7 +84,7 @@ describe('layoutEvents', () => {
       makeEvent('2026-01-05T10:30:00', '2026-01-05T13:30:00', 'B'),
       makeEvent('2026-01-05T11:00:00', '2026-01-05T14:00:00', 'C'),
     ];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.inBand.length, 3);
     const lanes = new Set(day.inBand.map((b) => b.lane));
@@ -85,7 +96,7 @@ describe('layoutEvents', () => {
 
   it('event spanning before band start to mid-band → clipped, top at 0%', () => {
     const events = [makeEvent('2026-01-05T05:00:00', '2026-01-05T10:00:00')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.inBand.length, 1);
     assert.equal(day.inBand[0].topPercent, 0);
@@ -98,7 +109,7 @@ describe('layoutEvents', () => {
     // height = 1/14 * 100
     // top + height = 14/14 * 100 = 100%
     const events = [makeEvent('2026-01-05T20:00:00', '2026-01-05T23:00:00')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.inBand.length, 1);
     const block = day.inBand[0];
@@ -107,7 +118,7 @@ describe('layoutEvents', () => {
 
   it('event fully before band start → in earlier bucket', () => {
     const events = [makeEvent('2026-01-05T04:00:00', '2026-01-05T06:00:00')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.earlier.length, 1);
     assert.equal(day.inBand.length, 0);
@@ -115,7 +126,7 @@ describe('layoutEvents', () => {
 
   it('event fully after band end → in later bucket', () => {
     const events = [makeEvent('2026-01-05T22:00:00', '2026-01-05T23:30:00')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.later.length, 1);
     assert.equal(day.inBand.length, 0);
@@ -123,7 +134,7 @@ describe('layoutEvents', () => {
 
   it('all-day event → in allDay bucket, not inBand', () => {
     const events = [makeAllDay('2026-01-05', '2026-01-06')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.allDay.length, 1);
     assert.equal(day.inBand.length, 0);
@@ -132,7 +143,7 @@ describe('layoutEvents', () => {
   it('all-day event only appears on the correct day(s)', () => {
     // Single-day all-day: start=Jan5, end=Jan6 (exclusive end)
     const events = [makeAllDay('2026-01-05', '2026-01-06')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     // Jan 5 should have it
     assert.equal(result.perDay.get('2026-01-05')!.allDay.length, 1);
     // Jan 6 should NOT
@@ -142,7 +153,7 @@ describe('layoutEvents', () => {
   it('multi-day all-day event spans multiple days', () => {
     // Jan 5–7 (exclusive end Jan 8)
     const events = [makeAllDay('2026-01-05', '2026-01-08')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     assert.equal(result.perDay.get('2026-01-05')!.allDay.length, 1);
     assert.equal(result.perDay.get('2026-01-06')!.allDay.length, 1);
     assert.equal(result.perDay.get('2026-01-07')!.allDay.length, 1);
@@ -152,14 +163,14 @@ describe('layoutEvents', () => {
   it('multi-day timed event appears in each covered day inBand', () => {
     // Event spans Mon–Tue, well within band both days
     const events = [makeEvent('2026-01-05T09:00:00', '2026-01-06T17:00:00')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     assert.equal(result.perDay.get('2026-01-05')!.inBand.length, 1);
     assert.equal(result.perDay.get('2026-01-06')!.inBand.length, 1);
   });
 
   it('event outside the visible week → not placed in any day', () => {
     const events = [makeEvent('2026-01-12T09:00:00', '2026-01-12T10:00:00')];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     for (const day of result.perDay.values()) {
       assert.equal(day.inBand.length, 0);
       assert.equal(day.allDay.length, 0);
@@ -177,7 +188,7 @@ describe('layoutEvents', () => {
       makeEvent('2026-01-05T13:15:00', '2026-01-05T15:15:00', 'D'),
       makeEvent('2026-01-05T13:30:00', '2026-01-05T15:30:00', 'E'),
     ];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.inBand.length, 5);
 
@@ -199,7 +210,7 @@ describe('layoutEvents', () => {
       makeEvent('2026-01-05T09:00:00', '2026-01-05T10:00:00', 'Early'),
       makeEvent('2026-01-05T11:00:00', '2026-01-05T12:00:00', 'Late'),
     ];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.inBand.length, 3);
     // Mid and Early overlap → distinct lanes, cluster laneCount=2
@@ -219,7 +230,7 @@ describe('layoutEvents', () => {
       makeEvent('2026-01-05T10:00:00', '2026-01-05T11:00:00', 'A'),
       makeEvent('2026-01-05T12:00:00', '2026-01-05T13:00:00', 'B'),
     ];
-    const result = layoutEvents(events, WEEK_START, BAND_START, BAND_END, 'monday');
+    const result = layoutEvents(events, DAYS_7, BAND_START, BAND_END);
     const day = result.perDay.get('2026-01-05')!;
     assert.equal(day.inBand.length, 2);
     // Both should be lane 0 since they don't overlap
@@ -227,5 +238,43 @@ describe('layoutEvents', () => {
     assert.equal(day.inBand[1].lane, 0);
     assert.equal(day.inBand[0].laneCount, 1);
     assert.equal(day.inBand[1].laneCount, 1);
+  });
+
+  it('layout 5 consecutive days starting on a Wednesday → result.days.length === 5', () => {
+    // 2026-01-07 is a Wednesday
+    const wed = new Date('2026-01-07T00:00:00');
+    const days5 = mkDays(wed, 5);
+    const result = layoutEvents([], days5, BAND_START, BAND_END);
+    assert.equal(result.days.length, 5);
+    assert.equal(result.perDay.size, 5);
+  });
+
+  it('layout 3 days with all-day event spanning 7 days → event appears on all 3 visible days', () => {
+    // Event spans Jan 5–11 (all 7 days)
+    const events = [makeAllDay('2026-01-05', '2026-01-12')];
+    const days3 = mkDays(new Date('2026-01-07T00:00:00'), 3); // Wed-Fri: Jan 7, 8, 9
+    const result = layoutEvents(events, days3, BAND_START, BAND_END);
+    assert.equal(result.days.length, 3);
+    // All 3 days should have the event
+    assert.equal(result.perDay.get('2026-01-07')!.allDay.length, 1);
+    assert.equal(result.perDay.get('2026-01-08')!.allDay.length, 1);
+    assert.equal(result.perDay.get('2026-01-09')!.allDay.length, 1);
+  });
+
+  it('layout 7 days starting on a Wednesday (not week start) → events on correct days', () => {
+    // 2026-01-07 is a Wednesday — not a Monday/Sunday week start
+    // Events placed on Jan 7 and Jan 11 should land on those exact days
+    const wed = new Date('2026-01-07T00:00:00');
+    const days7fromWed = mkDays(wed, 7); // Jan 7–13
+    const events = [
+      makeEvent('2026-01-07T09:00:00', '2026-01-07T10:00:00', 'WedEvent'),
+      makeEvent('2026-01-11T14:00:00', '2026-01-11T15:00:00', 'SunEvent'),
+    ];
+    const result = layoutEvents(events, days7fromWed, BAND_START, BAND_END);
+    assert.equal(result.days.length, 7);
+    assert.equal(result.perDay.get('2026-01-07')!.inBand.length, 1);
+    assert.equal(result.perDay.get('2026-01-11')!.inBand.length, 1);
+    // Jan 5 (Monday before Wed) is NOT in this window
+    assert.equal(result.perDay.has('2026-01-05'), false);
   });
 });

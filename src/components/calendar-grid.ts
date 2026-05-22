@@ -29,7 +29,7 @@ export class LucarneCalendarGrid extends LitElement {
       }
       .grid-wrapper {
         display: grid;
-        grid-template-columns: 40px repeat(7, minmax(0, 1fr));
+        grid-template-columns: 40px repeat(var(--lucarne-day-count, 7), minmax(0, 1fr));
         grid-template-rows: auto auto 1fr;
         min-width: 480px;
       }
@@ -347,7 +347,7 @@ export class LucarneCalendarGrid extends LitElement {
       <div class="grid-wrapper">
         <!-- Header row -->
         <div class="header-spacer"></div>
-        ${this.layout.weekDays.map(
+        ${this.layout.days.map(
           (day, idx) => html`
             <div
               class="day-header ${isSameDay(day, now) ? 'today' : ''}"
@@ -361,7 +361,7 @@ export class LucarneCalendarGrid extends LitElement {
 
         <!-- All-day row -->
         <div class="allday-spacer">all-day</div>
-        ${this.layout.weekDays.map((day, idx) => {
+        ${this.layout.days.map((day, idx) => {
           const dayKey = isoDateKey(day);
           const dayLayout = this.layout!.perDay.get(dayKey);
           return html`
@@ -405,7 +405,7 @@ export class LucarneCalendarGrid extends LitElement {
         </div>
 
         <!-- Day columns -->
-        ${this.layout.weekDays.map((day, idx) => html`
+        ${this.layout.days.map((day, idx) => html`
           <div style="grid-row:3; grid-column:${idx + 2}; position:relative; overflow:visible; display:flex; flex-direction:column;">
             ${this._renderDayColumn(day, now)}
           </div>

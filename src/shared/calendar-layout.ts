@@ -1,7 +1,5 @@
 import type { CalendarEvent } from './types.js';
 import {
-  weekDays,
-  startOfWeek,
   eventBandPortion,
 } from './date-helpers.js';
 
@@ -21,7 +19,7 @@ export interface PerDayLayout {
 }
 
 export interface CalendarLayoutResult {
-  weekDays: Date[];
+  days: Date[];
   perDay: Map<string, PerDayLayout>;
 }
 
@@ -108,12 +106,10 @@ function bandMs(day: Date, timeStr: string): number {
 
 export function layoutEvents(
   events: CalendarEvent[],
-  weekStart: Date,
+  days: Date[],
   bandStart: string,
   bandEnd: string,
-  weekStartsOn: 'monday' | 'sunday',
 ): CalendarLayoutResult {
-  const days = weekDays(startOfWeek(weekStart, weekStartsOn));
   const perDay = new Map<string, PerDayLayout>();
 
   // Initialize all days
@@ -218,5 +214,5 @@ export function layoutEvents(
     }));
   }
 
-  return { weekDays: days, perDay };
+  return { days, perDay };
 }

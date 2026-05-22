@@ -5,7 +5,6 @@ import { fetchCalendarEvents } from '../shared/ha-subscriptions.js';
 import { installPreviewColumnOverride, type PreviewOverrideHandle } from '../shared/grid-preview-override.js';
 import { resolveCalendars, resolveCalendarLabel } from '../shared/calendar-helpers.js';
 import { layoutEvents } from '../shared/calendar-layout.js';
-import { startOfWeek, endOfWeek } from '../shared/date-helpers.js';
 import type { HomeAssistant, CalendarConfig, CalendarEvent } from '../shared/types.js';
 import type { CalendarLayoutResult } from '../shared/calendar-layout.js';
 
@@ -222,23 +221,34 @@ export class LucarneCalendarCard extends LitElement {
     this._intervalId = undefined;
   }
 
-  private get _weekStart(): Date {
-    const now = new Date();
-    const ws = startOfWeek(now, this._config?.week_starts_on ?? 'monday');
-    ws.setDate(ws.getDate() + this._weekOffset * 7);
-    ws.setHours(0, 0, 0, 0);
-    return ws;
-  }
-
-  private get _weekEnd(): Date {
-    return endOfWeek(this._weekStart, this._config?.week_starts_on ?? 'monday');
+  // Single source of truth for the day array during Phase 1; Phase 2 deletes this
+  // entirely (controller.days replaces it). Called by both _recompute and _fetchEvents.
+  private _currentDays(): Date[] {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    // Snap to week start, honoring the user's existing week_starts_on setting
+    // (still present in the config in Phase 1; Phase 2 removes the setting and
+    // anchors to today instead). This preserves behavior parity for users on
+    // both 'monday' and 'sunday' configs.
+    const day = start.getDay(); // 0=Sun..6=Sat
+    const startDay = (this._config?.week_starts_on ?? 'monday') === 'monday' ? 1 : 0;
+    const diff = (day - startDay + 7) % 7;
+    start.setDate(start.getDate() - diff + this._weekOffset * 7);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
   }
 
   private async _fetchEvents() {
     if (!this._config || !this.hass) return;
     const seq = ++this._fetchSeq;
-    const weekStart = this._weekStart;
-    const weekEnd = this._weekEnd;
+    const days = this._currentDays();
+    const weekStart = days[0];
+    const weekEnd = new Date(days[6]);
+    weekEnd.setDate(weekEnd.getDate() + 1);
+    weekEnd.setHours(0, 0, 0, 0);
     const entityIds = this._config.calendars.map((c) => c.entity);
     const map = await fetchCalendarEvents(this.hass, entityIds, weekStart, weekEnd);
     if (seq !== this._fetchSeq) return; // discard stale response from a previous week
@@ -272,7 +282,8 @@ export class LucarneCalendarCard extends LitElement {
     );
     const bandStart = this._config.visible_hours?.start ?? '07:00';
     const bandEnd = this._config.visible_hours?.end ?? '21:00';
-    this._layout = layoutEvents(allEvents, this._weekStart, bandStart, bandEnd, this._config.week_starts_on ?? 'monday');
+    const days = this._currentDays();
+    this._layout = layoutEvents(allEvents, days, bandStart, bandEnd);
   }
 
   private _supportsCreate(entityId: string): boolean {
@@ -335,8 +346,9 @@ export class LucarneCalendarCard extends LitElement {
   }
 
   private _weekLabel(): string {
-    const start = this._weekStart;
-    const end = this._weekEnd;
+    const days = this._currentDays();
+    const start = days[0];
+    const end = days[days.length - 1];
     const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     if (this._weekOffset === 0) return 'This week';
     if (this._weekOffset === -1) return 'Last week';
