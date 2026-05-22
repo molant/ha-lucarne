@@ -256,9 +256,9 @@ Goal: tap empty slot → form → create via HA → event appears. **Deployable*
 
 #### D.4 Wiki
 
-- [ ] Update `~/src/Tower/home-automation/dashboards/wall-ipad.md`: Family tab now has today + calendar.
-- [ ] Update `~/src/Tower/home-automation/projects/ha-lucarne.md`: mark Phase 3 complete, screenshot.
-- [ ] Append change-log.
+- [x] Update `~/src/Tower/home-automation/dashboards/wall-ipad.md`: Family tab now has today + calendar.
+- [x] Update `~/src/Tower/home-automation/projects.md`: mark Phase 3 done (code), awaiting deploy + verify.
+- [ ] Append change-log (pending Phase 3 deploy + manual verification).
 
 ### Build Verification (required before marking phase complete)
 
