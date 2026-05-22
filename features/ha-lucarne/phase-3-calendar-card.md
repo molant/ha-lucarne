@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 
 # Phase 3: `lucarne-calendar-card`
