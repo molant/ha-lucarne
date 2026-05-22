@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # Phase 1: Foundation — layout parameterization + visible-count helper
@@ -43,10 +43,10 @@ tests/shared/
 
 ### Baseline Test Verification (before starting implementation)
 
-- [ ] Run `npm test` — all tests pass. If any fail, fix them and commit separately before proceeding.
-- [ ] Run `npm run lint` — zero warnings.
-- [ ] Run `npm run typecheck` — zero errors.
-- [ ] Run `npm run build` — produces `dist/ha-lucarne.js`.
+- [x] Run `npm test` — all tests pass. If any fail, fix them and commit separately before proceeding.
+- [x] Run `npm run lint` — zero warnings.
+- [x] Run `npm run typecheck` — zero errors.
+- [x] Run `npm run build` — produces `dist/ha-lucarne.js`.
 
 > **Why all gates?** ha-lucarne has no E2E suite — these four gates (test, lint, typecheck, build) are the entire baseline. If any is failing on `main`, we cannot tell whether Phase 1 broke something.
 
@@ -56,22 +56,22 @@ Deployable when: helper exists, is exported from `src/shared/`, and unit tests p
 
 #### Tests first (TDD)
 
-- [ ] Create `tests/shared/visible-window.test.ts`. Use `node:test` + `node:assert/strict` like the other tests.
-- [ ] Test: defaults (`min_days=3, max_days=7, min_col=140, max_col=220, timeCol=40`):
+- [x] Create `tests/shared/visible-window.test.ts`. Use `node:test` + `node:assert/strict` like the other tests.
+- [x] Test: defaults (`min_days=3, max_days=7, min_col=140, max_col=220, timeCol=40`):
   - `containerWidth=720` → `visibleCount=4, dayWidthPx=170`
   - `containerWidth=1080` → `visibleCount=7` (capped), `dayWidthPx≈148.6` (assert within 0.5)
   - `containerWidth=1366` → `visibleCount=7` (capped), `dayWidthPx≈189.4`
   - `containerWidth=480` → `visibleCount=3` (floored), `dayWidthPx≈146.6`
-- [ ] Test: bounds enforced — `containerWidth=200` with defaults still returns `visibleCount=3` (the floor wins over the math).
-- [ ] Test: zero / negative `containerWidth` returns `visibleCount=min_days, dayWidthPx=min_col_width` (defensive).
-- [ ] Test: custom config — `min_days=2, max_days=14, min_col=100, max_col=300, timeCol=40` at `containerWidth=1366` → `visibleCount=13, dayWidthPx≈102.0` (within 0.5). Derivation: `available=1326`, `maxFitting=floor(1326/100)=13`, `minFitting=ceil(1326/300)=5`, `visibleCount=min(14, max(2, 5, min(13, 14)))=13`.
-- [ ] Test: `min_col_width > max_col_width` (invalid config) — clamp behavior. Pick: fall back to defaults? Throw? **Decision: silently swap them.** Document in JSDoc.
-- [ ] Test: `min_days > max_days` (invalid config) — same defensive-swap behavior as for col widths. **Decision: swap them so the larger value becomes the effective max.** E.g. `min_days=10, max_days=3` is treated as `min_days=3, max_days=10`, so `visibleCount` is clamped to `≤10` (the larger of the two). Document in JSDoc.
-- [ ] Test: very wide container (`containerWidth=4000`) returns `max_days` (no overflow).
+- [x] Test: bounds enforced — `containerWidth=200` with defaults still returns `visibleCount=3` (the floor wins over the math).
+- [x] Test: zero / negative `containerWidth` returns `visibleCount=min_days, dayWidthPx=min_col_width` (defensive).
+- [x] Test: custom config — `min_days=2, max_days=14, min_col=100, max_col=300, timeCol=40` at `containerWidth=1366` → `visibleCount=13, dayWidthPx≈102.0` (within 0.5). Derivation: `available=1326`, `maxFitting=floor(1326/100)=13`, `minFitting=ceil(1326/300)=5`, `visibleCount=min(14, max(2, 5, min(13, 14)))=13`.
+- [x] Test: `min_col_width > max_col_width` (invalid config) — clamp behavior. Pick: fall back to defaults? Throw? **Decision: silently swap them.** Document in JSDoc.
+- [x] Test: `min_days > max_days` (invalid config) — same defensive-swap behavior as for col widths. **Decision: swap them so the larger value becomes the effective max.** E.g. `min_days=10, max_days=3` is treated as `min_days=3, max_days=10`, so `visibleCount` is clamped to `≤10` (the larger of the two). Document in JSDoc.
+- [x] Test: very wide container (`containerWidth=4000`) returns `max_days` (no overflow).
 
 #### Implementation
 
-- [ ] Create `src/shared/visible-window.ts`:
+- [x] Create `src/shared/visible-window.ts`:
   ```typescript
   export interface VisibleWindowConfig {
     minDays: number;
@@ -91,10 +91,10 @@ Deployable when: helper exists, is exported from `src/shared/`, and unit tests p
     config: VisibleWindowConfig,
   ): VisibleWindowResult { /* ... */ }
   ```
-- [ ] Implement the formula from the README. Use `Math.floor` / `Math.ceil` / `Math.max` / `Math.min` only — no floating-point comparisons.
-- [ ] JSDoc the function with the worked examples from the README.
-- [ ] Add export to a barrel if one exists (check `src/shared/index.ts` — likely none; per-file imports are the convention).
-- [ ] Run `npm test` — new tests pass; existing tests still pass.
+- [x] Implement the formula from the README. Use `Math.floor` / `Math.ceil` / `Math.max` / `Math.min` only — no floating-point comparisons.
+- [x] JSDoc the function with the worked examples from the README.
+- [x] Add export to a barrel if one exists (check `src/shared/index.ts` — likely none; per-file imports are the convention).
+- [x] Run `npm test` — new tests pass; existing tests still pass.
 
 ### Sub-Phase B: Refactor `layoutEvents` to accept `days: Date[]`
 
