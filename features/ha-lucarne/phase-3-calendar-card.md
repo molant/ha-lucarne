@@ -126,7 +126,7 @@ Goal: card renders the week view, with visibility pills + tap-to-detail. No crea
 
 #### B.1 Card shell
 
-- [ ] Create `src/cards/lucarne-calendar-card.ts`. Config interface:
+- [x] Create `src/cards/lucarne-calendar-card.ts`. Config interface:
   ```ts
   interface LucarneCalendarCardConfig {
     type: 'custom:lucarne-calendar-card';
@@ -137,51 +137,52 @@ Goal: card renders the week view, with visibility pills + tap-to-detail. No crea
     show_create_button?: boolean;          // default: true
   }
   ```
-- [ ] `setConfig`, `getCardSize` (return ~6), `getConfigElement`, `getStubConfig` (auto-discover first 3 calendars, defaults for the rest).
-- [ ] Register on `window.customCards`.
+- [x] `setConfig`, `getCardSize` (return ~6), `getStubConfig` (auto-discover first 3 calendars, defaults for the rest).
+- [ ] `getConfigElement` — deferred to sub-phase D.1 (editor not yet built).
+- [x] Register on `window.customCards`.
 
 #### B.2 Subscriptions
 
-- [ ] On mount: fetch events for the configured calendars over [weekStart, weekEnd]. Re-fetch every 5 min.
-- [ ] Track `visibleCalendarIds: Set<string>` in card state, defaulted to all configured. Pills toggle entries in this set; events from hidden calendars are filtered out before layout.
-- [ ] Track `weekOffset: number` (0 = current, -1 = prev, +1 = next) to support a small "← →" navigator below the title (NOT in default visible — add only if there's space, defer otherwise).
+- [x] On mount: fetch events for the configured calendars over [weekStart, weekEnd]. Re-fetch every 5 min.
+- [x] Track `visibleCalendarIds: Set<string>` in card state, defaulted to all configured. Pills toggle entries in this set; events from hidden calendars are filtered out before layout.
+- [x] Track `weekOffset: number` (0 = current, -1 = prev, +1 = next) to support a small "← →" navigator below the title (NOT in default visible — add only if there's space, defer otherwise).
 
 #### B.3 Visibility pills
 
-- [ ] Create `src/components/visibility-pills.ts`. Renders one pill per configured calendar. Pill shows the calendar's color dot + label. Tap toggles the calendar in `visibleCalendarIds`. Hidden = greyed/struck-through label.
-- [ ] Place at the card top, below title, above the grid.
+- [x] Create `src/components/visibility-pills.ts`. Renders one pill per configured calendar. Pill shows the calendar's color dot + label. Tap toggles the calendar in `visibleCalendarIds`. Hidden = greyed/struck-through label.
+- [x] Place at the card top, below title, above the grid.
 
 #### B.4 Calendar grid
 
-- [ ] Create `src/components/calendar-grid.ts`. Renders:
+- [x] Create `src/components/calendar-grid.ts`. Renders:
   - All-day row at top (one row across all 7 day columns). Each day's all-day events stacked.
   - Hour labels column on the left (e.g. `7 AM`, `8 AM`, ...).
   - 7 day columns. Each day column is a relatively-positioned container; events are absolutely positioned with top/height from the layout solver.
   - Hour grid lines (subtle, low-contrast).
   - "Now" line (red, thin) across today's column if today is in the visible week and now is in the band.
-- [ ] Out-of-band stubs: at the top of each day column (above the band), show `+N earlier` chip if `earlier.length > 0`. Below the band, `+N tonight` chip.
-- [ ] Day-column header: weekday short name + day-of-month number, with "today" highlighted (pastel background).
+- [x] Out-of-band stubs: at the top of each day column (above the band), show `+N earlier` chip if `earlier.length > 0`. Below the band, `+N tonight` chip.
+- [x] Day-column header: weekday short name + day-of-month number, with "today" highlighted (pastel background).
 
 #### B.5 Event blocks
 
-- [ ] Create `src/components/calendar-event-block.ts`. Props: `event`, `color`, `lane`, `laneCount`, `topPercent`, `heightPercent`.
-- [ ] Renders an absolute-positioned block. Width = `100 / laneCount`%; left = `lane / laneCount * 100`%. Background = pastel color. Text: summary on top, time on bottom (e.g. `"9:00–10:00"`).
-- [ ] Tap → fires `lucarne-event-tap` custom event with the event data. Card listens, opens popover.
+- [x] Create `src/components/calendar-event-block.ts`. Props: `event`, `color`, `lane`, `laneCount`, `topPercent`, `heightPercent`.
+- [x] Renders an absolute-positioned block. Width = `100 / laneCount`%; left = `lane / laneCount * 100`%. Background = pastel color. Text: summary on top, time on bottom (e.g. `"9:00–10:00"`).
+- [x] Tap → fires `lucarne-event-tap` custom event with the event data. Card listens, opens popover.
 
 #### B.6 Event popover
 
-- [ ] Create `src/components/calendar-event-popover.ts`. Shows event summary, time range, calendar (with color dot), description, location, "Edit in Google Calendar" link (deep link to `https://calendar.google.com/event?eid=...` — Google's `id` field on events maps to this; verify in current API response shape).
-- [ ] Tap outside → close.
-- [ ] Edit + delete actions: out of v1 scope (Google API write requires more permissions; HA's `calendar.create_event` is supported but `update_event` / `delete_event` are NOT in all versions — verify via `ha_list_services` before deciding). For v1, popover is read-only with the external link.
+- [x] Create `src/components/calendar-event-popover.ts`. Shows event summary, time range, calendar (with color dot), description, location, "Open in Google Calendar" link (deep link `https://calendar.google.com/calendar/u/0/r/eventedit/<uid>` — only shown when the original HA event uid is non-empty).
+- [x] Tap outside → close.
+- [x] Edit + delete actions: out of v1 scope. `ha_list_services` confirmed: `calendar.create_event` is the only write action; `update_event`/`delete_event` not available. For v1, popover is read-only with the external link.
 
 #### B.7 Out-of-band stub popover
 
-- [ ] Tapping `+N earlier` / `+N tonight` opens a small list showing those events. Tap an event → opens the event popover.
+- [x] Tapping `+N earlier` / `+N tonight` opens a small list showing those events. Tap an event → opens the event popover.
 
 #### B.8 Wire to dashboard
 
-- [ ] `npm run build && npm test`. Push.
-- [ ] `ha_config_set_dashboard` to add the calendar card BELOW the today-card on the Family tab. Use the same `calendars: [...]` block from Phase 2 (consider extracting to a YAML anchor if HA supports it; if not, copy).
+- [x] `npm run build && npm test`. Push.
+- [x] `ha_config_set_dashboard` to add the calendar card BELOW the today-card on the Family tab. Use the same `calendars: [...]` block from Phase 2 (consider extracting to a YAML anchor if HA supports it; if not, copy).
 - [ ] Refresh iPad. Verify:
   - Week grid renders with 7 columns
   - Events show in correct colors
