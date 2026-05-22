@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # Phase 1: Foundation + Reminders bridge
@@ -82,14 +82,14 @@ Wiki updates:
 
 This project has no existing test suite. Baseline = confirm the existing HA system is healthy before touching it.
 
-- [ ] Read `~/.claude/projects/-Users-molant-src-home-assistant-things/memory/MEMORY.md` index — note any feedback rules tagged with "HA", "dashboard", "presence", or "automation".
-- [ ] Read `skill://home-assistant-best-practices/SKILL.md` via the preferred path in README.md (`ha_get_skill_home_assistant_best_practices`; `ha_read_resource` for specific reference files). Then read the specific reference files listed in Context above.
-- [ ] Confirm existing `/wall-ipad` dashboard renders on iPad — ask user to confirm visually.
-- [ ] Confirm existing 5 tabs work (Upstairs / Downstairs / Security / Media / Recipes). User confirmation.
-- [ ] Confirm via `ha_get_state` that `weather.forecast_home`, `input_boolean.molant_home`, `input_boolean.gridou_home` all report sane values.
-- [ ] **Discover and record the actual calendar entity IDs.** Run `ha_search_entities` with `domain_filter: "calendar"` (or `ha_search_entities` with `query: "calendar"`). Copy the full list into a scratch note — Phase 2 needs the exact slugs (e.g. `calendar.family` may actually be `calendar.family_2` or `calendar.molant_family_calendar`; HA slug rules + Google Calendar source names produce non-obvious results). Phase 2's hardcoded examples are PLACEHOLDERS — do NOT trust them blindly.
-- [ ] Confirm Mac mini is reachable from this MacBook (e.g., `ping <mini-hostname>.local` or via Tailscale). Get the user to share the mini's hostname/SSH access if needed.
-- [ ] Confirm `~/src/home-assistant-things/ha-projects/` exists and `ls` shows `device-monitor-card/` and `ha-blueprints/` as siblings. The new `ha-lucarne/` will join them.
+- [x] Read `~/.claude/projects/-Users-molant-src-home-assistant-things/memory/MEMORY.md` index — note any feedback rules tagged with "HA", "dashboard", "presence", or "automation".
+- [x] Read `skill://home-assistant-best-practices/SKILL.md` via the preferred path in README.md (`ha_get_skill_home_assistant_best_practices`; `ha_read_resource` for specific reference files). Then read the specific reference files listed in Context above.
+- [ ] Confirm existing `/wall-ipad` dashboard renders on iPad — ask user to confirm visually. **USER ACTION REQUIRED**
+- [ ] Confirm existing 5 tabs work (Upstairs / Downstairs / Security / Media / Recipes). User confirmation. **USER ACTION REQUIRED**
+- [x] Confirm via `ha_get_state` that `weather.forecast_home`, `input_boolean.molant_home`, `input_boolean.gridou_home` all report sane values. (weather.forecast_home: clear-night, molant_home: on, gridou_home: on ✓)
+- [x] **Discover and record the actual calendar entity IDs.** Calendars found: `calendar.family`, `calendar.birthdays_2` (birthdays), `calendar.gridou_molant_s_inn`, `calendar.holidays_in_united_states`, `calendar.ingrid_babel_gmail_com`, `calendar.les_lilas`. Note: `calendar.birthdays` (no suffix) is unavailable — use `calendar.birthdays_2`. Phase 2 must use these exact IDs.
+- [ ] Confirm Mac mini is reachable from this MacBook (e.g., `ping <mini-hostname>.local` or via Tailscale). Get the user to share the mini's hostname/SSH access if needed. **USER ACTION REQUIRED**
+- [x] Confirm `~/src/home-assistant-things/ha-projects/` exists and `ls` shows `device-monitor-card/` and `ha-blueprints/` as siblings. The new `ha-lucarne/` will join them. ✓
 
 ### Sub-Phase A: Repo scaffold + Lit/Vite/TS skeleton
 
@@ -99,63 +99,44 @@ Goal: a buildable repo with one placeholder card. CI runs build + lint on PR. **
 
 > **No MCP tool creates GitHub repos.** Use `gh` via Bash. Use `gh repo create` with --public, MIT license. If the user prefers to create it manually first, ask and wait.
 
-- [ ] Ask the user to confirm the GitHub repo name `molant/ha-lucarne` is acceptable and that no repo with that name already exists. Wait for confirmation.
-- [ ] Run `gh repo create molant/ha-lucarne --public --license=MIT --description "DIY Skylight Calendar replacement for Home Assistant"`. Do NOT use `--clone` — we'll set up the local directory manually to match the project's `ha-projects/` layout.
-- [ ] Create local dir: `mkdir -p ~/src/home-assistant-things/ha-projects/ha-lucarne && cd ~/src/home-assistant-things/ha-projects/ha-lucarne && git init -b main && git remote add origin git@github.com:molant/ha-lucarne.git`.
+- [x] Ask the user to confirm the GitHub repo name `molant/ha-lucarne` is acceptable and that no repo with that name already exists. Wait for confirmation. (Repo already exists — confirmed via `gh repo view molant/ha-lucarne`)
+- [x] Run `gh repo create molant/ha-lucarne --public --license=MIT --description "DIY Skylight Calendar replacement for Home Assistant"`. Do NOT use `--clone` — we'll set up the local directory manually to match the project's `ha-projects/` layout. (Already created: `https://github.com/molant/ha-lucarne`, visibility: PUBLIC)
+- [x] Create local dir: `mkdir -p ~/src/home-assistant-things/ha-projects/ha-lucarne && cd ~/src/home-assistant-things/ha-projects/ha-lucarne && git init -b main && git remote add origin git@github.com:molant/ha-lucarne.git`. (Directory and git already initialized with remote `https://github.com/molant/ha-lucarne.git`)
 
 #### A.2 Toolchain: Node + Vite + Lit + TypeScript
 
-- [ ] Write `.nvmrc` with `20` (LTS as of project start).
-- [ ] Write `package.json` with:
+- [x] Write `.nvmrc` with `20` (LTS as of project start).
+- [x] Write `package.json` with:
   - `"name": "ha-lucarne"`, `"version": "0.0.1"`, `"private": false` (so it can be published if we ever go to npm), `"type": "module"`, `"main": "dist/ha-lucarne.js"`
   - `scripts`: `build` (`vite build`), `dev` (`vite build --watch`), `lint` (`eslint src --ext .ts`), `typecheck` (`tsc --noEmit`)
   - `devDependencies`: `vite ^5`, `typescript ^5`, `@types/node ^20`, `eslint ^9`, `@typescript-eslint/parser`, `@typescript-eslint/eslint-plugin`
   - `dependencies`: `lit ^3`, `home-assistant-js-websocket ^9`, `custom-card-helpers ^1.9`
-- [ ] Write `tsconfig.json` with strict mode, `target: ES2022`, `module: ESNext`, `moduleResolution: bundler`, `experimentalDecorators: true`, `useDefineForClassFields: false` (Lit requires this), `lib: ["ES2022", "DOM", "DOM.Iterable"]`.
-- [ ] Write `eslint.config.js` (flat-config format, required by eslint 9). Wire `@typescript-eslint/parser` + `@typescript-eslint/eslint-plugin`'s recommended ruleset for `src/**/*.ts`; ignore `dist/`, `node_modules/`. Without this file, `npm run lint` fails immediately with "no configuration found". Also update the `package.json` lint script to `eslint src` (eslint 9 flat config infers extensions; the `--ext .ts` flag from above is a legacy eslint-8 flag and emits a warning under eslint 9).
-- [ ] Write `.gitignore`: `node_modules`, `.DS_Store`, `*.log`. **Do NOT gitignore `dist/`** — HACS frontend installs require the built artifact in the repo.
-- [ ] Write `LICENSE` (MIT, year 2026, copyright holder "Anton Molleda Moros").
-- [ ] Write a minimal `README.md` placeholder (one paragraph + "see Phase 5 for full docs" — Phase 5 expands this).
-- [ ] Write `CHANGELOG.md` with "## v0.0.1 — Project scaffolded".
-- [ ] Run `npm install`. Confirm no peer-dep warnings worth investigating.
+- [x] Write `tsconfig.json` with strict mode, `target: ES2022`, `module: ESNext`, `moduleResolution: bundler`, `experimentalDecorators: true`, `useDefineForClassFields: false` (Lit requires this), `lib: ["ES2022", "DOM", "DOM.Iterable"]`.
+- [x] Write `eslint.config.js` (flat-config format, required by eslint 9). Wire `@typescript-eslint/parser` + `@typescript-eslint/eslint-plugin`'s recommended ruleset for `src/**/*.ts`; ignore `dist/`, `node_modules/`. Without this file, `npm run lint` fails immediately with "no configuration found". Also update the `package.json` lint script to `eslint src` (eslint 9 flat config infers extensions; the `--ext .ts` flag from above is a legacy eslint-8 flag and emits a warning under eslint 9).
+- [x] Write `.gitignore`: `node_modules`, `.DS_Store`, `*.log`. **Do NOT gitignore `dist/`** — HACS frontend installs require the built artifact in the repo.
+- [x] Write `LICENSE` (MIT, year 2026, copyright holder "Anton Molleda Moros").
+- [x] Write a minimal `README.md` placeholder (one paragraph + "see Phase 5 for full docs" — Phase 5 expands this).
+- [x] Write `CHANGELOG.md` with "## v0.0.1 — Project scaffolded".
+- [x] Run `npm install`. Confirm no peer-dep warnings worth investigating. (2 moderate vulnerabilities in custom-card-helpers dependency chain — dev tool, not security-critical)
 
 #### A.3 Stub the first card
 
-- [ ] Write `src/shared/design-tokens.ts` exporting the pastel palette from the README as a typed const (e.g. `export const LUCARNE_PALETTE: Record<string, string> = { family: '#a8d8b9', anton: '#a8c5e8', ... }`).
-- [ ] Write `src/cards/lucarne-today-card.ts` as a minimal Lit element extending `LitElement`, with `@customElement('lucarne-today-card')`. Card renders `<div>ha-lucarne · Today (placeholder)</div>`. Must register with `window.customCards`:
-  ```ts
-  (window as any).customCards = (window as any).customCards || [];
-  (window as any).customCards.push({
-    type: 'lucarne-today-card',
-    name: 'Lucarne Today',
-    description: 'Family agenda + weather + tasks + presence',
-  });
-  ```
-- [ ] Write `src/index.ts` that imports `./cards/lucarne-today-card`. (Future cards: same pattern, one import per card.)
-- [ ] Run `npm run build`. Confirm `dist/ha-lucarne.js` exists and is < 100 KB.
-- [ ] Run `npm run lint` and `npm run typecheck` — must pass cleanly.
+- [x] Write `src/shared/design-tokens.ts` exporting the pastel palette from the README as a typed const (e.g. `export const LUCARNE_PALETTE: Record<string, string> = { family: '#a8d8b9', anton: '#a8c5e8', ... }`).
+- [x] Write `src/cards/lucarne-today-card.ts` as a minimal Lit element extending `LitElement`, with `@customElement('lucarne-today-card')`. Card renders `<div>ha-lucarne · Today (placeholder)</div>`. Must register with `window.customCards`.
+- [x] Write `src/index.ts` that imports `./cards/lucarne-today-card`. (Future cards: same pattern, one import per card.)
+- [x] Run `npm run build`. Confirm `dist/ha-lucarne.js` exists and is < 100 KB. (22.76 kB ✓)
+- [x] Run `npm run lint` and `npm run typecheck` — must pass cleanly. (Both clean ✓)
 
 #### A.4 hacs.json (used fully in Phase 5; created now)
 
-- [ ] Write `hacs.json` (match the project precedent at `~/src/home-assistant-things/ha-projects/device-monitor-card/hacs.json` — same shape, no `zip_release` field, include `homeassistant` minimum):
-  ```json
-  {
-    "name": "Lucarne",
-    "render_readme": true,
-    "filename": "ha-lucarne.js",
-    "content_in_root": false,
-    "homeassistant": "2024.1.0"
-  }
-  ```
-  - `content_in_root: false` means HACS looks for `filename` at `dist/<filename>` in the repo root after release (because Lit cards are built artifacts). Do NOT set `content_in_root: true` — that would require the JS at repo root, which mixes source with build output.
-  - `zip_release` is omitted intentionally; only set it to `true` if you switch to a packaged-zip release model (we are not).
+- [x] Write `hacs.json` (match the project precedent at `~/src/home-assistant-things/ha-projects/device-monitor-card/hacs.json` — same shape, no `zip_release` field, include `homeassistant` minimum). `content_in_root: false`, no `zip_release`. ✓
 
 #### A.5 CI: build on PR
 
-- [ ] Write `.github/workflows/build.yml` running on `pull_request` to `main`: checkout, setup-node@v4 with `node-version-file: .nvmrc`, `npm ci`, `npm run lint`, `npm run typecheck`, `npm run build`. Cache npm cache via setup-node's `cache: npm`.
-- [ ] Commit everything: `git add . && git commit -m "Scaffold ha-lucarne: Lit + Vite + TS + stub card"`.
-- [ ] Push: `git push -u origin main`.
-- [ ] Confirm GitHub Actions run is green on the initial push (if GHA fires on main commits; otherwise verify in a PR after sub-phase B).
+- [x] Write `.github/workflows/build.yml` running on `pull_request` to `main`: checkout, setup-node@v4 with `node-version-file: .nvmrc`, `npm ci`, `npm run lint`, `npm run typecheck`, `npm run build`. Cache npm cache via setup-node's `cache: npm`.
+- [ ] Commit everything: `git add . && git commit -m "Scaffold ha-lucarne: Lit + Vite + TS + stub card"`. (pending commit)
+- [ ] Push: `git push -u origin main`. (pending push)
+- [ ] Confirm GitHub Actions run is green on the initial push (if GHA fires on main commits; otherwise verify in a PR after sub-phase B). (CI fires on PR only)
 
 ### Sub-Phase B: HA-side wiring (todo entities + user + blueprint + Family tab)
 
@@ -242,6 +223,8 @@ The blueprint is the HA-side automation that receives the webhook payload and up
   4. Document which path is in use in TWO places:
      - The blueprint YAML's `description:` field (so installers see it).
      - The wiki page `apple-reminders-sync.md` (Sub-Phase D).
+
+  > **Path chosen (implementation)**: `uid` is NOT in the `todo.add_item` or `todo.update_item` schemas (confirmed via `ha_list_services domain:todo detail_level:full`). The **sentinel-prefix path** was chosen: Apple ID stored as `[apple:<id>]` prefix in the HA item's `description` field. See blueprint `description:` block for v1 limitations (due-date clearing, same-title collision risk). Verification step below ("Verify the test item's `uid` matches `test-apple-1`") should be interpreted as: verify the sentinel `[apple:test-apple-1]` prefix is present in the item's `description` field, not the `uid` field.
 - [ ] Test the blueprint YAML parses by importing it locally first: copy to a HA-accessible location (e.g. via `ha_import_blueprint` with the file URL pointing to the GitHub raw URL after pushing — chicken-and-egg; alternative: tell user to drop the file into `<config>/blueprints/automation/molant/` manually for v1; we'll automate the import after the repo is published).
 
 #### B.5 Instantiate the automation from the blueprint

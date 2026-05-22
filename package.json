@@ -1,0 +1,26 @@
+{
+  "name": "ha-lucarne",
+  "version": "0.0.1",
+  "private": false,
+  "type": "module",
+  "main": "dist/ha-lucarne.js",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lit": "^3.0.0",
+    "home-assistant-js-websocket": "^9.0.0",
+    "custom-card-helpers": "^1.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}
