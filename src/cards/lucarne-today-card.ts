@@ -150,6 +150,10 @@ export class LucarneTodayCard extends LitElement {
     return 4;
   }
 
+  getGridOptions() {
+    return { columns: 3, rows: 'auto', min_columns: 3, max_columns: 6 };
+  }
+
   connectedCallback() {
     super.connectedCallback();
     this._setupSubscriptions();
@@ -239,7 +243,8 @@ export class LucarneTodayCard extends LitElement {
         return_response: true,
       });
       this._forecast = result?.response?.[this._config.weather]?.forecast ?? [];
-    } catch {
+    } catch (err) {
+      console.warn(`[lucarne] weather.get_forecasts failed for ${this._config.weather}:`, err);
       this._forecast = [];
     } finally {
       this._fetchingForecast = false;
