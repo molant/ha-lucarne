@@ -53,6 +53,15 @@ blueprint:
       selector:
         text:
           multiline: true
+    local_only:
+      name: Local only (reject non-LAN sources)
+      description: |
+        When enabled (default), the webhook rejects requests from non-RFC1918 source IPs.
+        Disable if the Mac mini reaches HA via Tailscale (100.x.y.z addresses) — the
+        shared webhook secret provides authentication in that case.
+      default: true
+      selector:
+        boolean:
 
 variables:
   # Blueprint inputs must be projected into raw vars before use in Jinja templates.
@@ -65,12 +74,7 @@ trigger:
     webhook_id: !input webhook_id
     allowed_methods:
       - POST
-    local_only: true
-    # IMPORTANT: local_only: true rejects requests from non-RFC1918 source IPs.
-    # If the Mac mini reaches HA via Tailscale (100.x.y.z), set local_only: false
-    # and rely on the shared-secret-in-URL as the sole auth mechanism.
-    # Verify from the mini: curl -X POST http://homeassistant.local:8123/api/webhook/<secret> -d '{}'
-    # If you get HTTP 200 but no automation trace fires, flip local_only to false.
+    local_only: !input local_only
 
 mode: single
 max_exceeded: silent
