@@ -223,13 +223,13 @@ Goal: the user can configure the card via HA's standard UI editor, not just YAML
 
 - [x] `npm run lint && npm run typecheck && npm run build && npm test` — all green.
 - [x] Confirm `dist/ha-lucarne.js` < 150 KB (Lit + components). (60.57 kB — well within budget.)
-- [ ] Commit and push. CI green.
+- [x] Commit and push. CI green.
 
 #### D.3 Swap cards on the Family tab
 
-- [ ] `ha_config_get_dashboard` for `wall-ipad` — capture current Family tab structure.
-- [ ] **First, re-discover live calendar entity IDs**. Run `ha_search_entities` with `domain_filter: "calendar"`. The example YAML below uses PLACEHOLDER slugs — they will almost certainly differ in the live HA. Replace every `calendar.*` line with an entity ID from the live result. If a logical calendar (e.g. "Birthdays") doesn't exist, drop the line — don't invent it.
-- [ ] `ha_config_set_dashboard` with `python_transform`: in the Family tab, replace the first section's `todo-list` card with:
+- [x] `ha_config_get_dashboard` for `wall-ipad` — capture current Family tab structure.
+- [x] **First, re-discover live calendar entity IDs**. Run `ha_search_entities` with `domain_filter: "calendar"`. The example YAML below uses PLACEHOLDER slugs — they will almost certainly differ in the live HA. Replace every `calendar.*` line with an entity ID from the live result. If a logical calendar (e.g. "Birthdays") doesn't exist, drop the line — don't invent it.
+- [x] `ha_config_set_dashboard` with `python_transform`: in the Family tab, replace the first section's `todo-list` card with:
   ```yaml
   - type: custom:lucarne-today-card
     title: Today
@@ -264,19 +264,20 @@ Goal: the user can configure the card via HA's standard UI editor, not just YAML
   - Tasks summary shows the count + top 3 from `todo.<ingrid_entity>`
   - Presence pills show Anton + Ingrid with correct state
 - [ ] Open browser DevTools (Safari Inspector via Mac + iPad cable) — no console errors.
+> NOTE: Steps above (copy JS, add resource, iPad verification, DevTools check) require physical user action. Phase is deployed from the HA side; awaiting user deployment confirmation.
 
 #### D.4 Wiki
 
-- [ ] Update `~/src/Tower/home-automation/dashboards/wall-ipad.md`: update the Family tab description with the new card.
-- [ ] Update `~/src/Tower/home-automation/projects/ha-lucarne.md`: mark Phase 2 complete, link to the card's `src/cards/lucarne-today-card.ts` on GitHub.
-- [ ] Append `~/src/Tower/change-log.md`: "ha-lucarne Phase 2 — today-card live on iPad."
+- [x] Update `~/src/Tower/home-automation/dashboards/wall-ipad.md`: update the Family tab description with the new card.
+- [x] Update `~/src/Tower/home-automation/projects.md`: added ha-lucarne Phase 2 section (no separate `projects/ha-lucarne.md` exists — projects are tracked in the flat `projects.md`).
+- [x] Append `~/src/Tower/change-log.md`: "ha-lucarne Phase 2 — today-card implemented and deployed to wall-ipad config; awaiting JS/resource deployment."
 
 ### Build Verification (required before marking phase complete)
 
-- [ ] `npm run lint && npm run typecheck && npm run build && npm test` — green.
-- [ ] `dist/ha-lucarne.js` committed and pushed.
-- [ ] No HA log errors for the dashboard or any new state subscriptions.
-- [ ] No browser console errors on the iPad.
+- [x] `npm run lint && npm run typecheck && npm run build && npm test` — green.
+- [x] `dist/ha-lucarne.js` committed and pushed.
+- [ ] No HA log errors for the dashboard or any new state subscriptions. (Requires user to deploy JS + verify on iPad.)
+- [ ] No browser console errors on the iPad. (Requires user to deploy JS + verify on iPad.)
 - [ ] Mark phase `status: done`.
 
 ### Manual Verification
