@@ -1,6 +1,14 @@
 export type { HassEntity } from 'home-assistant-js-websocket';
 export type { HomeAssistant } from 'custom-card-helpers';
 
+export interface KidConfig {
+  name: string;
+  color: string;
+  avatar?: string;
+  streak: string;
+  chores: { name: string; entity: string }[];
+}
+
 export interface CalendarEvent {
   start: string;
   end: string;

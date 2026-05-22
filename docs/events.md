@@ -8,28 +8,30 @@ browser session. The event does NOT replay on page load if a kid was already all
 
 ### Semantics
 
-- Fired from the card via `hass.callService('homeassistant', 'fire_event', {...})`.
+- Fired from the card via a `fire_event` WebSocket message: `this.hass.connection.sendMessagePromise({ type: 'fire_event', event_type: 'ha_lucarne_chores_all_done', event_data: {...} })`.
 - Fires once per `not-all-done → all-done` transition for each kid within the current
   browser session. If a chore is later unchecked and all chores are then re-completed,
   the event fires again. State is held in the card instance, so a full page reload resets
   the tracking.
-- The `streak` field reflects the counter value at the moment of the tap, **before** the
+- The `streak` field reflects the counter value at the moment of the transition, **before** the
   nightly streak-advance automation has run. The nightly automation may increment the
   streak further at `streak_check_time` (21:00 by default).
-- If chores are completed outside the card (e.g. via the HA developer tools), this event
-  will not fire. The nightly streak-advance automation still runs from HA state, independent
-  of whether the card is loaded.
+- The event fires for any not-all-done → all-done transition observed **while the card is
+  rendered**, regardless of whether the chore was toggled via the card's tap target or an
+  external source (developer tools, another automation, etc.). If the card is not loaded,
+  no event fires. The nightly streak-advance automation always runs from HA state,
+  independent of whether the card is loaded.
 
 ### Schema
 
 ```yaml
 event_type: ha_lucarne_chores_all_done
 event_data:
-  kid_slug: kid1          # Slugified kid name (name.toLowerCase().replace(/\s+/g, '_'))
+  kid_slug: kid_1         # Slugified kid name (name.toLowerCase().replace(/\s+/g, '_'))
   kid_name: "Kid 1"       # Display name from card YAML config
   date: "2026-05-21"      # ISO 8601 local date at the moment of the event
   chores_completed: 5     # Count of chores configured for this kid
-  streak: 7               # Current counter state at tap time (before nightly increment)
+  streak: 7               # Current counter state at transition time (before nightly increment)
 ```
 
 ### Example consumer automation
