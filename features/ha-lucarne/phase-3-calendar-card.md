@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # Phase 3: `lucarne-calendar-card`
@@ -76,7 +76,7 @@ Goal: All the gnarly logic that doesn't touch Lit lives here and is unit-tested.
 
 #### A.1 Date helpers
 
-- [ ] Create `src/shared/date-helpers.ts`. Pure functions:
+- [x] Create `src/shared/date-helpers.ts`. Pure functions:
   - `startOfWeek(date: Date, weekStartsOn: 'monday' | 'sunday'): Date` — returns the date at 00:00 local time of the week's start.
   - `endOfWeek(date: Date, weekStartsOn): Date` — Sun 23:59:59.999 local.
   - `weekDays(weekStart: Date): Date[]` — 7 Date objects, each at 00:00 of its day.
@@ -84,18 +84,18 @@ Goal: All the gnarly logic that doesn't touch Lit lives here and is unit-tested.
   - `eventOverlapsBand(event: CalendarEvent, day: Date, bandStart: string, bandEnd: string): boolean` — true if the event has any portion within the band on the given day.
   - `eventBandPortion(event, day, bandStart, bandEnd): {start: Date, end: Date} | null` — the clipped portion that falls within the band on that day.
   - `formatRelativeStart(event, now): string` — `"now"`, `"in 30m"`, `"in 2h"`, `"tomorrow"`, `"Fri"`.
-- [ ] Time zone awareness: HA reports timestamps as ISO 8601 UTC; the user's TZ is `America/Los_Angeles`. Use `Intl.DateTimeFormat` for display; do arithmetic in UTC but check day-boundary tests against local-time day boundaries. Browsers handle this with `Date` reasonably; verify behavior across the DST transition (March + November) in tests.
-- [ ] Write `tests/shared/date-helpers.test.ts`:
+- [x] Time zone awareness: HA reports timestamps as ISO 8601 UTC; the user's TZ is `America/Los_Angeles`. Use `Intl.DateTimeFormat` for display; do arithmetic in UTC but check day-boundary tests against local-time day boundaries. Browsers handle this with `Date` reasonably; verify behavior across the DST transition (March + November) in tests.
+- [x] Write `tests/shared/date-helpers.test.ts`:
   - week boundaries on Mon-start
   - week boundaries spanning a month transition
   - week boundaries on DST forward (March) and DST backward (November) — confirm `weekDays(weekStart).length === 7` even on DST-transition weeks, and the band hour count (e.g. `hoursInBand("07:00", "21:00").length === 15`) is unchanged. (The DST-affected day will still report 7 entries from `weekDays`; what changes is the wall-clock duration of that day, not the count.)
   - event overlapping the band partially, fully outside, fully inside
-- [ ] Confirm `package.json`'s `test` script still runs with `TZ=America/Los_Angeles` before `node --import tsx --test`, as added in Phase 2. DST and local-week-boundary assertions depend on that timezone.
-- [ ] `npm test` — green.
+- [x] Confirm `package.json`'s `test` script still runs with `TZ=America/Los_Angeles` before `node --import tsx --test`, as added in Phase 2. DST and local-week-boundary assertions depend on that timezone.
+- [x] `npm test` — green.
 
 #### A.2 Layout solver
 
-- [ ] Create `src/shared/calendar-layout.ts`. Pure function `layoutEvents(events, weekStart, bandStart, bandEnd, weekStartsOn)` returns:
+- [x] Create `src/shared/calendar-layout.ts`. Pure function `layoutEvents(events, weekStart, bandStart, bandEnd, weekStartsOn)` returns:
   ```ts
   {
     weekDays: Date[];
@@ -108,16 +108,16 @@ Goal: All the gnarly logic that doesn't touch Lit lives here and is unit-tested.
   }
   ```
   Where `lane` is 0,1,2,... computed via the standard "interval graph coloring" greedy algorithm: sort events by start, assign each to the lowest-numbered lane that's free at its start time. `topPercent` and `heightPercent` are relative to the band's pixel height (computed by the grid component).
-- [ ] All-day events bucket is shown above the grid (not laned).
-- [ ] Multi-day events: render as a `lane` event in the first day's grid spanning the visible portion, then per-day continuation banners (a single-line strip across the top of subsequent day columns). Defer to v1.1 if it's expensive — for v1 just render as separate per-day clipped blocks.
-- [ ] Write `tests/shared/calendar-layout.test.ts`:
+- [x] All-day events bucket is shown above the grid (not laned).
+- [x] Multi-day events: render as a `lane` event in the first day's grid spanning the visible portion, then per-day continuation banners (a single-line strip across the top of subsequent day columns). Defer to v1.1 if it's expensive — for v1 just render as separate per-day clipped blocks.
+- [x] Write `tests/shared/calendar-layout.test.ts`:
   - 1 event, in-band → 1 lane, correct percent
   - 2 events overlapping in time → 2 lanes
   - 3 events overlapping pairwise → 3 lanes
   - event spanning before band start to mid-band → clipped, top at 0%
   - event spanning mid-band to after band end → clipped, bottom at 100%
   - event fully before band start → in `earlier` bucket
-  - all-day event (start/end same date, no time) → in `allDay`
+  - all-day event (date-only strings, end exclusive per HA/iCal convention) → in `allDay`
   - multi-day event → for v1, present in multiple days' `inBand` arrays
 
 ### Sub-Phase B: Card + grid + event blocks (the renderer)
