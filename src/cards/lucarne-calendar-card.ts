@@ -118,10 +118,12 @@ export class LucarneCalendarCard extends LitElement {
   @state() private _openEvent: CalendarEvent | null = null;
   @state() private _openEventColor = '';
   @state() private _openEventCalLabel = '';
+  @state() private _openEventEntityId = '';
   @state() private _createDay: Date | null = null;
   @state() private _createStartHour = 9;
   @state() private _creatableCalendars: CalendarConfig[] = [];
   @state() private _dayWidthPx = 0;
+  @state() private _deletedUids = new Set<string>();
 
   private _rolling!: RollingWindowController;
   private _previewOverride?: PreviewOverrideHandle | null;
@@ -174,6 +176,7 @@ export class LucarneCalendarCard extends LitElement {
         visibleCount: effectiveCfg.minDays,
         onFetchComplete: () => {
           this._pendingEvents = [];
+          this._deletedUids = new Set();
           this._recompute();
         },
         onChange: () => this._recompute(),
@@ -299,10 +302,13 @@ export class LucarneCalendarCard extends LitElement {
         return entityId ? this._visibleIds.has(entityId) : true;
       }),
     );
+    const filtered = this._deletedUids.size > 0
+      ? allEvents.filter((e) => !e.uid || !this._deletedUids.has(e.uid))
+      : allEvents;
     const bandStart = this._config.visible_hours?.start ?? '07:00';
     const bandEnd = this._config.visible_hours?.end ?? '21:00';
     const days = this._rolling.days;
-    this._layout = layoutEvents(allEvents, days, bandStart, bandEnd);
+    this._layout = layoutEvents(filtered, days, bandStart, bandEnd);
   }
 
   private _supportsCreate(entityId: string): boolean {
@@ -330,11 +336,20 @@ export class LucarneCalendarCard extends LitElement {
     this._openEventColor = color;
     if (event.uid?.includes('::')) {
       const entityId = event.uid.split('::')[0];
+      this._openEventEntityId = entityId;
       const cal = this._config?.calendars.find((c) => c.entity === entityId);
       this._openEventCalLabel = cal ? resolveCalendarLabel(cal, this.hass) : '';
     } else {
+      this._openEventEntityId = '';
       this._openEventCalLabel = '';
     }
+  }
+
+  private _onEventDeleted(e: CustomEvent<{ entityId: string; uid: string }>) {
+    this._deletedUids = new Set([...this._deletedUids, e.detail.uid]);
+    this._openEvent = null;
+    this._openEventEntityId = '';
+    this._recompute();
   }
 
   private _closePopover() {
@@ -443,7 +458,10 @@ export class LucarneCalendarCard extends LitElement {
                 .event=${this._openEvent}
                 .color=${this._openEventColor}
                 .calendarLabel=${this._openEventCalLabel}
+                .hass=${this.hass}
+                .entityId=${this._openEventEntityId}
                 @popover-close=${this._closePopover}
+                @lucarne-event-deleted=${this._onEventDeleted}
               ></lucarne-calendar-event-popover>
             `
           : ''}
