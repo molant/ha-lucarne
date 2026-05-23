@@ -142,11 +142,33 @@ export class LucarneCreateEventPopover extends LitElement {
         min-height: 44px;
       }
       .allday-row input[type='checkbox'] {
+        appearance: none;
+        -webkit-appearance: none;
         width: 18px;
         height: 18px;
         min-height: unset;
+        margin: 0;
         cursor: pointer;
-        accent-color: var(--primary-color, #03a9f4);
+        border: 2px solid var(--primary-color, #03a9f4);
+        border-radius: 3px;
+        background: transparent;
+        position: relative;
+        flex-shrink: 0;
+      }
+      .allday-row input[type='checkbox']:checked::after {
+        content: '';
+        position: absolute;
+        left: 3px;
+        top: 0;
+        width: 4px;
+        height: 9px;
+        border: solid var(--primary-color, #03a9f4);
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+      .allday-row input[type='checkbox']:focus-visible {
+        outline: 2px solid var(--primary-color, #03a9f4);
+        outline-offset: 2px;
       }
       .error-msg {
         color: #c62828;
