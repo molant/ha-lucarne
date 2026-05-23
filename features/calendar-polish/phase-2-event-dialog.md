@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 ---
 
 # Phase 2: Event dialog UX (iPad rendering fixes)
@@ -41,7 +41,7 @@ Deployable when: date/time inputs on iPad visually match the text inputs (same h
 
 #### Implementation
 
-- [ ] Edit `src/components/create-event-popover.ts`, in the shared input rule at lines 93-108. Add `appearance: none; -webkit-appearance: none;` and `text-align: left;`:
+- [x] Edit `src/components/create-event-popover.ts`, in the shared input rule at lines 93-108. Add `appearance: none; -webkit-appearance: none;` and `text-align: left;`:
 
   ```css
   input[type='text'],
@@ -58,7 +58,7 @@ Deployable when: date/time inputs on iPad visually match the text inputs (same h
   }
   ```
 
-- [ ] After the shared rule, add WebKit-specific rules to neutralize the iOS date/time inner pieces:
+- [x] After the shared rule, add WebKit-specific rules to neutralize the iOS date/time inner pieces:
 
   ```css
   input[type='date']::-webkit-date-and-time-value,
@@ -88,7 +88,7 @@ Deployable when: the unchecked all-day checkbox shows a light-blue border (not s
 
 #### Implementation
 
-- [ ] Edit `src/components/create-event-popover.ts`, in the checkbox rule at lines 133-138. Add `accent-color`:
+- [x] Edit `src/components/create-event-popover.ts`, in the checkbox rule at lines 133-138. Add `accent-color`:
 
   ```css
   .allday-row input[type='checkbox'] {
@@ -124,11 +124,11 @@ This fallback is intentionally not implemented preemptively — it adds code and
 
 ### Final verification
 
-- [ ] All four gates green:
-  - [ ] `npm run typecheck`
-  - [ ] `npm run lint`
-  - [ ] `npm test`
-  - [ ] `npm run build`
+- [x] All four gates green:
+  - [x] `npm run typecheck`
+  - [x] `npm run lint`
+  - [x] `npm test`
+  - [x] `npm run build`
 - [ ] Side-by-side BEFORE/AFTER screenshots on iPad attached to the commit message or PR description.
 - [ ] Commit message format: `fix(calendar-polish): Phase 2 — iPad date/time input + checkbox styling`.
 

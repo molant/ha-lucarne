@@ -95,6 +95,9 @@ export class LucarneCreateEventPopover extends LitElement {
       input[type='time'],
       select,
       textarea {
+        appearance: none;
+        -webkit-appearance: none;
+        text-align: left;
         width: 100%;
         box-sizing: border-box;
         border: 1px solid rgba(0, 0, 0, 0.15);
@@ -105,6 +108,14 @@ export class LucarneCreateEventPopover extends LitElement {
         background: var(--lucarne-surface);
         min-height: 44px;
         font-family: inherit;
+      }
+      input[type='date']::-webkit-date-and-time-value,
+      input[type='time']::-webkit-date-and-time-value {
+        text-align: left;
+      }
+      input[type='date']::-webkit-calendar-picker-indicator,
+      input[type='time']::-webkit-calendar-picker-indicator {
+        opacity: 0.6;
       }
       input:focus,
       select:focus,
@@ -135,6 +146,7 @@ export class LucarneCreateEventPopover extends LitElement {
         height: 18px;
         min-height: unset;
         cursor: pointer;
+        accent-color: var(--primary-color, #03a9f4);
       }
       .error-msg {
         color: #c62828;
