@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchCalendarEvents } from '../../src/shared/ha-subscriptions.js';
+import { fetchCalendarEvents, deleteCalendarEvent, entitySupportsDelete } from '../../src/shared/ha-subscriptions.js';
 import type { HomeAssistant } from '../../src/shared/types.js';
 
 interface SentMessage {
@@ -121,5 +121,85 @@ describe('fetchCalendarEvents', () => {
     assert.deepEqual(result.get('calendar.bad'), []);
 
     console.warn = originalWarn;
+  });
+});
+
+describe('deleteCalendarEvent', () => {
+  function makeDeleteHass(): {
+    hass: HomeAssistant;
+    calls: Array<{ domain: string; service: string; serviceData: unknown; target: unknown }>;
+    rejectNext: boolean;
+  } {
+    const calls: Array<{ domain: string; service: string; serviceData: unknown; target: unknown }> = [];
+    let rejectNext = false;
+    const hass = {
+      callService: async (domain: string, service: string, serviceData: unknown, target: unknown) => {
+        calls.push({ domain, service, serviceData, target });
+        if (rejectNext) throw new Error('service failed');
+      },
+    } as unknown as HomeAssistant;
+    return { hass, calls, get rejectNext() { return rejectNext; }, set rejectNext(v) { rejectNext = v; } };
+  }
+
+  it('calls hass.callService with correct domain, service, uid, and entity_id', async () => {
+    const { hass, calls } = makeDeleteHass();
+    await deleteCalendarEvent(hass, 'calendar.family', 'abc-123');
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].domain, 'calendar');
+    assert.equal(calls[0].service, 'delete_event');
+    assert.deepEqual(calls[0].serviceData, { uid: 'abc-123' });
+    assert.deepEqual(calls[0].target, { entity_id: 'calendar.family' });
+  });
+
+  it('rejects with the same error when callService rejects', async () => {
+    const stub = makeDeleteHass();
+    stub.rejectNext = true;
+    await assert.rejects(
+      () => deleteCalendarEvent(stub.hass, 'calendar.family', 'abc-123'),
+      /service failed/,
+    );
+  });
+});
+
+describe('entitySupportsDelete', () => {
+  function makeStateHass(entityId: string, supportedFeatures: unknown): HomeAssistant {
+    return {
+      states: {
+        [entityId]: {
+          attributes: { supported_features: supportedFeatures },
+        },
+      },
+    } as unknown as HomeAssistant;
+  }
+
+  it('returns true when supported_features includes bit 4', () => {
+    const hass = makeStateHass('calendar.family', 5); // bits: 1 + 4
+    assert.equal(entitySupportsDelete(hass, 'calendar.family'), true);
+  });
+
+  it('returns true when supported_features is exactly 4', () => {
+    const hass = makeStateHass('calendar.family', 4);
+    assert.equal(entitySupportsDelete(hass, 'calendar.family'), true);
+  });
+
+  it('returns false when bit 4 is absent', () => {
+    const hass = makeStateHass('calendar.family', 3); // bits: 1 + 2, no bit 4
+    assert.equal(entitySupportsDelete(hass, 'calendar.family'), false);
+  });
+
+  it('returns false when supported_features is 0', () => {
+    const hass = makeStateHass('calendar.family', 0);
+    assert.equal(entitySupportsDelete(hass, 'calendar.family'), false);
+  });
+
+  it('returns false when supported_features is not a number', () => {
+    const hass = makeStateHass('calendar.family', 'yes');
+    assert.equal(entitySupportsDelete(hass, 'calendar.family'), false);
+  });
+
+  it('returns false when entity does not exist in hass.states', () => {
+    const hass = { states: {} } as unknown as HomeAssistant;
+    assert.equal(entitySupportsDelete(hass, 'calendar.missing'), false);
   });
 });

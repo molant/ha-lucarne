@@ -58,6 +58,22 @@ export async function fetchCalendarEvents(
   return new Map(results);
 }
 
+export async function deleteCalendarEvent(
+  hass: HomeAssistant,
+  entityId: string,
+  uid: string,
+): Promise<void> {
+  await hass.callService('calendar', 'delete_event', { uid }, { entity_id: entityId });
+}
+
+const CALENDAR_DELETE_EVENT_FEATURE = 4;
+
+export function entitySupportsDelete(hass: HomeAssistant, entityId: string): boolean {
+  const features = hass.states[entityId]?.attributes?.['supported_features'];
+  if (typeof features !== 'number') return false;
+  return (features & CALENDAR_DELETE_EVENT_FEATURE) !== 0;
+}
+
 export function subscribeTodoItems(
   hass: HomeAssistant,
   entityId: string,
