@@ -117,6 +117,11 @@ export const editorBaseStyles = css`
     padding: 4px 8px;
     border-radius: var(--lucarne-radius-sm);
   }
+  .editor-error {
+    color: var(--error-color, #f44336);
+    font-size: var(--lucarne-fs-sm);
+    margin-top: var(--lucarne-spacing-xs);
+  }
   button.add {
     background: none;
     border: 1px dashed var(--divider-color, rgba(0, 0, 0, 0.2));
