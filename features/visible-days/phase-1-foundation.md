@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 
 # Phase 1: Foundation — layout parameterization + visible-count helper
@@ -132,43 +132,43 @@ Deployable when: dead code is removed, old configs with `week_starts_on` still l
 
 #### Implementation
 
-- [ ] In `src/shared/date-helpers.ts`, delete:
+- [x] In `src/shared/date-helpers.ts`, delete:
   - `startOfWeek` (lines 3-11)
   - `endOfWeek` (lines 13-19)
   - `weekDays` (lines 21-30)
 
   Keep `hoursInBand`, `eventOverlapsBand`, `eventBandPortion`, `parseEventBoundary`, `formatRelativeStart` (used elsewhere).
 
-- [ ] In `src/cards/lucarne-calendar-card.ts`:
+- [x] In `src/cards/lucarne-calendar-card.ts`:
   - **Update `_weekLabel()` (lines 337-345) BEFORE deleting `_weekStart`/`_weekEnd`** — it currently calls `this._weekStart` / `this._weekEnd` at lines 338-339. Replace those two lines with `const days = this._currentDays(); const start = days[0]; const end = days[days.length - 1];` (the label rendering otherwise stays the same — "This week" / "Last week" / "Next week" / "Mon X – Mon Y"). `_navWeek` (line 332) only mutates `_weekOffset` and calls `_fetchEvents` — it does not reference `_weekStart`/`_weekEnd`, so it stays untouched in Phase 1. (Phase 2 deletes `_weekLabel` and `_navWeek` entirely when the controller's day-step nav lands.)
   - Delete the `_weekStart` and `_weekEnd` getters (lines 225-235). After the `_weekLabel` update above, `_recompute`, `_fetchEvents`, and `_weekLabel` all call `_currentDays()` instead — verify there are no remaining references to `_weekStart` / `_weekEnd` after this deletion (`npm run typecheck` will surface any).
   - Delete the `import { startOfWeek, endOfWeek } from '../shared/date-helpers.js';` line.
   - **Keep** `week_starts_on` in the `LucarneCalendarCardConfig` interface as `week_starts_on?: 'monday' | 'sunday'` with a JSDoc `@deprecated` tag and a `// silently ignored — see features/visible-days/README.md` comment. Old configs must still load.
   - The existing `setConfig` (lines 120-156) does not currently warn on `week_starts_on` — leave it untouched. (There is no warning to remove; the field already passes through silently.)
   - Update `getStubConfig` to NOT include `week_starts_on`.
-- [ ] In `src/editors/lucarne-calendar-card-editor.ts`:
+- [x] In `src/editors/lucarne-calendar-card-editor.ts`:
   - Delete the entire `_weekStartsOnChanged` handler and the `<select>` block in render (lines 40-44, 138-148).
-- [ ] In `tests/shared/date-helpers.test.ts`:
+- [x] In `tests/shared/date-helpers.test.ts`:
   - Delete all tests for `startOfWeek`, `endOfWeek`, `weekDays`.
   - Keep tests for the helpers that survive.
-- [ ] Run all gates (see Build Verification below).
+- [x] Run all gates (see Build Verification below).
 
 #### Documentation (End of Sub-Phase)
 
-- [ ] `docs/architecture.md` — no change (week-naming is referenced descriptively, not as API). Verify no stale mention of `week_starts_on`.
-- [ ] `docs/config-recipes.md` — no change in Phase 1 (Phase 3 documents the new options).
-- [ ] `CHANGELOG.md` — add an `[Unreleased]` section if none exists; under `### Changed`, note: *"`lucarne-calendar-card` — layout engine refactored to accept arbitrary day arrays (no user-visible change in v0.1; foundation for rolling-window in v0.2)."*
+- [x] `docs/architecture.md` — no change (week-naming is referenced descriptively, not as API). Verify no stale mention of `week_starts_on`.
+- [x] `docs/config-recipes.md` — no change in Phase 1 (Phase 3 documents the new options).
+- [x] `CHANGELOG.md` — add an `[Unreleased]` section if none exists; under `### Changed`, note: *"`lucarne-calendar-card` — layout engine refactored to accept arbitrary day arrays (no user-visible change in v0.1; foundation for rolling-window in v0.2)."*
 
 ### Build Verification (required before marking phase complete)
 
 ha-lucarne has four gates: `npm test`, `npm run lint`, `npm run typecheck`, `npm run build`. There is no E2E suite. All four must pass.
 
-- [ ] `npm run lint` — zero warnings, zero errors.
-- [ ] `npm run typecheck` — zero errors.
-- [ ] `npm test` — all tests pass. **Scan stdout for warnings or deprecation notices** (node:test will print them above the summary).
-- [ ] `npm run build` — produces `dist/ha-lucarne.js` with no errors.
-- [ ] `package-lock.json` — not modified by this phase. If it was, investigate why.
-- [ ] Mark this phase `status: done` only after all four gates pass.
+- [x] `npm run lint` — zero warnings, zero errors.
+- [x] `npm run typecheck` — zero errors.
+- [x] `npm test` — all tests pass. **Scan stdout for warnings or deprecation notices** (node:test will print them above the summary).
+- [x] `npm run build` — produces `dist/ha-lucarne.js` with no errors.
+- [x] `package-lock.json` — not modified by this phase. If it was, investigate why.
+- [x] Mark this phase `status: done` only after all four gates pass.
 
 > **This is a hard gate.** Do not mark the phase complete until all four gates pass.
 

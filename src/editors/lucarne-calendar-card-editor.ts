@@ -37,12 +37,6 @@ export class LucarneCalendarCardEditor extends LitElement {
     this._fire({ ...this._config!, title: input.value || undefined });
   }
 
-  private _weekStartsOnChanged(e: Event) {
-    const value = (e.target as HTMLSelectElement).value as 'monday' | 'sunday';
-    if (!value) return;
-    this._fire({ ...this._config!, week_starts_on: value });
-  }
-
   private _bandStartChanged(e: Event) {
     const input = e.target as HTMLInputElement;
     this._fire({
@@ -100,7 +94,6 @@ export class LucarneCalendarCardEditor extends LitElement {
     const calendars = this._config.calendars ?? [];
     const bandStart = this._config.visible_hours?.start ?? '07:00';
     const bandEnd = this._config.visible_hours?.end ?? '21:00';
-    const weekStartsOn = this._config.week_starts_on ?? 'monday';
     const showCreate = this._config.show_create_button ?? true;
 
     return html`
@@ -134,18 +127,6 @@ export class LucarneCalendarCardEditor extends LitElement {
           />
         </label>
       </div>
-
-      <label class="field">
-        <span class="field-label">Week starts on</span>
-        <select
-          class="select-input"
-          .value=${weekStartsOn}
-          @change=${this._weekStartsOnChanged}
-        >
-          <option value="monday" ?selected=${weekStartsOn === 'monday'}>Monday</option>
-          <option value="sunday" ?selected=${weekStartsOn === 'sunday'}>Sunday</option>
-        </select>
-      </label>
 
       <label class="toggle-row">
         <span class="toggle-label">Show create-event button</span>
