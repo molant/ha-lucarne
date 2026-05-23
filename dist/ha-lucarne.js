@@ -703,8 +703,14 @@ async function Ft(t, e, s, r) {
   );
   return { events: new Map(o), failed: n };
 }
-async function ws(t, e, s) {
-  await t.callService("calendar", "delete_event", { uid: s }, { entity_id: e });
+async function ws(t, e, s, r, n) {
+  await t.connection.sendMessagePromise({
+    type: "calendar/event/delete",
+    entity_id: e,
+    uid: s,
+    recurrence_id: r,
+    recurrence_range: n
+  });
 }
 const $s = 2;
 function xs(t, e) {

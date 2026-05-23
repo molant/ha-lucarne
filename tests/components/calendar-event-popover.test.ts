@@ -29,6 +29,9 @@ function makeHass(supportedFeatures: number | undefined): HomeAssistant {
       },
     },
     callService: async () => {},
+    connection: {
+      sendMessagePromise: async () => undefined,
+    },
   } as unknown as HomeAssistant;
 }
 
@@ -169,12 +172,11 @@ describe('LucarneCalendarEventPopover — Delete confirm flow', () => {
     assert.equal(events[0].detail.uid, 'calendar.family::abc-123');
   });
 
-  it('strips entityId:: prefix before calling callService', async () => {
-    const calls: Array<{ domain: string; service: string; serviceData: unknown; target: unknown }> = [];
+  it('strips entityId:: prefix before sending the calendar/event/delete WS command', async () => {
+    const msgs: Array<Record<string, unknown>> = [];
     const hass = makeHass(3);
-    (hass as unknown as Record<string, unknown>).callService = async (
-      domain: string, service: string, serviceData: unknown, target: unknown,
-    ) => { calls.push({ domain, service, serviceData, target }); };
+    (hass as unknown as { connection: { sendMessagePromise: (m: Record<string, unknown>) => Promise<unknown> } })
+      .connection.sendMessagePromise = async (m) => { msgs.push(m); return undefined; };
 
     el = makeEl({ hass });
     await el.updateComplete;
@@ -184,9 +186,10 @@ describe('LucarneCalendarEventPopover — Delete confirm flow', () => {
     (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
     await new Promise((r) => setTimeout(r, 10));
 
-    assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0].serviceData, { uid: 'abc-123' });
-    assert.deepEqual(calls[0].target, { entity_id: 'calendar.family' });
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0].type, 'calendar/event/delete');
+    assert.equal(msgs[0].entity_id, 'calendar.family');
+    assert.equal(msgs[0].uid, 'abc-123', 'entityId:: prefix stripped before delete');
   });
 });
 
@@ -198,9 +201,8 @@ describe('LucarneCalendarEventPopover — Delete error path', () => {
   it('shows inline error-msg when deleteCalendarEvent rejects; popover stays open; no event dispatched', async () => {
     const events: CustomEvent[] = [];
     const hass = makeHass(3);
-    (hass as unknown as Record<string, unknown>).callService = async () => {
-      throw new Error('uid not found');
-    };
+    (hass as unknown as { connection: { sendMessagePromise: () => Promise<unknown> } })
+      .connection.sendMessagePromise = async () => { throw new Error('uid not found'); };
     el = makeEl({ hass });
     el.addEventListener('lucarne-event-deleted', (e) => events.push(e as CustomEvent));
     await el.updateComplete;
@@ -222,9 +224,11 @@ describe('LucarneCalendarEventPopover — Delete error path', () => {
   it('error is cleared when Delete is tapped again after an error', async () => {
     let fail = true;
     const hass = makeHass(3);
-    (hass as unknown as Record<string, unknown>).callService = async () => {
-      if (fail) throw new Error('boom');
-    };
+    (hass as unknown as { connection: { sendMessagePromise: () => Promise<unknown> } })
+      .connection.sendMessagePromise = async () => {
+        if (fail) throw new Error('boom');
+        return undefined;
+      };
     el = makeEl({ hass });
     await el.updateComplete;
 
