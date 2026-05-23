@@ -66,7 +66,8 @@ export async function deleteCalendarEvent(
   await hass.callService('calendar', 'delete_event', { uid }, { entity_id: entityId });
 }
 
-const CALENDAR_DELETE_EVENT_FEATURE = 4;
+// HA's CalendarEntityFeature: CREATE_EVENT=1, DELETE_EVENT=2, UPDATE_EVENT=4
+const CALENDAR_DELETE_EVENT_FEATURE = 2;
 
 export function entitySupportsDelete(hass: HomeAssistant, entityId: string): boolean {
   const features = hass.states[entityId]?.attributes?.['supported_features'];

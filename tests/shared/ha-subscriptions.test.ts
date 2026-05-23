@@ -173,18 +173,18 @@ describe('entitySupportsDelete', () => {
     } as unknown as HomeAssistant;
   }
 
-  it('returns true when supported_features includes bit 4', () => {
-    const hass = makeStateHass('calendar.family', 5); // bits: 1 + 4
+  it('returns true when supported_features includes bit 2 (DELETE)', () => {
+    const hass = makeStateHass('calendar.family', 3); // bits: 1 (CREATE) + 2 (DELETE)
     assert.equal(entitySupportsDelete(hass, 'calendar.family'), true);
   });
 
-  it('returns true when supported_features is exactly 4', () => {
-    const hass = makeStateHass('calendar.family', 4);
+  it('returns true when supported_features is exactly 2', () => {
+    const hass = makeStateHass('calendar.family', 2);
     assert.equal(entitySupportsDelete(hass, 'calendar.family'), true);
   });
 
-  it('returns false when bit 4 is absent', () => {
-    const hass = makeStateHass('calendar.family', 3); // bits: 1 + 2, no bit 4
+  it('returns false when bit 2 is absent (CREATE+UPDATE only)', () => {
+    const hass = makeStateHass('calendar.family', 5); // bits: 1 (CREATE) + 4 (UPDATE)
     assert.equal(entitySupportsDelete(hass, 'calendar.family'), false);
   });
 

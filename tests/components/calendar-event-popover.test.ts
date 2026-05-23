@@ -42,7 +42,7 @@ function makeEl(
   const el = document.createElement('lucarne-calendar-event-popover') as LucarneCalendarEventPopover;
   el.event = opts.event !== undefined ? opts.event : makeEvent();
   el.entityId = opts.entityId !== undefined ? opts.entityId : 'calendar.family';
-  el.hass = opts.hass !== undefined ? opts.hass : makeHass(5); // bit 4 set → supports delete
+  el.hass = opts.hass !== undefined ? opts.hass : makeHass(3); // bits 1+2 set → supports CREATE+DELETE
   document.body.appendChild(el);
   return el;
 }
@@ -65,7 +65,7 @@ describe('LucarneCalendarEventPopover — Delete button visibility', () => {
   afterEach(() => el?.remove());
 
   it('renders Delete button when entity supports delete and event is non-recurring', async () => {
-    el = makeEl({ hass: makeHass(5) }); // bit 4 set
+    el = makeEl({ hass: makeHass(3) }); // bits 1+2 set: CREATE+DELETE
     await el.updateComplete;
     const btn = shadowQuery(el, '.btn-delete');
     assert.ok(btn, 'Delete button should be rendered');
@@ -73,7 +73,7 @@ describe('LucarneCalendarEventPopover — Delete button visibility', () => {
   });
 
   it('does NOT render Delete button when entity does not support delete', async () => {
-    el = makeEl({ hass: makeHass(3) }); // bits 1+2, no bit 4
+    el = makeEl({ hass: makeHass(5) }); // bits 1+4: CREATE+UPDATE, no DELETE
     await el.updateComplete;
     assert.equal(shadowQuery(el, '.btn-delete'), null);
   });
@@ -84,26 +84,31 @@ describe('LucarneCalendarEventPopover — Delete button visibility', () => {
     assert.equal(shadowQuery(el, '.btn-delete'), null);
   });
 
+  // For the sad-path tests below, supported_features is set to 3 (CREATE+DELETE)
+  // so the only thing blocking the Delete button is the named guard
+  // (entityId / uid / rrule / recurrence_id). The Delete-button render gate is
+  // a logical AND: any one of these guards is enough to hide the button.
+
   it('does NOT render Delete button when entityId is empty', async () => {
-    el = makeEl({ entityId: '', hass: makeHass(5) });
+    el = makeEl({ entityId: '', hass: makeHass(3) });
     await el.updateComplete;
     assert.equal(shadowQuery(el, '.btn-delete'), null);
   });
 
   it('does NOT render Delete button when event has no uid', async () => {
-    el = makeEl({ event: makeEvent({ uid: undefined }), hass: makeHass(5) });
+    el = makeEl({ event: makeEvent({ uid: undefined }), hass: makeHass(3) });
     await el.updateComplete;
     assert.equal(shadowQuery(el, '.btn-delete'), null);
   });
 
   it('does NOT render Delete button when event has rrule (recurring)', async () => {
-    el = makeEl({ event: makeEvent({ rrule: 'FREQ=WEEKLY' }), hass: makeHass(5) });
+    el = makeEl({ event: makeEvent({ rrule: 'FREQ=WEEKLY' }), hass: makeHass(3) });
     await el.updateComplete;
     assert.equal(shadowQuery(el, '.btn-delete'), null);
   });
 
   it('does NOT render Delete button when event has recurrence_id (recurring instance)', async () => {
-    el = makeEl({ event: makeEvent({ recurrence_id: '2026-05-25T14:00:00' }), hass: makeHass(5) });
+    el = makeEl({ event: makeEvent({ recurrence_id: '2026-05-25T14:00:00' }), hass: makeHass(3) });
     await el.updateComplete;
     assert.equal(shadowQuery(el, '.btn-delete'), null);
   });
@@ -115,7 +120,7 @@ describe('LucarneCalendarEventPopover — Delete confirm flow', () => {
   afterEach(() => el?.remove());
 
   it('first Delete tap shows confirm state: "Confirm delete?" button + Cancel button', async () => {
-    el = makeEl({ hass: makeHass(5) });
+    el = makeEl({ hass: makeHass(3) });
     await el.updateComplete;
 
     const deleteBtn = shadowQuery(el, '.btn-delete') as HTMLButtonElement;
@@ -131,7 +136,7 @@ describe('LucarneCalendarEventPopover — Delete confirm flow', () => {
   });
 
   it('Cancel tap returns to non-confirm state', async () => {
-    el = makeEl({ hass: makeHass(5) });
+    el = makeEl({ hass: makeHass(3) });
     await el.updateComplete;
 
     (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
@@ -148,7 +153,7 @@ describe('LucarneCalendarEventPopover — Delete confirm flow', () => {
 
   it('second Delete tap (Confirm delete?) dispatches lucarne-event-deleted with entityId and uid', async () => {
     const events: CustomEvent[] = [];
-    el = makeEl({ hass: makeHass(5) });
+    el = makeEl({ hass: makeHass(3) });
     el.addEventListener('lucarne-event-deleted', (e) => events.push(e as CustomEvent));
     await el.updateComplete;
 
@@ -166,7 +171,7 @@ describe('LucarneCalendarEventPopover — Delete confirm flow', () => {
 
   it('strips entityId:: prefix before calling callService', async () => {
     const calls: Array<{ domain: string; service: string; serviceData: unknown; target: unknown }> = [];
-    const hass = makeHass(5);
+    const hass = makeHass(3);
     (hass as unknown as Record<string, unknown>).callService = async (
       domain: string, service: string, serviceData: unknown, target: unknown,
     ) => { calls.push({ domain, service, serviceData, target }); };
@@ -192,7 +197,7 @@ describe('LucarneCalendarEventPopover — Delete error path', () => {
 
   it('shows inline error-msg when deleteCalendarEvent rejects; popover stays open; no event dispatched', async () => {
     const events: CustomEvent[] = [];
-    const hass = makeHass(5);
+    const hass = makeHass(3);
     (hass as unknown as Record<string, unknown>).callService = async () => {
       throw new Error('uid not found');
     };
@@ -216,7 +221,7 @@ describe('LucarneCalendarEventPopover — Delete error path', () => {
 
   it('error is cleared when Delete is tapped again after an error', async () => {
     let fail = true;
-    const hass = makeHass(5);
+    const hass = makeHass(3);
     (hass as unknown as Record<string, unknown>).callService = async () => {
       if (fail) throw new Error('boom');
     };
