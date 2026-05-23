@@ -132,7 +132,7 @@ Editor validates `min_days ≤ max_days` and `min_col_width ≤ max_col_width` (
 
 ### Authorization
 
-Card-level only; no HA service permissions added or changed. The existing `calendar.get_events` WebSocket call is used unmodified.
+Card-level only; no HA service permissions added or changed. Event fetching uses HA's REST endpoint `GET /api/calendars/<entity_id>?start=...&end=...` (via `hass.callApi`), the same endpoint HA's own frontend calendar dashboard uses. Authorization is enforced by HA per the user's existing session — `hass.callApi` sends the access token `hass.auth` already holds as `Authorization: Bearer …`, so no extra credential plumbing or scope expansion vs. the previous `calendar.get_events` service-call path.
 
 ## Phases
 
@@ -178,4 +178,4 @@ The browsermcp `browser_get_console_logs` tool surfaces console output during ma
 
 ## Access Control
 
-> Not applicable. The card uses the existing `calendar.get_events` service call via `fetchCalendarEvents` in `src/shared/ha-subscriptions.ts` (a `call_service` WebSocket message with `return_response: true`). No new entities, services, or storage are introduced. All authorization is enforced by Home Assistant per the user's existing HA session.
+> Not applicable. The card fetches events via HA's REST endpoint `GET /api/calendars/<entity_id>` (called through `hass.callApi` in `fetchCalendarEvents`, `src/shared/ha-subscriptions.ts`), the same endpoint HA's own frontend calendar dashboard uses. No new entities, services, or storage are introduced. All authorization is enforced by Home Assistant per the user's existing HA session — `hass.callApi` carries the same access token `hass.auth` already holds, no extra credentials wired up.

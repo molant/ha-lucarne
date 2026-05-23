@@ -8,12 +8,14 @@ Add the ability to delete a single, non-recurring event from the event-detail mo
 
 ## Context
 
-The detail modal (`src/components/calendar-event-popover.ts`) currently shows event info and a Google Calendar deep-link, but no destructive actions. The card creates events via `hass.callService('calendar', 'create_event', ...)` in `src/components/create-event-popover.ts:259` and optimistically inserts them into `_pendingEvents` via `_onEventCreated` in `src/cards/lucarne-calendar-card.ts:354`.
+> **Status note (2026-05-23)**: this phase is shipped. The Delete button, inline confirm step, optimistic removal, and supported-features gating all live in `src/components/calendar-event-popover.ts` and `src/cards/lucarne-calendar-card.ts`. This Context paragraph captures the *pre-implementation* state for narrative purposes.
 
-For delete, we mirror this pattern:
+At the start of this phase, the detail modal (`src/components/calendar-event-popover.ts`) showed event info and a Google Calendar deep-link, but no destructive actions. The card already created events via `hass.callService('calendar', 'create_event', ...)` in `create-event-popover.ts` (`_create` method) and optimistically inserted them into `_pendingEvents` via `_onEventCreated` in `lucarne-calendar-card.ts` — symbol names instead of line numbers since the latter bit-rot quickly.
+
+For delete, we mirror that optimistic pattern:
 
 1. Detect per-entity delete support via `attributes.supported_features & 2` (the `CalendarEntityFeature.DELETE_EVENT` bit — full enum: CREATE=1, DELETE=2, UPDATE=4).
-2. Add a `deleteCalendarEvent` helper in `src/shared/ha-subscriptions.ts`.
+2. Add a `deleteCalendarEvent` helper in `src/shared/ha-subscriptions.ts`. **Shipped form uses the `calendar/event/delete` WebSocket command, not `callService` — see implementation note in Sub-Phase 3A. HA exposes no `calendar.delete_event` service.**
 3. Add a Delete button + inline confirm step in `calendar-event-popover.ts`, gated on the supported-features bit.
 4. On success, the popover dispatches `lucarne-event-deleted`, the card adds the event's uid to a `_deletedUids` set, and the recompute step filters it out. The next 5-minute background poll converges canonical state.
 
@@ -28,7 +30,7 @@ src/components/
 src/cards/
   lucarne-calendar-card.ts     # MODIFY: handle @lucarne-event-deleted, maintain _deletedUids set, filter in _recompute, pass supported_features info into popover (via hass)
 tests/shared/
-  ha-subscriptions.test.ts     # NEW (if no file exists): test deleteCalendarEvent constructs the right service call
+  ha-subscriptions.test.ts     # NEW (if no file exists): test deleteCalendarEvent sends the calendar/event/delete WS command with the right shape
 tests/components/
   calendar-event-popover.test.ts # NEW: test Delete button visibility based on supported_features, confirm step, delete dispatch
 ```
@@ -49,29 +51,40 @@ Deployable when: the helper is unit-tested and importable, even if no UI uses it
 
 #### Tests
 
-- [x] Create or extend `tests/shared/ha-subscriptions.test.ts` to assert `deleteCalendarEvent` calls `hass.callService` with:
-  - domain `'calendar'`
-  - service `'delete_event'`
-  - `service_data: { uid }`
-  - `target: { entity_id }`
-- [x] Test rejection path: when `callService` rejects, the helper rejects with the same error (no swallow).
+- [x] Create or extend `tests/shared/ha-subscriptions.test.ts` to assert `deleteCalendarEvent` sends the `calendar/event/delete` WebSocket message via `hass.connection.sendMessagePromise` with:
+  - `type: 'calendar/event/delete'`
+  - `entity_id: <entityId>`
+  - `uid: <uid>`
+  - `recurrence_id` / `recurrence_range` forwarded when provided (omitted/undefined for non-recurring deletes)
+- [x] Test rejection path: when the WS command rejects, the helper rejects with the same error (no swallow).
+- [x] Regression guard: assert `hass.callService` is NEVER invoked (HA has no `calendar.delete_event` service — the originally-spec'd service-call path fails at runtime with "Action calendar.delete_event not found").
 
 #### Implementation
 
-- [x] Add at the end of `src/shared/ha-subscriptions.ts`:
+- [x] Add at the end of `src/shared/ha-subscriptions.ts`. **NOTE (post-implementation, 2026-05-23)**: HA does NOT expose a `calendar.delete_event` service — only `calendar.create_event` and `calendar.get_events` are services (verified via `ha_list_services`). Delete must go through HA's WebSocket command, the same path HA's own frontend uses. The originally-spec'd `hass.callService('calendar', 'delete_event', ...)` form fails at runtime with "Action calendar.delete_event not found"; the shipped helper uses the WS command:
 
   ```typescript
   export async function deleteCalendarEvent(
     hass: HomeAssistant,
     entityId: string,
     uid: string,
+    recurrenceId?: string,
+    recurrenceRange?: string, // '' or 'THISANDFUTURE'
   ): Promise<void> {
-    await hass.callService('calendar', 'delete_event', { uid }, { entity_id: entityId });
+    await hass.connection.sendMessagePromise({
+      type: 'calendar/event/delete',
+      entity_id: entityId,
+      uid,
+      recurrence_id: recurrenceId,
+      recurrence_range: recurrenceRange,
+    });
   }
   ```
 
-- [x] Verify `HomeAssistant.callService` signature in `src/shared/types.ts` supports the `(domain, service, serviceData, target)` shape. If it differs from how `create-event-popover.ts:259` calls it, mirror the existing call shape exactly.
-- [x] Inspect `CalendarEvent` in `src/shared/types.ts` and add `rrule?: string` if not already present — we use its presence to detect recurring events in Sub-Phase C. If HA's `get_events` returns `recurrence_id` instead, use that field; check what an actual recurring event in the wiki/MCP HA instance returns via `mcp__home-assistant__ha_config_get_calendar_events`.
+  Inspired by HA frontend's `deleteCalendarEvent` in `home-assistant/frontend/src/data/calendar.ts`. A regression test in `tests/shared/ha-subscriptions.test.ts` asserts `callService` is never invoked.
+
+- [x] Verify `HomeAssistant` type exposes `connection.sendMessagePromise` (it does — already used by `subscribeTodoItems` in `src/shared/ha-subscriptions.ts`). Note: the rolling-window calendar fetcher uses `hass.callApi` instead (REST `GET /api/calendars/<entity>`) — only delete goes through `sendMessagePromise`.
+- [x] Inspect `CalendarEvent` in `src/shared/types.ts` and add `rrule?: string` if not already present — we use its presence to detect recurring events in Sub-Phase C. The card's REST fetcher (`fetchCalendarEvents`, post-implementation update) returns `uid`, `rrule`, and `recurrence_id` directly from `GET /api/calendars/<entity_id>` — these are stripped from the `calendar.get_events` service response, which is why the fetcher was rewritten to use REST instead.
 
 ### Sub-Phase 3B: Supported-features detection helper
 

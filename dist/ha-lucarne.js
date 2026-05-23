@@ -3432,8 +3432,9 @@ let O = class extends v {
   }
   /**
    * Returns true when the uid is a synthetic placeholder (no real upstream
-   * uid available). HA's `calendar.delete_event` and Google's eventedit URL
-   * both require a real uid, so we skip those affordances for synthetic ids.
+   * uid available). The HA `calendar/event/delete` WebSocket command and
+   * Google's eventedit URL both require a real uid, so we skip those
+   * affordances for synthetic ids.
    */
   _hasSyntheticUid(t) {
     if (!t) return !0;

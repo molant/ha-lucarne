@@ -33,8 +33,7 @@ Mac mini ──── POST /api/webhook/<secret> ────► Home Assistant
 Each card manages its own HA subscriptions independently.
 
 **lucarne-today-card**
-- `fetchCalendarEvents` WebSocket `call_service` for `calendar.get_events` with `return_response: true` on connect + 5-minute poll (all configured `calendar.*` entities,
-  7-day window)
+- `fetchCalendarEvents` REST `GET /api/calendars/<entity_id>?start=...&end=...` (via `hass.callApi`) on connect + 5-minute poll (all configured `calendar.*` entities, 7-day window). Returns `{ events: Map<entity_id, CalendarEvent[]>, failed: Set<entity_id> }`. REST is used (not the `calendar.get_events` service-call) so events include `uid`, which is required for the `calendar/event/delete` WS command used by the Delete affordance.
 - `weather.get_forecasts` service call (daily type) on connect + on weather entity state change
 - `subscribeTodoItems` — `subscribe_trigger` on entity state change + `todo.get_items` re-poll for live task-count badge
 

@@ -89,8 +89,10 @@ function normaliseEvent(raw: RawCalendarEventResponse): CalendarEvent {
  *
  * Why REST and not the `calendar.get_events` service: the service response
  * deliberately strips `uid`, leaving downstream consumers unable to delete
- * events (the card needs uid to call `calendar.delete_event`). The REST
- * endpoint returns the full event including uid, recurrence_id, and rrule.
+ * events (the card needs uid for the `calendar/event/delete` WebSocket
+ * command — see `deleteCalendarEvent` below; HA exposes no
+ * `calendar.delete_event` service). The REST endpoint returns the full
+ * event including uid, recurrence_id, and rrule.
  */
 export async function fetchCalendarEvents(
   hass: HomeAssistant,
