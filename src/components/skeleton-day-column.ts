@@ -20,8 +20,18 @@ export class LucarneSkeletonDayColumn extends LitElement {
       :host {
         display: block;
         width: 100%;
-        height: 100%;
+      }
+      /*
+       * Wrapper with an explicit pixel height derived from bandStart/bandEnd
+       * and hourHeightPx. Avoids height:100% on :host because the parent
+       * wrapper in calendar-grid is a flex column with no fixed height — on
+       * the initial render (cachedDayKeys empty, no real day-col anywhere to
+       * establish a row height), 100% of nothing collapsed the skeleton to
+       * 0px and the shimmer was invisible.
+       */
+      .sk-host {
         position: relative;
+        width: 100%;
         overflow: hidden;
       }
       .fake-event {
@@ -69,20 +79,21 @@ export class LucarneSkeletonDayColumn extends LitElement {
     const bandPx = bandH * this.hourHeightPx;
 
     return html`
-      <!-- Fake event blocks in time grid -->
-      ${[0, 1].map((i) => {
-        const topFrac = fakeEventTop(i) / 100;
-        const topPx = topFrac * bandPx;
-        const heightPx = fakeEventHeight(i);
-        return html`
-          <div
-            class="fake-event"
-            style="top: ${topPx}px; height: ${heightPx}px;"
-          >
-            <div class="shimmer-sweep"></div>
-          </div>
-        `;
-      })}
+      <div class="sk-host" style="height:${bandPx}px">
+        ${[0, 1].map((i) => {
+          const topFrac = fakeEventTop(i) / 100;
+          const topPx = topFrac * bandPx;
+          const heightPx = fakeEventHeight(i);
+          return html`
+            <div
+              class="fake-event"
+              style="top: ${topPx}px; height: ${heightPx}px;"
+            >
+              <div class="shimmer-sweep"></div>
+            </div>
+          `;
+        })}
+      </div>
     `;
   }
 }

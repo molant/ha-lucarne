@@ -60,7 +60,7 @@ export class LucarneCalendarDayPan extends LitElement {
   private _isDragging = false;
   private _cachedTargets: HTMLElement[] = [];
   private _pendingSnapTarget?: HTMLElement;
-  private _pendingTransitionEnd?: () => void;
+  private _pendingTransitionEnd?: (e: Event) => void;
   /** rAF handle for the post-snap "clear inline transform so CSS baseline takes
    *  over" callback. Cancelled by _cancelPendingSnap so a new gesture's
    *  inline transform isn't wiped by a stale clear from the previous snap. */
@@ -183,7 +183,17 @@ export class LucarneCalendarDayPan extends LitElement {
       el.style.transform = `translateX(${targetPx}px)`;
     }
 
-    const onEnd = () => {
+    const onEnd = (e: Event) => {
+      // transitionend bubbles. Ignore events from descendants (e.g. an
+      // event block's `filter` transition) and any non-transform property
+      // on targets[0] itself — only the track's own transform completion
+      // should commit the snap. Without this guard, an unrelated bubbled
+      // event could trigger pan-snap mid-animation. We manage removal
+      // manually (no `{ once: true }`) so a stray event doesn't consume the
+      // single-fire listener before the real transform finishes.
+      const te = e as TransitionEvent;
+      if (te.target !== targets[0]) return;
+      if (te.propertyName && te.propertyName !== 'transform') return;
       this._pendingTransitionEnd = undefined;
       targets[0].removeEventListener('transitionend', onEnd);
       // Dispatch first → card updates dayOffset → Lit schedules a microtask
@@ -196,7 +206,7 @@ export class LucarneCalendarDayPan extends LitElement {
     };
     this._pendingSnapTarget = targets[0];
     this._pendingTransitionEnd = onEnd;
-    targets[0].addEventListener('transitionend', onEnd, { once: true });
+    targets[0].addEventListener('transitionend', onEnd);
   }
 
   private _dispatchPanSnap(deltaDays: number) {
@@ -266,7 +276,14 @@ export class LucarneCalendarDayPan extends LitElement {
       const velocity = dt > 0 ? (dx / dt) * 1000 : 0;
       // Use rubber-banded dx so snap math sees the same magnitude as the visual
       const effective = this._applyRubberBand(dx);
-      const deltaDays = snapToDay(effective, this.dayWidthPx, velocity);
+      let deltaDays = snapToDay(effective, this.dayWidthPx, velocity);
+      // At a pan bound, rubberBand reduces the displacement to ~1/3 but the
+      // residual combined with flick velocity can still make snapToDay return
+      // ±1. Force snap-to-baseline so we don't dispatch a pan-snap the
+      // controller would just clamp away.
+      if ((deltaDays > 0 && !this.canPanBack) || (deltaDays < 0 && !this.canPanForward)) {
+        deltaDays = 0;
+      }
       this._snapAndCommit(deltaDays);
     }
     this._pointerId = undefined;

@@ -133,6 +133,7 @@ export class LucarneCalendarCard extends LitElement {
 
   private _rolling!: RollingWindowController;
   private _previewOverride?: PreviewOverrideHandle | null;
+  private _previewOverrideRaf?: number;
   private _pendingEvents: CalendarEvent[] = [];
   private _resizeObserver?: ResizeObserver;
   private _resizeFrame?: number;
@@ -239,7 +240,9 @@ export class LucarneCalendarCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     // Lit auto-invokes RollingWindowController.hostConnected() via addController
-    requestAnimationFrame(() => {
+    this._previewOverrideRaf = requestAnimationFrame(() => {
+      this._previewOverrideRaf = undefined;
+      if (!this.isConnected) return;
       this._previewOverride = installPreviewColumnOverride(this);
     });
   }
@@ -247,6 +250,10 @@ export class LucarneCalendarCard extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     // Lit auto-invokes RollingWindowController.hostDisconnected() via addController
+    if (this._previewOverrideRaf !== undefined) {
+      cancelAnimationFrame(this._previewOverrideRaf);
+      this._previewOverrideRaf = undefined;
+    }
     this._resizeObserver?.disconnect();
     this._previewOverride?.uninstall();
     this._previewOverride = undefined;
@@ -369,11 +376,12 @@ export class LucarneCalendarCard extends LitElement {
    * here would let a stale fetch resurrect a freshly-deleted event between
    * the user's tap and the server's next state.
    *
-   * `failed` is the set of entity ids whose `calendar.get_events` call threw.
-   * Tombstones whose entity prefix is in `failed` are NEVER pruned, because
-   * we can't distinguish "really gone" from "the fetch never returned data
-   * for this entity." Without this guard, a transient per-entity failure
-   * would silently resurrect every optimistic delete for that entity.
+   * `failed` is the set of entity ids whose REST fetch
+   * (`GET /api/calendars/<entity_id>`) threw. Tombstones whose entity prefix
+   * is in `failed` are NEVER pruned, because we can't distinguish "really
+   * gone" from "the fetch never returned data for this entity." Without this
+   * guard, a transient per-entity failure would silently resurrect every
+   * optimistic delete for that entity.
    */
   private _onFetchComplete(events: Map<string, CalendarEvent[]>, failed: Set<string>) {
     this._pendingEvents = [];

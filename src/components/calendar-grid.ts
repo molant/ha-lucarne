@@ -402,12 +402,22 @@ export class LucarneCalendarGrid extends LitElement {
 
     const weekdayFmt = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
 
+    // Before the card's ResizeObserver/rAF computes a real width, dayWidthPx
+    // is 0. Writing `--lucarne-day-width-px: 0px` would override the CSS
+    // fallback (`var(..., 140px)`) and collapse every column to 0px on the
+    // first paint. Omit both custom properties in that case so the CSS
+    // defaults apply (140px columns, 0px baseline) until the real width
+    // lands; once dayWidthPx > 0, the inline values take over.
+    const gridVars: Record<string, string> = {
+      '--lucarne-day-render-count': String(this.layout.days.length),
+    };
+    if (this.dayWidthPx > 0) {
+      gridVars['--lucarne-day-width-px'] = `${this.dayWidthPx}px`;
+      gridVars['--lucarne-day-baseline-px'] = `${-this.bufferDays * this.dayWidthPx}px`;
+    }
+
     return html`
-      <div class="grid-wrapper" style=${styleMap({
-        '--lucarne-day-render-count': String(this.layout.days.length),
-        '--lucarne-day-width-px': `${this.dayWidthPx}px`,
-        '--lucarne-day-baseline-px': `${-this.bufferDays * this.dayWidthPx}px`,
-      })}>
+      <div class="grid-wrapper" style=${styleMap(gridVars)}>
         <!-- Time-column gutter cells (col 1): stay fixed during pan -->
         <div class="header-spacer" style="grid-row:1; grid-column:1"></div>
         <div class="allday-spacer" style="grid-row:2; grid-column:1">all-day</div>

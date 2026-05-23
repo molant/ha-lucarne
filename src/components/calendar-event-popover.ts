@@ -198,7 +198,8 @@ export class LucarneCalendarEventPopover extends LitElement {
     this._deleting = true;
     this._deleteError = '';
     // The card stores uid as "entityId::originalUid" for color lookup.
-    // Strip the prefix before calling the service — HA expects the original uid.
+    // Strip the prefix before sending the `calendar/event/delete` WS command —
+    // HA expects the original upstream uid.
     const rawUid = this.event.uid.includes('::')
       ? this.event.uid.split('::').slice(1).join('::')
       : this.event.uid;
