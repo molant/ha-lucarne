@@ -2,18 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- `lucarne-calendar-card` — horizontal touch swipe with snap-to-day, flick-velocity bias, and iOS-like 240 ms snap-back easing. Uses Pointer Events for unified mouse/pen/finger support.
+- `lucarne-calendar-card` — skeleton-column placeholder for uncached days: a shimmer animation appears while events are loading, replaced by real events once the fetch completes. Shimmer degrades to a static placeholder under `prefers-reduced-motion: reduce`.
+- `lucarne-calendar-card` — editor options `min_days`, `max_days`, `min_col_width`, `max_col_width` for the responsive visible-day-count algorithm.
+
 ### Changed
 
 - `lucarne-calendar-card` — now uses a rolling N-day window anchored on today (replaces fixed Monday-anchored week). Column count adapts to container width. Navigation arrows step by `visibleCount` days; a "Today" button re-anchors when panned away.
 - `lucarne-calendar-card` — layout engine refactored to accept arbitrary day arrays (foundation for rolling-window).
 
-### Added
-
-- `lucarne-calendar-card` — editor options `min_days`, `max_days`, `min_col_width`, `max_col_width` for the responsive visible-day-count algorithm.
-
 ### Deprecated
 
-- `lucarne-calendar-card` — `week_starts_on` config field is now silently ignored. The rolling window has no week start. The field is kept in the schema so old YAML/saved configs still parse without errors.
+- `lucarne-calendar-card` — `week_starts_on` config option is silently ignored — the rolling window has no week start. The field is still accepted in YAML so old configs load without errors.
 
 ## v0.1.0 — Initial release
 

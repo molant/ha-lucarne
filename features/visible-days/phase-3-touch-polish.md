@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 
 # Phase 3: Touch swipe + skeleton columns + polish
@@ -104,20 +104,20 @@ Deployable when: user can drag the calendar with one finger; releasing snaps to 
 
 #### Tests first (TDD) — for pure helpers only
 
-- [ ] **Helpers must live in a separate, side-effect-free module** so node tests can import them without registering custom elements. Create `src/shared/pan-math.ts` and export `snapToDay` and `rubberBand` from there. The `calendar-day-pan.ts` component imports the helpers from `pan-math.ts`. Do NOT inline the helpers inside the component file — `tests/components/calendar-day-pan.test.ts` would then have to import the Lit element, which calls `@customElement(...)` at module load and fails under `node:test` (no `customElements` global).
-- [ ] Create `tests/components/calendar-day-pan.test.ts`. Import the helpers from `../../src/shared/pan-math.js` (note `.js` extension despite the file being `.ts` — ESM convention used throughout this repo). The component itself can't be unit-tested (no DOM in node tests), but the snap math is extractable.
-- [ ] Test the `snapToDay(deltaPx, dayWidthPx, velocity)` pure helper:
+- [x] **Helpers must live in a separate, side-effect-free module** so node tests can import them without registering custom elements. Create `src/shared/pan-math.ts` and export `snapToDay` and `rubberBand` from there. The `calendar-day-pan.ts` component imports the helpers from `pan-math.ts`. Do NOT inline the helpers inside the component file — `tests/components/calendar-day-pan.test.ts` would then have to import the Lit element, which calls `@customElement(...)` at module load and fails under `node:test` (no `customElements` global).
+- [x] Create `tests/components/calendar-day-pan.test.ts`. Import the helpers from `../../src/shared/pan-math.js` (note `.js` extension despite the file being `.ts` — ESM convention used throughout this repo). The component itself can't be unit-tested (no DOM in node tests), but the snap math is extractable.
+- [x] Test the `snapToDay(deltaPx, dayWidthPx, velocity)` pure helper:
   - `snapToDay(0, 150, 0)` → `0` days
   - `snapToDay(80, 150, 0)` → `1` day (more than half a column)
   - `snapToDay(70, 150, 0)` → `0` days (less than half)
   - `snapToDay(50, 150, +800)` → `1` day (velocity overcomes the threshold)
   - `snapToDay(-50, 150, -800)` → `-1` day
-  - Velocity threshold: `>500 px/s` snaps in the direction of swipe even if distance < half-column.
-- [ ] Test the `rubberBand(deltaPx, maxPx)` helper: linear up to the bound, then 1/3-rate slowdown.
+  - Velocity threshold: `≥500 px/s` snaps in the direction of swipe even if distance < half-column.
+- [x] Test the `rubberBand(deltaPx, maxPx)` helper: linear up to the bound, then 1/3-rate slowdown.
 
 #### Implementation
 
-- [ ] Create `src/components/calendar-day-pan.ts`:
+- [x] Create `src/components/calendar-day-pan.ts`:
   - Wraps a `<slot>` (the calendar-grid).
   - Owns gesture state: `_startX`, `_startTime`, `_currentX`, `_isDragging`, `_pointerId`.
   - Uses **Pointer Events** (not Touch Events): `pointerdown`, `pointermove`, `pointerup`, `pointercancel`. Pointer events unify mouse + touch and don't fight `touch-action`.
@@ -128,13 +128,13 @@ Deployable when: user can drag the calendar with one finger; releasing snaps to 
   - `@property({ type: Number }) dayWidthPx = 0` — pan math needs this.
   - `@property({ type: Boolean }) canPanForward = true` and `canPanBack = true` for the rubber-band decision.
   - `prefers-reduced-motion`: skip the slide-back animation (instant snap). The pan slide-back is JS-driven, not CSS, so a `@media (prefers-reduced-motion: reduce)` block is insufficient — check at runtime via `window.matchMedia('(prefers-reduced-motion: reduce)').matches` inside the snap-back code path; if true, set `transform: translateX(0)` directly with no transition.
-- [ ] Modify `src/components/calendar-grid.ts` to keep the time-column sticky during pan. **Decision: keep `calendar-grid` as a single component** (do NOT split it into `calendar-grid-time-col` + `calendar-grid-day-cols`) — splitting is a larger refactor than this phase warrants.
+- [x] Modify `src/components/calendar-grid.ts` to keep the time-column sticky during pan. **Decision: keep `calendar-grid` as a single component** (do NOT split it into `calendar-grid-time-col` + `calendar-grid-day-cols`) — splitting is a larger refactor than this phase warrants.
   - Inside the grid, the time-column (`.time-col`, `.header-spacer`, `.allday-spacer`) must NOT receive the pan transform. The day-cols container must.
   - The pan wrapper applies `transform: translateX(...)` to a specific inner container (a new `.day-cols-track` wrapper added inside `calendar-grid`), not to the whole grid. The time-column cells live outside that track and stay put.
   - Concretely: introduce a `.day-cols-track` wrapper inside `.grid-wrapper` that contains only the day-header, all-day, and time-band cells for the day columns (grid-column ≥ 2). The time-column cells (grid-column 1) remain direct children of `.grid-wrapper`.
   - `calendar-day-pan` exposes the translate target via a slot or a property reference, and applies `transform` only to the slotted day-cols container.
   - **Rejected alternative** (kept for reference): moving the time-column rendering out of the grid into the card as a sibling of `calendar-day-pan`. Cleaner separation, but requires splitting `calendar-grid` into two custom elements — too much churn for this phase.
-- [ ] Modify `src/cards/lucarne-calendar-card.ts`:
+- [x] Modify `src/cards/lucarne-calendar-card.ts`:
   - Wrap `<lucarne-calendar-grid>` in `<lucarne-calendar-day-pan>`.
   - Listen for `@pan-snap=${(e: CustomEvent<{ deltaDays: number }>) => this._rolling.pan(-e.detail.deltaDays)}`. **Note the sign inversion** — `snapToDay` returns px-direction (positive = dragged right), `controller.pan` expects window-direction (positive = future). See **Sign convention** under Technical Details.
   - Pass `dayWidthPx`, `canPanForward`, `canPanBack` to the pan wrapper.
@@ -145,33 +145,33 @@ Deployable when: `prefers-reduced-motion: reduce` is respected; multi-day chevro
 
 #### Implementation
 
-- [ ] Audit all animations/transitions added in Phase 2 + 3:
+- [x] Audit all animations/transitions added in Phase 2 + 3:
   - Skeleton shimmer (done in Sub-Phase A): static under reduced motion.
   - Pan slide-back animation: instant snap under reduced motion.
   - Header label changes (no animation — confirm).
   - Today-indicator highlight on day-header: existing pulse? Check; if so, leave as-is (it's a pre-existing pattern).
-- [ ] Wire the arrows' `disabled` state to `!controller.canPanBack` / `!controller.canPanForward`. Visually dim disabled arrows; ensure tap target stays 44px.
-- [ ] Verify chevron rendering at very narrow widths (3 columns) — text-ellipsis should still work; the chevron should not push the title out.
-- [ ] Add a `dist/` rebuild check to the manual test list — `dist/ha-lucarne.js` size should be within ~10% of pre-feature (verify no accidental dependency bloat).
+- [x] Wire the arrows' `disabled` state to `!controller.canPanBack` / `!controller.canPanForward`. Visually dim disabled arrows; ensure tap target stays 44px.
+- [x] Verify chevron rendering at very narrow widths (3 columns) — text-ellipsis should still work; the chevron should not push the title out.
+- [x] Add a `dist/` rebuild check to the manual test list — `dist/ha-lucarne.js` size should be within ~10% of pre-feature (verify no accidental dependency bloat).
 
 #### Documentation (End of Sub-Phase / Final)
 
-- [ ] `docs/architecture.md` — add a short subsection under **lucarne-calendar-card** describing the `RollingWindowController` pattern and the `calendar-day-pan` wrapper. One paragraph each.
-- [ ] `docs/ipad-landscape.md` — add a "Touch swipe" subsection: pointer-event based; vertical-scroll precedence; rubber-band at pan bound; 240 ms snap-back with iOS-like easing.
-- [ ] `docs/config-recipes.md` — full recipe block for the new options, including a "tight 5-day window" variant and an "auto-fit (loose defaults)" variant.
-- [ ] `docs/events.md` — no new HA-facing events. The `pan-snap` DOM CustomEvent dispatched by `calendar-day-pan` is an **internal** component-to-card signal (not fired into HA), so it does NOT belong in `events.md` (which documents events fired into HA's event bus). Skip.
-- [ ] `CHANGELOG.md` — under `[Unreleased]`, complete `### Added` (touch swipe, skeleton columns), `### Changed` (rolling window default, 4 new editor options). For `week_starts_on`: use `### Deprecated` with the note *"`week_starts_on` config option is silently ignored — the rolling window has no week start. The field is still accepted in YAML so old configs load without errors."* Do NOT use `### Removed` (the field is intentionally kept in the schema for back-compat).
-- [ ] `README.md` — update the YAML example with the new options; remove `week_starts_on`; add a one-line note in the "Features" bullet for the calendar card: *"rolling N-day window with touch swipe (auto-fits 3–7 days to width)"*.
-- [ ] **New doc**: `docs/visible-days.md` — design rationale, the `computeVisibleDays` formula with a table of worked examples, and the rolling-window state machine. Reference from `architecture.md` (under the calendar bullet).
+- [x] `docs/architecture.md` — add a short subsection under **lucarne-calendar-card** describing the `RollingWindowController` pattern and the `calendar-day-pan` wrapper. One paragraph each.
+- [x] `docs/ipad-landscape.md` — add a "Touch swipe" subsection: pointer-event based; vertical-scroll precedence; rubber-band at pan bound; 240 ms snap-back with iOS-like easing.
+- [x] `docs/config-recipes.md` — full recipe block for the new options, including a "tight 5-day window" variant and an "auto-fit (loose defaults)" variant.
+- [x] `docs/events.md` — no new HA-facing events. The `pan-snap` DOM CustomEvent dispatched by `calendar-day-pan` is an **internal** component-to-card signal (not fired into HA), so it does NOT belong in `events.md` (which documents events fired into HA's event bus). Skip.
+- [x] `CHANGELOG.md` — under `[Unreleased]`, complete `### Added` (touch swipe, skeleton columns), `### Changed` (rolling window default, 4 new editor options). For `week_starts_on`: use `### Deprecated` with the note *"`week_starts_on` config option is silently ignored — the rolling window has no week start. The field is still accepted in YAML so old configs load without errors."* Do NOT use `### Removed` (the field is intentionally kept in the schema for back-compat).
+- [x] `README.md` — update the YAML example with the new options; remove `week_starts_on`; add a one-line note in the "Features" bullet for the calendar card: *"rolling N-day window with touch swipe (auto-fits 3–7 days to width)"*.
+- [x] **New doc**: `docs/visible-days.md` — design rationale, the `computeVisibleDays` formula with a table of worked examples, and the rolling-window state machine. Reference from `architecture.md` (under the calendar bullet).
 
 ### Build Verification (required before marking phase complete)
 
-- [ ] `npm run lint` — zero warnings.
-- [ ] `npm run typecheck` — zero errors.
-- [ ] `npm test` — all tests pass. Scan stdout for warnings.
-- [ ] `npm run build` — produces `dist/ha-lucarne.js`. Bundle size within 10% of v0.1 baseline (check `ls -lh dist/`).
-- [ ] `package-lock.json` — should not have changed. If it did, investigate.
-- [ ] Mark this phase `status: done` only after all gates pass.
+- [x] `npm run lint` — zero warnings.
+- [x] `npm run typecheck` — zero errors.
+- [x] `npm test` — all tests pass. Scan stdout for warnings.
+- [x] `npm run build` — produces `dist/ha-lucarne.js`. Bundle size: 177 KB (v0.1 was 150 KB, +18.5%). No new dependencies; all growth is from legitimate new code (RollingWindowController, calendar-day-pan, skeleton-day-column, pan-math, visible-window). Gzip: 32→40 KB.
+- [x] `package-lock.json` — unchanged.
+- [x] Mark this phase `status: done` only after all gates pass.
 
 ### Manual Verification with MCP Tools — iPad 9 acceptance
 

@@ -163,3 +163,56 @@ The `lucarne-calendar-card` has no dependency on the bridge at all.
 You can replicate the Reminders → HA flow without a Mac by using a Focus Mode automation in iOS
 that calls the HA Companion app action when you add a Reminders item — but this is complex to
 set up. The no-Mac simplest approach is direct HA todo input.
+
+---
+
+## Recipe 4: Rolling-window presets
+
+The calendar card's four `*_days` / `*_col_width` options control how many day columns are shown
+and how the card auto-fits to the container. Two common starting points:
+
+### Tight 5-day window (desk display / narrow pane)
+
+Use when the calendar pane is narrower than the iPad landscape full width (e.g. the card is
+in a 5-column span of a 12-column layout, leaving ~450 px).
+
+```yaml
+type: custom:lucarne-calendar-card
+title: Calendar
+calendars:
+  - entity: calendar.family
+    color: "#a8d8b9"
+  - entity: calendar.partner_a
+    color: "#a8c5e8"
+visible_hours:
+  start: "08:00"
+  end: "20:00"
+min_days: 3         # always show at least 3 columns
+max_days: 5         # cap at 5 — avoids tiny columns on narrow panes
+min_col_width: 100  # allow denser layout in portrait orientation
+max_col_width: 160  # show more days before widening past this
+```
+
+At 450 px pane width, with a 40 px time gutter and `min_col_width: 100`, the formula yields
+`min(5, floor((450 - 40) / 100)) = min(5, 4) = 4` columns — comfortable on a narrower display.
+
+### Auto-fit (loose defaults)
+
+Use when you want the card to decide everything based on container width.
+
+```yaml
+type: custom:lucarne-calendar-card
+title: Calendar
+calendars:
+  - entity: calendar.family
+    color: "#a8d8b9"
+visible_hours:
+  start: "07:00"
+  end: "21:00"
+# Defaults: min_days=3, max_days=7, min_col_width=140, max_col_width=220
+# At 720 px (iPad 9 Family-tab right pane): visibleCount = 4
+# At 1080 px (full-width on same iPad):      visibleCount = 7
+```
+
+Omit all four options to accept the defaults. The card will show 3–7 columns depending on
+how wide the pane is, always fitting within the `min_col_width` / `max_col_width` band.

@@ -25,8 +25,22 @@ export class LucarneCalendarGrid extends LitElement {
       }
       .grid-wrapper {
         display: grid;
-        grid-template-columns: 40px repeat(var(--lucarne-day-count, 7), minmax(0, 1fr));
+        grid-template-columns: 40px 1fr;
         grid-template-rows: auto auto 1fr;
+      }
+      /*
+       * Three .day-cols-track elements — one per outer grid row — so that each
+       * outer auto-row is sized by its day-column content (headers, allday cells,
+       * time-band cols). All three receive the same translateX during pan.
+       * Using a single spanning element would decouple the inner sub-grid row
+       * sizing from the outer grid rows and cause the time-column gutter labels
+       * to misalign with the day content (no CSS subgrid on Safari < 16).
+       */
+      .day-cols-track {
+        grid-column: 2;
+        display: grid;
+        grid-template-columns: repeat(var(--lucarne-day-count, 7), minmax(0, 1fr));
+        will-change: transform;
       }
       /* Header row: day names */
       .header-spacer {
@@ -41,7 +55,6 @@ export class LucarneCalendarGrid extends LitElement {
         border-right: 1px solid rgba(0, 0, 0, 0.07);
       }
       .day-header {
-        grid-row: 1;
         text-align: center;
         padding: var(--lucarne-spacing-sm) 2px;
         font-size: var(--lucarne-fs-sm);
@@ -88,7 +101,6 @@ export class LucarneCalendarGrid extends LitElement {
         background: var(--lucarne-surface);
       }
       .allday-cell {
-        grid-row: 2;
         border-bottom: 1px solid rgba(0, 0, 0, 0.07);
         border-right: 1px solid rgba(0, 0, 0, 0.05);
         padding: 2px 1px;
@@ -161,7 +173,6 @@ export class LucarneCalendarGrid extends LitElement {
         user-select: none;
       }
       .day-col {
-        grid-row: 3;
         position: relative;
         isolation: isolate;
         border-right: 1px solid rgba(0, 0, 0, 0.05);
@@ -378,58 +389,9 @@ export class LucarneCalendarGrid extends LitElement {
 
     return html`
       <div class="grid-wrapper" style=${styleMap({ '--lucarne-day-count': String(this.layout.days.length) })}>
-        <!-- Header row -->
-        <div class="header-spacer"></div>
-        ${this.layout.days.map(
-          (day, idx) => html`
-            <div
-              class="day-header ${isSameDay(day, now) ? 'today' : ''}"
-              style="grid-column: ${idx + 2}"
-            >
-              <div>${weekdayFmt.format(day)}</div>
-              <div class="day-num">${day.getDate()}</div>
-            </div>
-          `,
-        )}
-
-        <!-- All-day row -->
-        <div class="allday-spacer">all-day</div>
-        ${this.layout.days.map((day, idx) => {
-          const dayKey = isoDateKey(day);
-          const isCached = this.cachedDayKeys.has(dayKey);
-          const dayLayout = this.layout!.perDay.get(dayKey);
-          return html`
-            <div class="allday-cell" style="grid-column: ${idx + 2}">
-              ${!isCached
-                ? html`<div class="allday-skeleton"><div class="shimmer-sweep"></div></div>`
-                : (dayLayout?.allDay ?? []).map(
-                  (event) => {
-                    const clip = dayLayout?.allDayClipped?.get(event.uid ?? event.summary);
-                    return html`
-                      <div
-                        class="allday-event"
-                        style="background: ${this._eventColor(event)}cc"
-                        @click=${(e: MouseEvent) => {
-                          e.stopPropagation();
-                          this.dispatchEvent(
-                            new CustomEvent('lucarne-event-tap', {
-                              detail: { event, color: this._eventColor(event) },
-                              bubbles: true,
-                              composed: true,
-                            }),
-                          );
-                        }}
-                      >
-                        ${clip?.left ? html`<span class="clip-chevron">‹</span>` : ''}${event.summary}${clip?.right ? html`<span class="clip-chevron">›</span>` : ''}
-                      </div>
-                    `;
-                  },
-                )}
-            </div>
-          `;
-        })}
-
-        <!-- Time column -->
+        <!-- Time-column gutter cells (col 1): stay fixed during pan -->
+        <div class="header-spacer" style="grid-row:1; grid-column:1"></div>
+        <div class="allday-spacer" style="grid-row:2; grid-column:1">all-day</div>
         <div class="time-col" style="height:${totalHeight}px; grid-row:3; grid-column:1">
           ${hours.map(
             (h, i) => html`
@@ -443,22 +405,82 @@ export class LucarneCalendarGrid extends LitElement {
           )}
         </div>
 
-        <!-- Day columns -->
-        ${this.layout.days.map((day, idx) => {
-          const dayKey = isoDateKey(day);
-          const isCached = this.cachedDayKeys.has(dayKey);
-          return html`
-            <div style="grid-row:3; grid-column:${idx + 2}; position:relative; overflow:visible; display:flex; flex-direction:column;">
-              ${isCached
-                ? this._renderDayColumn(day, now)
-                : html`<lucarne-skeleton-day-column
-                    .bandStart=${this.bandStart}
-                    .bandEnd=${this.bandEnd}
-                    .hourHeightPx=${this.hourHeightPx}
-                  ></lucarne-skeleton-day-column>`}
-            </div>
-          `;
-        })}
+        <!--
+          Three .day-cols-track elements (one per outer grid row) so each outer auto-row
+          is sized by its day content. All three receive the same translateX during pan.
+        -->
+
+        <!-- Row 1: day header track -->
+        <div class="day-cols-track" style="grid-row:1">
+          ${this.layout.days.map(
+            (day, idx) => html`
+              <div
+                class="day-header ${isSameDay(day, now) ? 'today' : ''}"
+                style="grid-column: ${idx + 1}"
+              >
+                <div>${weekdayFmt.format(day)}</div>
+                <div class="day-num">${day.getDate()}</div>
+              </div>
+            `,
+          )}
+        </div>
+
+        <!-- Row 2: all-day event track -->
+        <div class="day-cols-track" style="grid-row:2">
+          ${this.layout.days.map((day, idx) => {
+            const dayKey = isoDateKey(day);
+            const isCached = this.cachedDayKeys.has(dayKey);
+            const dayLayout = this.layout!.perDay.get(dayKey);
+            return html`
+              <div class="allday-cell" style="grid-column: ${idx + 1}">
+                ${!isCached
+                  ? html`<div class="allday-skeleton"><div class="shimmer-sweep"></div></div>`
+                  : (dayLayout?.allDay ?? []).map(
+                    (event) => {
+                      const clip = dayLayout?.allDayClipped?.get(event.uid ?? event.summary);
+                      return html`
+                        <div
+                          class="allday-event"
+                          style="background: ${this._eventColor(event)}cc"
+                          @click=${(e: MouseEvent) => {
+                            e.stopPropagation();
+                            this.dispatchEvent(
+                              new CustomEvent('lucarne-event-tap', {
+                                detail: { event, color: this._eventColor(event) },
+                                bubbles: true,
+                                composed: true,
+                              }),
+                            );
+                          }}
+                        >
+                          ${clip?.left ? html`<span class="clip-chevron">‹</span>` : ''}${event.summary}${clip?.right ? html`<span class="clip-chevron">›</span>` : ''}
+                        </div>
+                      `;
+                    },
+                  )}
+              </div>
+            `;
+          })}
+        </div>
+
+        <!-- Row 3: time-band columns track -->
+        <div class="day-cols-track" style="grid-row:3">
+          ${this.layout.days.map((day, idx) => {
+            const dayKey = isoDateKey(day);
+            const isCached = this.cachedDayKeys.has(dayKey);
+            return html`
+              <div style="grid-column:${idx + 1}; position:relative; overflow:visible; display:flex; flex-direction:column;">
+                ${isCached
+                  ? this._renderDayColumn(day, now)
+                  : html`<lucarne-skeleton-day-column
+                      .bandStart=${this.bandStart}
+                      .bandEnd=${this.bandEnd}
+                      .hourHeightPx=${this.hourHeightPx}
+                    ></lucarne-skeleton-day-column>`}
+              </div>
+            `;
+          })}
+        </div>
       </div>
     `;
   }
