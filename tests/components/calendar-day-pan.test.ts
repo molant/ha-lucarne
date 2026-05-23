@@ -1,6 +1,81 @@
-import { describe, it } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { snapToDay, rubberBand } from '../../src/shared/pan-math.js';
+import type { LucarneCalendarDayPan } from '../../src/components/calendar-day-pan.js';
+
+// Register the custom element (triggers customElements.define via @customElement)
+await import('../../src/components/calendar-day-pan.js');
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function makeEl(): LucarneCalendarDayPan {
+  const el = document.createElement('lucarne-calendar-day-pan') as LucarneCalendarDayPan;
+  el.dayWidthPx = 150;
+  document.body.appendChild(el);
+  return el;
+}
+
+function makePE(
+  type: string,
+  opts: {
+    pointerId?: number;
+    pointerType?: string;
+    button?: number;
+    clientX?: number;
+    clientY?: number;
+    currentTarget?: Element;
+  } = {},
+): PointerEvent {
+  return {
+    type,
+    pointerId: opts.pointerId ?? 1,
+    pointerType: opts.pointerType ?? 'mouse',
+    button: opts.button ?? 0,
+    clientX: opts.clientX ?? 100,
+    clientY: opts.clientY ?? 100,
+    currentTarget: opts.currentTarget ?? null,
+  } as unknown as PointerEvent;
+}
+
+interface MockTrackEl {
+  style: { transform: string; transition: string };
+  readonly offsetWidth: number;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  addEventListener(type: string, fn: Function, opts?: { once?: boolean }): void;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  removeEventListener(type: string, fn: Function): void;
+  fireTransitionEnd(): void;
+}
+
+function makeMockTrack(): MockTrackEl {
+  const listeners = new Map<string, Set<Function>>();
+  const onceSet = new WeakSet<Function>();
+  return {
+    style: { transform: '', transition: '' },
+    get offsetWidth() { return 100; },
+    addEventListener(type: string, fn: Function, opts?: { once?: boolean }) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type)!.add(fn);
+      if (opts?.once) onceSet.add(fn);
+    },
+    removeEventListener(type: string, fn: Function) {
+      listeners.get(type)?.delete(fn);
+    },
+    fireTransitionEnd() {
+      const fns = [...(listeners.get('transitionend') ?? [])];
+      for (const fn of fns) {
+        fn(new Event('transitionend'));
+        if (onceSet.has(fn)) listeners.get('transitionend')?.delete(fn);
+      }
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Pure-function tests
+// ---------------------------------------------------------------------------
 
 describe('snapToDay', () => {
   it('snapToDay(0, 150, 0) → 0 days', () => {
@@ -32,12 +107,10 @@ describe('snapToDay', () => {
   });
 
   it('velocity exactly at threshold (500 px/s) → velocity-snap applies', () => {
-    // |500| >= 500 → round in direction of motion: positive velocity + positive delta
     assert.equal(snapToDay(10, 150, 500), 1);
   });
 
   it('velocity just below threshold (499 px/s) → standard round applies', () => {
-    // 10/150 = 0.067 → rounds to 0
     assert.equal(snapToDay(10, 150, 499), 0);
   });
 });
@@ -50,7 +123,6 @@ describe('rubberBand', () => {
   });
 
   it('deltaPx beyond bound → linear up to bound, then 1/3 rate', () => {
-    // deltaPx=130, maxPx=100 → overshoot=30 → 100 + 30*0.33 = 109.9
     assert.ok(Math.abs(rubberBand(130, 100) - 109.9) < 0.01, `expected ~109.9 got ${rubberBand(130, 100)}`);
   });
 
@@ -65,7 +137,193 @@ describe('rubberBand', () => {
   });
 
   it('zero maxPx → full 1/3 from the start', () => {
-    // maxPx=0 → overshoot = |50| - 0 = 50 → 0 + 50*0.33 = 16.5
     assert.ok(Math.abs(rubberBand(50, 0) - 16.5) < 0.01, `expected ~16.5 got ${rubberBand(50, 0)}`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sub-Phase 1A: setPointerCapture deferred to drag threshold
+// ---------------------------------------------------------------------------
+
+describe('LucarneCalendarDayPan — pointer capture (1A)', () => {
+  let el: LucarneCalendarDayPan;
+  let panWrapper: Element;
+  let capturedIds: number[];
+
+  beforeEach(async () => {
+    el = makeEl();
+    await el.updateComplete;
+    panWrapper = el.shadowRoot!.querySelector('.pan-wrapper')!;
+    capturedIds = [];
+    (panWrapper as unknown as { setPointerCapture(id: number): void }).setPointerCapture =
+      (id: number) => capturedIds.push(id);
+    (panWrapper as unknown as { releasePointerCapture(id: number): void }).releasePointerCapture =
+      (_id: number) => {};
+  });
+
+  afterEach(() => el.remove());
+
+  const down = (opts = {}) => makePE('pointerdown', { currentTarget: panWrapper, ...opts });
+  const move = (dx: number, dy: number, opts = {}) =>
+    makePE('pointermove', { clientX: 100 + dx, clientY: 100 + dy, currentTarget: panWrapper, ...opts });
+  const up = (dx = 0, opts = {}) =>
+    makePE('pointerup', { clientX: 100 + dx, clientY: 100, currentTarget: panWrapper, ...opts });
+
+  it('pointerdown does NOT call setPointerCapture', () => {
+    (el as unknown as Record<string, Function>)._onPointerDown(down());
+    assert.equal(capturedIds.length, 0);
+  });
+
+  it('pointermove with dx=5,dy=3 (below threshold) does NOT call setPointerCapture', () => {
+    (el as unknown as Record<string, Function>)._onPointerDown(down());
+    (el as unknown as Record<string, Function>)._onPointerMove(move(5, 3));
+    assert.equal(capturedIds.length, 0);
+  });
+
+  it('pointermove with dx=12,dy=3 (horizontal-dominant, above threshold) calls setPointerCapture exactly once', () => {
+    (el as unknown as Record<string, Function>)._onPointerDown(down());
+    (el as unknown as Record<string, Function>)._onPointerMove(move(12, 3));
+    assert.equal(capturedIds.length, 1);
+    assert.equal(capturedIds[0], 1);
+    // second move should not re-capture
+    (el as unknown as Record<string, Function>)._onPointerMove(move(20, 3));
+    assert.equal(capturedIds.length, 1);
+  });
+
+  it('pointermove with dy>dx (vertical scroll wins) does NOT call setPointerCapture', () => {
+    (el as unknown as Record<string, Function>)._onPointerDown(down());
+    (el as unknown as Record<string, Function>)._onPointerMove(move(3, 15));
+    assert.equal(capturedIds.length, 0);
+  });
+
+  it('pointermove with dy>dx clears _pointerId so gesture is aborted', () => {
+    (el as unknown as Record<string, Function>)._onPointerDown(down());
+    (el as unknown as Record<string, Function>)._onPointerMove(move(3, 15));
+    assert.equal((el as unknown as Record<string, unknown>)._pointerId, undefined);
+  });
+
+  it('pointerdown then pointerup with no move does NOT capture', () => {
+    (el as unknown as Record<string, Function>)._onPointerDown(down());
+    (el as unknown as Record<string, Function>)._onPointerUp(up());
+    assert.equal(capturedIds.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sub-Phase 1B: snap animation target + deferred pan-snap dispatch
+// ---------------------------------------------------------------------------
+
+describe('LucarneCalendarDayPan — snap animation (1B)', () => {
+  let el: LucarneCalendarDayPan;
+  let track: MockTrackEl;
+  let snapEvents: CustomEvent[];
+  // Only patch matchMedia on the existing window — replacing the whole window
+  // object loses happy-dom prototype methods.
+  const originalMatchMedia = (globalThis.window as unknown as Record<string, unknown>).matchMedia;
+
+  function setReducedMotion(reduced: boolean) {
+    (globalThis.window as unknown as Record<string, Function>).matchMedia =
+      (query: string) => ({
+        matches: reduced && query.includes('reduce'),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      });
+  }
+
+  beforeEach(async () => {
+    el = makeEl();
+    await el.updateComplete;
+    track = makeMockTrack();
+    (el as unknown as Record<string, unknown>)._cachedTargets = [track];
+    snapEvents = [];
+    el.addEventListener('pan-snap', (e) => snapEvents.push(e as CustomEvent));
+    // Default: no reduced motion
+    setReducedMotion(false);
+  });
+
+  afterEach(() => {
+    el.remove();
+    (globalThis.window as unknown as Record<string, unknown>).matchMedia = originalMatchMedia;
+  });
+
+  it('with deltaDays=1, transform is set to translateX(150px) (not 0)', () => {
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    assert.equal(track.style.transform, 'translateX(150px)');
+  });
+
+  it('with deltaDays=-1, transform is set to translateX(-150px)', () => {
+    (el as unknown as Record<string, Function>)._snapAndCommit(-1);
+    assert.equal(track.style.transform, 'translateX(-150px)');
+  });
+
+  it('with deltaDays=0, transform is set to translateX(0)', () => {
+    (el as unknown as Record<string, Function>)._snapAndCommit(0);
+    assert.equal(track.style.transform, 'translateX(0px)');
+  });
+
+  it('pan-snap is NOT dispatched synchronously from _snapAndCommit', () => {
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    assert.equal(snapEvents.length, 0);
+  });
+
+  it('pan-snap IS dispatched after transitionend fires', () => {
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    assert.equal(snapEvents.length, 0);
+    track.fireTransitionEnd();
+    assert.equal(snapEvents.length, 1);
+    assert.equal(snapEvents[0].detail.deltaDays, 1);
+  });
+
+  it('with deltaDays=0, pan-snap is never dispatched even after transitionend', () => {
+    (el as unknown as Record<string, Function>)._snapAndCommit(0);
+    track.fireTransitionEnd();
+    assert.equal(snapEvents.length, 0);
+  });
+
+  it('after transitionend, transform is reset to translateX(0) for the swap', () => {
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    track.fireTransitionEnd();
+    assert.equal(track.style.transform, 'translateX(0px)');
+  });
+
+  it('after transitionend, transition is cleared (no re-animation on re-render)', () => {
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    track.fireTransitionEnd();
+    assert.equal(track.style.transition, '');
+  });
+
+  it('with prefers-reduced-motion, pan-snap is dispatched immediately', () => {
+    setReducedMotion(true);
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    assert.equal(snapEvents.length, 1);
+  });
+
+  it('with prefers-reduced-motion, transform is translateX(0px) immediately', () => {
+    setReducedMotion(true);
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    assert.equal(track.style.transform, 'translateX(0px)');
+  });
+
+  it('new pointerdown during snap cancels the pending transitionend dispatch', async () => {
+    const panWrapper = el.shadowRoot!.querySelector('.pan-wrapper')!;
+    (panWrapper as unknown as { setPointerCapture(id: number): void }).setPointerCapture = () => {};
+    (panWrapper as unknown as { releasePointerCapture(id: number): void }).releasePointerCapture = () => {};
+
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    assert.equal(snapEvents.length, 0);
+
+    // New gesture starts — should cancel the pending snap
+    (el as unknown as Record<string, Function>)._onPointerDown(
+      makePE('pointerdown', { currentTarget: panWrapper }),
+    );
+
+    // transitionend fires but pan-snap must NOT be dispatched
+    track.fireTransitionEnd();
+    assert.equal(snapEvents.length, 0);
   });
 });
