@@ -22,10 +22,12 @@ type CardPrivate = {
   _rolling: {
     cachedEvents: Map<string, CalendarEvent[]>;
     days: Date[];
+    renderDays: Date[];
     cachedRange: Date[];
     canPanBack: boolean;
     canPanForward: boolean;
     isAtToday: boolean;
+    bufferDays: number;
   };
   _visibleIds: Set<string>;
   _pendingEvents: CalendarEvent[];
@@ -66,10 +68,12 @@ function setupCardState(card: LucarneCalendarCard, events: CalendarEvent[], enti
   p._rolling = {
     cachedEvents: cachedMap,
     days: [],
+    renderDays: [],
     cachedRange: [],
     canPanBack: false,
     canPanForward: false,
     isAtToday: true,
+    bufferDays: 0,
   };
 }
 

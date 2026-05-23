@@ -39,6 +39,13 @@ export class LucarneCalendarDayPan extends LitElement {
 
   /** Width of one day column, supplied by the card's ResizeObserver. */
   @property({ type: Number }) dayWidthPx = 0;
+  /**
+   * Off-screen render buffer (days drawn on each side of the visible window).
+   * The grid's CSS baseline transform shifts the track by `-bufferDays * dayWidthPx`
+   * so visible day 0 lands at the container's left edge. Pan during a gesture
+   * overrides that transform via inline style, accounting for the same baseline.
+   */
+  @property({ type: Number }) bufferDays = 0;
   /** Whether the user can pan backwards into the past. */
   @property({ type: Boolean }) canPanBack = true;
   /** Whether the user can pan forwards into the future. */
@@ -54,6 +61,10 @@ export class LucarneCalendarDayPan extends LitElement {
   private _cachedTargets: HTMLElement[] = [];
   private _pendingSnapTarget?: HTMLElement;
   private _pendingTransitionEnd?: () => void;
+  /** rAF handle for the post-snap "clear inline transform so CSS baseline takes
+   *  over" callback. Cancelled by _cancelPendingSnap so a new gesture's
+   *  inline transform isn't wiped by a stale clear from the previous snap. */
+  private _pendingClearRaf?: number;
 
   /** All .day-cols-track elements inside the slotted calendar-grid's shadow root. */
   private get _panTargets(): HTMLElement[] {
@@ -79,10 +90,29 @@ export class LucarneCalendarDayPan extends LitElement {
     return dx;
   }
 
+  /** Baseline transform in px (negative). Matches the CSS `--lucarne-day-baseline-px`. */
+  private _baselinePx(): number {
+    return -this.bufferDays * this.dayWidthPx;
+  }
+
   private _setTranslate(effective: number) {
+    const tx = this._baselinePx() + effective;
     for (const el of this._cachedTargets) {
       el.style.transition = '';
-      el.style.transform = `translateX(${effective}px)`;
+      el.style.transform = `translateX(${tx}px)`;
+    }
+  }
+
+  /**
+   * Clear inline transform on all current `.day-cols-track` elements so the
+   * grid's CSS baseline (`transform: translateX(var(--lucarne-day-baseline-px))`)
+   * takes over. Re-queries via `_panTargets` because Lit may have replaced
+   * track nodes during a re-render.
+   */
+  private _clearInlineTransform() {
+    for (const el of this._panTargets) {
+      el.style.transition = '';
+      el.style.transform = '';
     }
   }
 
@@ -92,23 +122,49 @@ export class LucarneCalendarDayPan extends LitElement {
     }
     this._pendingTransitionEnd = undefined;
     this._pendingSnapTarget = undefined;
+    if (this._pendingClearRaf !== undefined) {
+      cancelAnimationFrame(this._pendingClearRaf);
+      this._pendingClearRaf = undefined;
+    }
+  }
+
+  /** Schedule the post-snap inline-transform clear, replacing any pending one. */
+  private _scheduleClearInline() {
+    if (this._pendingClearRaf !== undefined) {
+      cancelAnimationFrame(this._pendingClearRaf);
+    }
+    this._pendingClearRaf = requestAnimationFrame(() => {
+      this._pendingClearRaf = undefined;
+      this._clearInlineTransform();
+    });
   }
 
   private _snapAndCommit(deltaDays: number) {
     const targets = this._cachedTargets;
     if (targets.length === 0) {
-      if (deltaDays !== 0) this._dispatchPanSnap(deltaDays);
+      if (deltaDays !== 0) {
+        this._dispatchPanSnap(deltaDays);
+        this._scheduleClearInline();
+      }
       return;
     }
     this._cancelPendingSnap();
 
+    const baseline = this._baselinePx();
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced) {
+      // Snap to baseline immediately. Dispatch first so new days render before
+      // we clear inline transform; rAF guarantees ordering relative to Lit's
+      // microtask update.
       for (const el of targets) {
         el.style.transition = '';
-        el.style.transform = 'translateX(0px)';
+        el.style.transform = `translateX(${baseline}px)`;
       }
       if (deltaDays !== 0) this._dispatchPanSnap(deltaDays);
+      // Clear inline unconditionally so a stale `translateX(baseline)` doesn't
+      // override a later CSS baseline change (resize, bufferDays edit). Matches
+      // the animated branch's symmetry.
+      this._scheduleClearInline();
       return;
     }
 
@@ -116,9 +172,11 @@ export class LucarneCalendarDayPan extends LitElement {
     const easing = getComputedStyle(this).getPropertyValue('--lucarne-pan-easing').trim() || 'cubic-bezier(0.32, 0.72, 0, 1)';
     const transition = `transform ${duration} ${easing}`;
 
-    // Animate OLD content to where NEW content's translateX(0) will appear.
-    // deltaDays=0 → snap back to 0 (unchanged behavior).
-    const targetPx = deltaDays * this.dayWidthPx;
+    // Animate OLD content to the screen position where the NEW content will
+    // sit at baseline after the offset commit. Old + `(deltaDays - 0)` days
+    // visually equals new + 0 days, both at translateX = baseline + 0.
+    // With baseline included: target = baseline + deltaDays * dayWidthPx.
+    const targetPx = baseline + deltaDays * this.dayWidthPx;
 
     for (const el of targets) {
       el.style.transition = transition;
@@ -128,16 +186,13 @@ export class LucarneCalendarDayPan extends LitElement {
     const onEnd = () => {
       this._pendingTransitionEnd = undefined;
       targets[0].removeEventListener('transitionend', onEnd);
-      // Atomic swap: reset transform so the OLD content sits at translateX(0),
-      // then dispatch pan-snap. Lit renders NEW content at translateX(0) — the
-      // positions are identical so the swap is visually invisible.
-      for (const el of targets) {
-        el.style.transition = '';
-        el.style.transform = 'translateX(0px)';
-      }
-      // Flush the layout before the Lit re-render so the transform reset is applied.
-      void targets[0].offsetWidth;
+      // Dispatch first → card updates dayOffset → Lit schedules a microtask
+      // re-render of the grid with NEW days. rAF fires AFTER the microtask
+      // flushes, so by the time we clear inline transform, the new days are
+      // in place; CSS baseline applies, and the new content lands at exactly
+      // the screen position the OLD content occupied at targetPx (invisible swap).
       if (deltaDays !== 0) this._dispatchPanSnap(deltaDays);
+      this._scheduleClearInline();
     };
     this._pendingSnapTarget = targets[0];
     this._pendingTransitionEnd = onEnd;

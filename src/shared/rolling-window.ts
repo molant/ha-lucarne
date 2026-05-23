@@ -22,6 +22,27 @@ export interface RollingWindowOptions {
   pollIntervalMs?: number;
   /** Set to 0 in tests to suppress the real-time midnight tick. Default: 60_000. */
   tickIntervalMs?: number;
+  /**
+   * Number of off-screen days rendered on EACH side of the visible window.
+   * Used by the grid to draw buffer columns that slide into view during a pan
+   * gesture, so the user never sees a blank gap. If undefined, defaults to the
+   * current visibleCount — the rendered range then matches the event-data
+   * cache range (visible ± visibleCount), with skeleton columns for any day
+   * not yet fetched.
+   */
+  bufferDays?: number;
+}
+
+/**
+ * Coerce a user-supplied bufferDays value to a non-negative integer, or
+ * `undefined` if the input is missing, non-numeric, NaN, or infinite. Keeps
+ * a bad YAML config from blanking the grid (NaN propagates through
+ * `Array.from({length: NaN})` to an empty array otherwise).
+ */
+function coerceBufferDays(n: number | undefined): number | undefined {
+  if (n === undefined) return undefined;
+  if (typeof n !== 'number' || !Number.isFinite(n)) return undefined;
+  return Math.max(0, Math.floor(n));
 }
 
 function addDays(date: Date, n: number): Date {
@@ -50,6 +71,8 @@ export class RollingWindowController implements ReactiveController {
 
   private _visibleCount: number;
   private _dayOffset = 0;
+  /** Explicit buffer override; when undefined, bufferDays returns _visibleCount. */
+  private _bufferDaysExplicit?: number;
 
   // Stored as midnight-local Date
   private _anchorToday: Date;
@@ -73,6 +96,7 @@ export class RollingWindowController implements ReactiveController {
     this._tickIntervalMs = opts.tickIntervalMs ?? 60_000;
     this._panBound = opts.panBoundDays ?? 90;
     this._visibleCount = opts.visibleCount;
+    this._bufferDaysExplicit = coerceBufferDays(opts.bufferDays);
 
     const now = (opts.now ?? (() => new Date()))();
     this._anchorToday = todayMidnight(now);
@@ -144,6 +168,20 @@ export class RollingWindowController implements ReactiveController {
     }
   }
 
+  /**
+   * Set the off-screen render buffer (days drawn on each side of the visible
+   * window). Pass `undefined` to revert to the default (matches visibleCount).
+   * Non-finite or non-numeric input is coerced to `undefined` (default) so
+   * bad YAML config doesn't blank the grid.
+   */
+  setBufferDays(n: number | undefined): void {
+    const next = coerceBufferDays(n);
+    if (next === this._bufferDaysExplicit) return;
+    this._bufferDaysExplicit = next;
+    this._opts.onChange?.();
+    this._host.requestUpdate();
+  }
+
   pan(deltaDays: number): void {
     const minOffset = -this._panBound;
     const maxOffset = this._panBound - this._visibleCount;
@@ -201,6 +239,26 @@ export class RollingWindowController implements ReactiveController {
   get days(): Date[] {
     return Array.from({ length: this._visibleCount }, (_, i) => {
       const d = addDays(this._anchorToday, this._dayOffset + i);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    });
+  }
+
+  /** Effective buffer-day count (explicit override or visibleCount). */
+  get bufferDays(): number {
+    return this._bufferDaysExplicit ?? this._visibleCount;
+  }
+
+  /**
+   * Days to render in the grid track: `bufferDays + visibleCount + bufferDays`.
+   * The visible window occupies indices `[bufferDays, bufferDays + visibleCount)`.
+   * Days outside the cached event range are rendered as skeleton columns.
+   */
+  get renderDays(): Date[] {
+    const b = this.bufferDays;
+    const total = b * 2 + this._visibleCount;
+    return Array.from({ length: total }, (_, i) => {
+      const d = addDays(this._anchorToday, this._dayOffset - b + i);
       d.setHours(0, 0, 0, 0);
       return d;
     });
