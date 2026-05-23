@@ -230,11 +230,11 @@ Deployable when: editor exposes `min_days`, `max_days`, `min_col_width`, `max_co
 
 #### Tests
 
-- [ ] Editor has no existing unit tests in this project; manual verification only. (If you add tests, follow the pure-function pattern — extract a `validateEditorConfig(cfg)` helper and test it.)
+- [x] Editor has no existing unit tests in this project; manual verification only. (If you add tests, follow the pure-function pattern — extract a `validateEditorConfig(cfg)` helper and test it.)
 
 #### Implementation
 
-- [ ] Add to `src/editors/lucarne-calendar-card-editor.ts`:
+- [x] Add to `src/editors/lucarne-calendar-card-editor.ts`:
   - Four `<input type="number" min="X" max="Y" step="Z">` fields under a new section labeled "Visible day window".
   - Bounds: `min_days` 1–14 step 1; `max_days` 1–14 step 1; `min_col_width` 60–400 step 10; `max_col_width` 100–600 step 10.
   - Inline validation: if `min_days > max_days` or `min_col_width > max_col_width`, show a red `.editor-error` message under the offending row. **Do not block save** — invalid values fall back to defaults at runtime (the controller's `computeVisibleDays` already swaps inverted bounds).
@@ -247,8 +247,8 @@ Deployable when: editor exposes `min_days`, `max_days`, `min_col_width`, `max_co
     }
     ```
     Track which row is invalid in editor `@state() private _invalid: { days?: boolean; cols?: boolean } = {};` — render the `<div class="editor-error">…</div>` directly under the offending `<label class="field">` block.
-- [ ] **Default handling**: do NOT rewrite the four fields in `setConfig` — leave them `undefined` on the config object as the user wrote it (so the editor can show empty inputs for unset fields). Default resolution happens centrally in `_effectiveConfig()` (see Technical Details > ResizeObserver loop guard). `setConfig` must not throw for missing/zero/negative values on these four fields (the calendar card's existing throws apply only to `calendars` and `visible_hours`).
-- [ ] Update `getStubConfig` to include the four new fields with default values (`min_days: 3, max_days: 7, min_col_width: 140, max_col_width: 220`) and to drop `week_starts_on`, so the visual editor's "Add card" preview shows the rolling window working from the start.
+- [x] **Default handling**: do NOT rewrite the four fields in `setConfig` — leave them `undefined` on the config object as the user wrote it (so the editor can show empty inputs for unset fields). Default resolution happens centrally in `_effectiveConfig()` (see Technical Details > ResizeObserver loop guard). `setConfig` must not throw for missing/zero/negative values on these four fields (the calendar card's existing throws apply only to `calendars` and `visible_hours`).
+- [x] Update `getStubConfig` to include the four new fields with default values (`min_days: 3, max_days: 7, min_col_width: 140, max_col_width: 220`) and to drop `week_starts_on`, so the visual editor's "Add card" preview shows the rolling window working from the start.
 
 ### Sub-Phase C: Header label, day-step navigation, chevron, midnight tick
 

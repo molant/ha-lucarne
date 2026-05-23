@@ -14,6 +14,7 @@ export class LucarneCalendarCardEditor extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @state() private _config?: LucarneCalendarCardConfig;
   @state() private _haReady = false;
+  @state() private _invalid: { days?: boolean; cols?: boolean } = {};
 
   connectedCallback() {
     super.connectedCallback();
@@ -77,6 +78,21 @@ export class LucarneCalendarCardEditor extends LitElement {
     this._fire({ ...this._config!, calendars: cals });
   }
 
+  private _windowFieldChanged(field: 'min_days' | 'max_days' | 'min_col_width' | 'max_col_width', e: Event) {
+    const raw = (e.target as HTMLInputElement).value;
+    const val = raw === '' ? undefined : Number(raw);
+    const next = { ...this._config!, [field]: val };
+    const minD = next.min_days ?? 3;
+    const maxD = next.max_days ?? 7;
+    const minC = next.min_col_width ?? 140;
+    const maxC = next.max_col_width ?? 220;
+    this._invalid = {
+      days: minD > maxD,
+      cols: minC > maxC,
+    };
+    this._fire(next);
+  }
+
   private _addCalendar() {
     const firstCalendar = Object.keys(this.hass?.states ?? {}).find((id) => id.startsWith('calendar.'));
     const defaultEntity = firstCalendar ?? 'calendar.example';
@@ -95,6 +111,10 @@ export class LucarneCalendarCardEditor extends LitElement {
     const bandStart = this._config.visible_hours?.start ?? '07:00';
     const bandEnd = this._config.visible_hours?.end ?? '21:00';
     const showCreate = this._config.show_create_button ?? true;
+    const minDays = this._config.min_days;
+    const maxDays = this._config.max_days;
+    const minColWidth = this._config.min_col_width;
+    const maxColWidth = this._config.max_col_width;
 
     return html`
       <label class="field">
@@ -136,6 +156,68 @@ export class LucarneCalendarCardEditor extends LitElement {
           @change=${this._showCreateChanged}
         />
       </label>
+
+      <div class="section-label">Visible day window</div>
+      <div class="row">
+        <label class="field">
+          <span class="field-label">Min days (1–14)</span>
+          <input
+            class="text-input"
+            type="number"
+            min="1"
+            max="14"
+            step="1"
+            .value=${minDays !== undefined ? String(minDays) : ''}
+            placeholder="3"
+            @change=${(e: Event) => this._windowFieldChanged('min_days', e)}
+          />
+          ${this._invalid.days ? html`<div class="editor-error">Min days must be ≤ max days</div>` : ''}
+        </label>
+        <label class="field">
+          <span class="field-label">Max days (1–14)</span>
+          <input
+            class="text-input"
+            type="number"
+            min="1"
+            max="14"
+            step="1"
+            .value=${maxDays !== undefined ? String(maxDays) : ''}
+            placeholder="7"
+            @change=${(e: Event) => this._windowFieldChanged('max_days', e)}
+          />
+          ${this._invalid.days ? html`<div class="editor-error">Max days must be ≥ min days</div>` : ''}
+        </label>
+      </div>
+      <div class="row">
+        <label class="field">
+          <span class="field-label">Min column width px (60–400)</span>
+          <input
+            class="text-input"
+            type="number"
+            min="60"
+            max="400"
+            step="10"
+            .value=${minColWidth !== undefined ? String(minColWidth) : ''}
+            placeholder="140"
+            @change=${(e: Event) => this._windowFieldChanged('min_col_width', e)}
+          />
+          ${this._invalid.cols ? html`<div class="editor-error">Min width must be ≤ max width</div>` : ''}
+        </label>
+        <label class="field">
+          <span class="field-label">Max column width px (100–600)</span>
+          <input
+            class="text-input"
+            type="number"
+            min="100"
+            max="600"
+            step="10"
+            .value=${maxColWidth !== undefined ? String(maxColWidth) : ''}
+            placeholder="220"
+            @change=${(e: Event) => this._windowFieldChanged('max_col_width', e)}
+          />
+          ${this._invalid.cols ? html`<div class="editor-error">Max width must be ≥ min width</div>` : ''}
+        </label>
+      </div>
 
       <div class="section-label">Calendars</div>
       ${calendars.map(
