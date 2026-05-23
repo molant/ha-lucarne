@@ -1,6 +1,7 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { HomeAssistant, CalendarEvent, CalendarConfig } from './types.js';
 import { fetchCalendarEvents } from './ha-subscriptions.js';
+import { isoDateKey } from './calendar-layout.js';
 
 export interface RollingWindowOptions {
   calendars: CalendarConfig[];
@@ -21,13 +22,6 @@ export interface RollingWindowOptions {
   pollIntervalMs?: number;
   /** Set to 0 in tests to suppress the real-time midnight tick. Default: 60_000. */
   tickIntervalMs?: number;
-}
-
-function isoDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
 }
 
 function addDays(date: Date, n: number): Date {

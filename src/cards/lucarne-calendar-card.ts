@@ -3,7 +3,7 @@ import { customElement, property, query, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { installPreviewColumnOverride, type PreviewOverrideHandle } from '../shared/grid-preview-override.js';
 import { resolveCalendars, resolveCalendarLabel } from '../shared/calendar-helpers.js';
-import { layoutEvents } from '../shared/calendar-layout.js';
+import { layoutEvents, isoDateKey } from '../shared/calendar-layout.js';
 import { computeVisibleDays } from '../shared/visible-window.js';
 import type { VisibleWindowConfig } from '../shared/visible-window.js';
 import { RollingWindowController } from '../shared/rolling-window.js';
@@ -424,6 +424,7 @@ export class LucarneCalendarCard extends LitElement {
             .bandEnd=${bandEnd}
             .calendars=${resolvedCalendars}
             .dayWidthPx=${this._dayWidthPx}
+            .cachedDayKeys=${new Set(this._rolling.cachedRange.map(isoDateKey))}
             .showCreateButton=${(this._config.show_create_button ?? true) && this._creatableCalendars.length > 0}
           ></lucarne-calendar-grid>
         </div>

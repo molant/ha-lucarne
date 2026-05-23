@@ -4,16 +4,11 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import type { CalendarConfig, CalendarEvent } from '../shared/types.js';
 import type { CalendarLayoutResult } from '../shared/calendar-layout.js';
+import { isoDateKey } from '../shared/calendar-layout.js';
 import { hoursInBand } from '../shared/date-helpers.js';
 import './calendar-event-block.js';
 import './out-of-band-stub.js';
-
-function isoDateKey(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+import './skeleton-day-column.js';
 
 function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -101,6 +96,35 @@ export class LucarneCalendarGrid extends LitElement {
         display: flex;
         flex-direction: column;
         gap: 1px;
+      }
+      .allday-skeleton {
+        height: 18px;
+        border-radius: 3px;
+        margin: 2px 4px;
+        background: var(--lucarne-skeleton-base);
+        position: relative;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .shimmer-sweep {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          90deg,
+          transparent 0%,
+          var(--lucarne-skeleton-highlight) 50%,
+          transparent 100%
+        );
+        animation: allday-shimmer 3s ease-in-out infinite;
+      }
+      @keyframes allday-shimmer {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(200%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .shimmer-sweep {
+          display: none;
+        }
       }
       .allday-event {
         font-size: 0.7rem;
@@ -194,6 +218,8 @@ export class LucarneCalendarGrid extends LitElement {
   @property({ type: Boolean }) showCreateButton = false;
   /** Current day width in px — informational; used by Phase 3 skeleton and pan math. */
   @property({ type: Number }) dayWidthPx = 0;
+  /** Set of ISO date keys (YYYY-MM-DD) for days that have cached events. Days not in this set render as skeletons. */
+  @property({ attribute: false }) cachedDayKeys: Set<string> = new Set();
 
   private get _colorMap(): Map<string, string> {
     const m = new Map<string, string>();
@@ -370,32 +396,35 @@ export class LucarneCalendarGrid extends LitElement {
         <div class="allday-spacer">all-day</div>
         ${this.layout.days.map((day, idx) => {
           const dayKey = isoDateKey(day);
+          const isCached = this.cachedDayKeys.has(dayKey);
           const dayLayout = this.layout!.perDay.get(dayKey);
           return html`
             <div class="allday-cell" style="grid-column: ${idx + 2}">
-              ${(dayLayout?.allDay ?? []).map(
-                (event) => {
-                  const clip = dayLayout?.allDayClipped?.get(event.uid ?? event.summary);
-                  return html`
-                    <div
-                      class="allday-event"
-                      style="background: ${this._eventColor(event)}cc"
-                      @click=${(e: MouseEvent) => {
-                        e.stopPropagation();
-                        this.dispatchEvent(
-                          new CustomEvent('lucarne-event-tap', {
-                            detail: { event, color: this._eventColor(event) },
-                            bubbles: true,
-                            composed: true,
-                          }),
-                        );
-                      }}
-                    >
-                      ${clip?.left ? html`<span class="clip-chevron">‹</span>` : ''}${event.summary}${clip?.right ? html`<span class="clip-chevron">›</span>` : ''}
-                    </div>
-                  `;
-                },
-              )}
+              ${!isCached
+                ? html`<div class="allday-skeleton"><div class="shimmer-sweep"></div></div>`
+                : (dayLayout?.allDay ?? []).map(
+                  (event) => {
+                    const clip = dayLayout?.allDayClipped?.get(event.uid ?? event.summary);
+                    return html`
+                      <div
+                        class="allday-event"
+                        style="background: ${this._eventColor(event)}cc"
+                        @click=${(e: MouseEvent) => {
+                          e.stopPropagation();
+                          this.dispatchEvent(
+                            new CustomEvent('lucarne-event-tap', {
+                              detail: { event, color: this._eventColor(event) },
+                              bubbles: true,
+                              composed: true,
+                            }),
+                          );
+                        }}
+                      >
+                        ${clip?.left ? html`<span class="clip-chevron">‹</span>` : ''}${event.summary}${clip?.right ? html`<span class="clip-chevron">›</span>` : ''}
+                      </div>
+                    `;
+                  },
+                )}
             </div>
           `;
         })}
@@ -415,11 +444,21 @@ export class LucarneCalendarGrid extends LitElement {
         </div>
 
         <!-- Day columns -->
-        ${this.layout.days.map((day, idx) => html`
-          <div style="grid-row:3; grid-column:${idx + 2}; position:relative; overflow:visible; display:flex; flex-direction:column;">
-            ${this._renderDayColumn(day, now)}
-          </div>
-        `)}
+        ${this.layout.days.map((day, idx) => {
+          const dayKey = isoDateKey(day);
+          const isCached = this.cachedDayKeys.has(dayKey);
+          return html`
+            <div style="grid-row:3; grid-column:${idx + 2}; position:relative; overflow:visible; display:flex; flex-direction:column;">
+              ${isCached
+                ? this._renderDayColumn(day, now)
+                : html`<lucarne-skeleton-day-column
+                    .bandStart=${this.bandStart}
+                    .bandEnd=${this.bandEnd}
+                    .hourHeightPx=${this.hourHeightPx}
+                  ></lucarne-skeleton-day-column>`}
+            </div>
+          `;
+        })}
       </div>
     `;
   }

@@ -31,7 +31,7 @@ function isAllDay(event: CalendarEvent): boolean {
   return event.start.length === 10 && !event.start.includes('T');
 }
 
-function isoDateKey(date: Date): string {
+export function isoDateKey(date: Date): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
