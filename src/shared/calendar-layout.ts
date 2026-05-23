@@ -38,6 +38,18 @@ export function isoDateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+/**
+ * Stable per-event key for layout-internal lookups (e.g. allDayClipped).
+ * Prefer the uid (which RollingWindowController already synthesises when the
+ * upstream is missing). The composite fallback is defensive: if some path
+ * ever passes through an event without a uid, `start|end|summary` is still
+ * unique enough to avoid the summary-only collisions that the older
+ * `uid ?? summary` fallback was vulnerable to.
+ */
+export function eventKey(event: CalendarEvent): string {
+  return event.uid ?? `${event.start}|${event.end}|${event.summary ?? ''}`;
+}
+
 interface TimedEventEntry {
   event: CalendarEvent;
   start: Date;
@@ -150,7 +162,7 @@ export function layoutEvents(
             }
             const isFirst = windowFirstDay !== null && isoDateKey(day) === isoDateKey(windowFirstDay);
             const isLast = windowLastDay !== null && isoDateKey(day) === isoDateKey(windowLastDay);
-            layout.allDayClipped.set(event.uid ?? event.summary, {
+            layout.allDayClipped.set(eventKey(event), {
               left: clipLeft && isFirst,
               right: clipRight && isLast,
             });

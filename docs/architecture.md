@@ -33,7 +33,7 @@ Mac mini ──── POST /api/webhook/<secret> ────► Home Assistant
 Each card manages its own HA subscriptions independently.
 
 **lucarne-today-card**
-- `fetchCalendarEvents` WebSocket `calendar/list_events` call on connect + 5-minute poll (all configured `calendar.*` entities,
+- `fetchCalendarEvents` WebSocket `call_service` for `calendar.get_events` with `return_response: true` on connect + 5-minute poll (all configured `calendar.*` entities,
   7-day window)
 - `weather.get_forecasts` service call (daily type) on connect + on weather entity state change
 - `subscribeTodoItems` — `subscribe_trigger` on entity state change + `todo.get_items` re-poll for live task-count badge
@@ -102,4 +102,4 @@ GitHub release.
 | 1440 px | Large external display | Similar to 1366; clamp values plateau |
 
 Typography uses `clamp(min, preferred, max)` so no media queries are needed for font size.
-Grid layout uses `auto-fit minmax()` for chores columns (220 px min per column).
+Grid layout uses `auto-fit minmax()` for chores columns (200 px min per column).

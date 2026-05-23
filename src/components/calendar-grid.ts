@@ -4,7 +4,7 @@ import { styleMap } from 'lit/directives/style-map.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import type { CalendarConfig, CalendarEvent } from '../shared/types.js';
 import type { CalendarLayoutResult } from '../shared/calendar-layout.js';
-import { isoDateKey } from '../shared/calendar-layout.js';
+import { isoDateKey, eventKey } from '../shared/calendar-layout.js';
 import { hoursInBand } from '../shared/date-helpers.js';
 import './calendar-event-block.js';
 import './out-of-band-stub.js';
@@ -456,7 +456,7 @@ export class LucarneCalendarGrid extends LitElement {
                   ? html`<div class="allday-skeleton"><div class="shimmer-sweep"></div></div>`
                   : (dayLayout?.allDay ?? []).map(
                     (event) => {
-                      const clip = dayLayout?.allDayClipped?.get(event.uid ?? event.summary);
+                      const clip = dayLayout?.allDayClipped?.get(eventKey(event));
                       return html`
                         <div
                           class="allday-event"

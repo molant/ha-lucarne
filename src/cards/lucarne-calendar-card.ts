@@ -181,11 +181,7 @@ export class LucarneCalendarCard extends LitElement {
         calendars: normalizedConfig.calendars,
         visibleCount: effectiveCfg.minDays,
         bufferDays: normalizedConfig.render_buffer_days,
-        onFetchComplete: () => {
-          this._pendingEvents = [];
-          this._deletedUids = new Set();
-          this._recompute();
-        },
+        onFetchComplete: (events, failed) => this._onFetchComplete(events, failed),
         onChange: () => this._recompute(),
       });
     } else {
@@ -362,6 +358,43 @@ export class LucarneCalendarCard extends LitElement {
     this._deletedUids = new Set([...this._deletedUids, e.detail.uid]);
     this._openEvent = null;
     this._openEventEntityId = '';
+    this._recompute();
+  }
+
+  /**
+   * Called by RollingWindowController after every successful fetch. Clears
+   * `_pendingEvents` (optimistic creates have either landed or been
+   * superseded) and prunes `_deletedUids` so it only retains uids the server
+   * still returns — i.e. our delete hasn't propagated yet. Wholesale-clearing
+   * here would let a stale fetch resurrect a freshly-deleted event between
+   * the user's tap and the server's next state.
+   *
+   * `failed` is the set of entity ids whose `calendar.get_events` call threw.
+   * Tombstones whose entity prefix is in `failed` are NEVER pruned, because
+   * we can't distinguish "really gone" from "the fetch never returned data
+   * for this entity." Without this guard, a transient per-entity failure
+   * would silently resurrect every optimistic delete for that entity.
+   */
+  private _onFetchComplete(events: Map<string, CalendarEvent[]>, failed: Set<string>) {
+    this._pendingEvents = [];
+    if (this._deletedUids.size > 0) {
+      const presentUids = new Set<string>();
+      for (const list of events.values()) {
+        for (const e of list) {
+          if (e.uid) presentUids.add(e.uid);
+        }
+      }
+      const pruned = new Set<string>();
+      for (const uid of this._deletedUids) {
+        const entityId = uid.includes('::') ? uid.split('::')[0] : '';
+        // Keep when: (a) the entity's fetch failed (no signal), OR
+        // (b) the server still returns the event (delete pending).
+        if (failed.has(entityId) || presentUids.has(uid)) {
+          pruned.add(uid);
+        }
+      }
+      this._deletedUids = pruned;
+    }
     this._recompute();
   }
 

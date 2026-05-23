@@ -1,11 +1,19 @@
 # ha-lucarne — DIY Skylight Calendar for Home Assistant
 
+![ha-lucarne banner](docs/banner.svg)
+
+<a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
+<a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+<a href="https://www.home-assistant.io/"><img src="https://img.shields.io/badge/Home%20Assistant-2024.1%2B-blue.svg" alt="Home Assistant"></a>
+
 A custom Lovelace card collection that turns a wall-mounted iPad into a Skylight-style family
-dashboard: week-view calendar with per-person colors, a daily agenda + weather strip, a kids'
+dashboard: a rolling N-day calendar with per-person colors, a daily agenda + weather strip, a kids'
 chore tracker with streaks, and an Apple Reminders sync bridge — all designed for iPad 9
 landscape in kiosk mode.
 
 > **Install**: HACS → Custom repositories → `https://github.com/molant/ha-lucarne` → Type: Dashboard (plugin)
+
+> **Screenshots coming soon** — once 0.2.0 is stable on the wall iPad, the calendar / today / chores cards will get a screenshots gallery here. The banner above is a placeholder.
 
 ---
 
@@ -13,8 +21,9 @@ landscape in kiosk mode.
 
 Three Lovelace cards share a consistent visual language (soft pastels, `clamp()`-based typography,
 44 px touch targets) and live-subscribe to your HA state. The **Today** card shows the next 7 days
-of agenda, today's weather + tomorrow's forecast, and a task-count badge. The **Calendar** card renders a scrollable
-week-view with per-person color coding, visibility toggles, and a tap-to-create flow. The **Chores**
+of agenda, today's weather + tomorrow's forecast, and a task-count badge. The **Calendar** card renders a
+rolling N-day window (auto-fits 3–7 days to width) with per-person color coding, visibility toggles, touch-swipe
+navigation, and a tap-to-create flow. The **Chores**
 card shows each kid's daily to-do list, tracks streaks with a `counter.*` helper, and fires a
 `ha_lucarne_chores_all_done` event when a kid completes everything — plug TTS, push notifications, or
 other automations into that event.
@@ -248,7 +257,7 @@ bug.
 System Settings → Lock Screen → set "Put computer to sleep when display is off" to **Never**.
 
 **Kid taps wrong chore column on the iPad**
-Increase the grid-column min-width by adjusting the `minmax(220px, 1fr)` value in the card source,
+Increase the grid-column min-width by adjusting the `minmax(200px, 1fr)` value in the card source,
 or reduce the number of kids shown on this dashboard and link to a second view.
 
 ---

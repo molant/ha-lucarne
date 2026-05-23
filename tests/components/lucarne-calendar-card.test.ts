@@ -34,6 +34,7 @@ type CardPrivate = {
   _config: { visible_hours?: { start: string; end: string }; calendars: unknown[] };
   _recompute(): void;
   _onEventDeleted(e: CustomEvent<{ entityId: string; uid: string }>): void;
+  _onFetchComplete(events: Map<string, CalendarEvent[]>, failed: Set<string>): void;
 };
 
 function makeEvent(uid: string, summary = 'Test Event'): CalendarEvent {
@@ -181,5 +182,69 @@ describe('LucarneCalendarCard — _onEventDeleted handler', () => {
 
     assert.ok(priv(card)._deletedUids.has('calendar.family::existing'), 'pre-existing uid preserved');
     assert.ok(priv(card)._deletedUids.has('calendar.family::new-uid'), 'new uid added');
+  });
+});
+
+describe('LucarneCalendarCard — _onFetchComplete pruning', () => {
+  let card: LucarneCalendarCard;
+  afterEach(() => card?.remove());
+
+  it('retains a uid in _deletedUids when the server still returns the event', () => {
+    card = makeCard();
+    setupCardState(card, []);
+    priv(card)._deletedUids = new Set(['calendar.family::abc']);
+    // Server's next fetch still includes the just-deleted event (stale)
+    const events = new Map<string, CalendarEvent[]>();
+    events.set('calendar.family', [makeEvent('calendar.family::abc')]);
+
+    priv(card)._onFetchComplete(events, new Set());
+
+    assert.ok(
+      priv(card)._deletedUids.has('calendar.family::abc'),
+      'uid still present in fetch → keep optimistic-delete entry so the event stays hidden',
+    );
+  });
+
+  it('drops a uid from _deletedUids when the server stops returning the event', () => {
+    card = makeCard();
+    setupCardState(card, []);
+    priv(card)._deletedUids = new Set(['calendar.family::abc', 'calendar.family::keep']);
+    // Server has converged: 'abc' is gone, 'keep' is still pending
+    const events = new Map<string, CalendarEvent[]>();
+    events.set('calendar.family', [makeEvent('calendar.family::keep')]);
+
+    priv(card)._onFetchComplete(events, new Set());
+
+    assert.equal(priv(card)._deletedUids.has('calendar.family::abc'), false,
+      'uid absent from fetch → drop the optimistic-delete entry (delete converged)');
+    assert.ok(priv(card)._deletedUids.has('calendar.family::keep'),
+      'uid still in fetch → keep the optimistic-delete entry');
+  });
+
+  it('keeps tombstones for entities whose fetch FAILED (transient signal-loss)', () => {
+    card = makeCard();
+    setupCardState(card, []);
+    priv(card)._deletedUids = new Set(['calendar.family::abc']);
+    // Fetch failed for calendar.family → no events for it, but failed flag set
+    const events = new Map<string, CalendarEvent[]>();
+    events.set('calendar.family', []);
+    const failed = new Set(['calendar.family']);
+
+    priv(card)._onFetchComplete(events, failed);
+
+    assert.ok(
+      priv(card)._deletedUids.has('calendar.family::abc'),
+      'failed fetch is not authoritative — keep tombstone to avoid resurrecting a deleted event',
+    );
+  });
+
+  it('clears _pendingEvents on every fetch-complete', () => {
+    card = makeCard();
+    setupCardState(card, []);
+    priv(card)._pendingEvents = [makeEvent('calendar.family::pending:abc')];
+
+    priv(card)._onFetchComplete(new Map(), new Set());
+
+    assert.equal(priv(card)._pendingEvents.length, 0);
   });
 });

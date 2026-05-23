@@ -25,8 +25,9 @@ touch targets):
 
 - **Today card** — next 7 days of agenda (per-person color dots), today's weather + tomorrow's
   forecast, task-count badge, who's home presence pills
-- **Calendar card** — full week view with per-person color coding, calendar visibility toggle
-  pills, tap-to-see-details popover, tap-to-create-event flow
+- **Calendar card** — rolling N-day window (auto-fits 3–7 days to the available width) with
+  per-person color coding, calendar visibility toggle pills, touch-swipe day navigation,
+  tap-to-see-details popover, tap-to-create-event flow
 - **Chores card** — per-kid chore columns (each backed by `input_boolean` helpers), tap to toggle,
   streak counter, a 2-second celebration animation, and a custom `ha_lucarne_chores_all_done` event
   you can hook into for TTS / push notifications

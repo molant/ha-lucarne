@@ -25,7 +25,7 @@ uses Lovelace's `panel: false` (default) with a grid layout:
   The calendar pane now auto-fits **4 columns** at 720 px (was 7 fixed). The `computeVisibleDays`
   formula with defaults (`min_col_width=140`, `max_col_width=220`) yields visibleCount=4 at 720 px
   available width (680 px after the 40 px time gutter, 680÷220=3.1→4 min-fitting, 680÷140=4.86→4 max-fitting).
-- **Chores tab**: `lucarne-chores-card` full-width. Three kids render in a `auto-fit minmax(220px,
+- **Chores tab**: `lucarne-chores-card` full-width. Three kids render in a `auto-fit minmax(200px,
   1fr)` grid → 3 columns at 1080 px (each ≈ 360 px), 4 columns if a fourth kid is added.
 
 ## Typography scaling

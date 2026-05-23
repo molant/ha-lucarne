@@ -63,19 +63,19 @@ views:
 
 ## Recipe 2: Large family (5+ kids)
 
-The chores card uses `auto-fit minmax(220px, 1fr)` columns. At 1080 px wide, 4 kids fill 4×220 px
-= 880 px comfortably; 5 kids wrap to a second row (no horizontal scroll — the grid reflowing is the
-default browser behavior). Options:
+The chores card uses `auto-fit minmax(200px, 1fr)` columns. At 1080 px wide, 5 kids fill 5×200 px
+= 1000 px comfortably on a single row; a 6th kid wraps to a second row (no horizontal scroll — the
+grid reflowing is the default browser behavior). Options:
 
-**Option A — accept the wrap**: The default. At 1080 px wide, `minmax(220px, 1fr)` yields 4
-columns; 5 kids → 4 on row 1, 1 on row 2. Slightly uneven but functional. The lone kid on row 2
+**Option A — accept the wrap**: The default. At 1080 px wide, `minmax(200px, 1fr)` yields 5
+columns; 6 kids → 5 on row 1, 1 on row 2. Slightly uneven but functional. The lone kid on row 2
 may be partially below the fold at 810 px viewport height.
 
 **Option B — split into two chores cards**: Put 3 kids in one card, 2+ in a second, and stack
 them vertically. Each card has its own title ("Morning Chores — Group A", etc.).
 
-**Option C — use a wider display**: iPad Pro 12.9" at 1366 CSS px wide shows 6 columns of 220 px
-each comfortably, so all 5 kids fit on one row.
+**Option C — use a wider display**: iPad Pro 12.9" at 1366 CSS px wide shows 6 columns of 200 px
+each comfortably, so 6 kids fit on one row.
 
 ### Example: 5-kid split layout
 

@@ -309,7 +309,10 @@ export class LucarneCreateEventPopover extends LitElement {
             end: eventEnd,
             description: this._description.trim() || undefined,
             location: this._location.trim() || undefined,
-            uid: `${this._calendarEntityId}::`,
+            // Synthetic pending uid: unique per optimistic create so
+            // multiple pendings don't collide on the `entity::` key.
+            // Replaced by the real event on the next fetch.
+            uid: `${this._calendarEntityId}::pending:${eventStart}|${eventEnd}|${this._title.trim()}`,
             pending: true,
           },
         },

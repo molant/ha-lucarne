@@ -15,13 +15,15 @@ The New-Event dialog uses native `<input type="date">`, `<input type="time">`, a
 - Date and time inputs render as oversized "fat pill" button-like controls (iOS's native styling), much taller and visually heavier than the surrounding text inputs.
 - The all-day checkbox renders solid black when unchecked because iOS Safari falls back to the page foreground color (`var(--lucarne-on-surface)` ≈ `#3a3a3a`) for the box when no `accent-color` is set.
 
-The fix is two small CSS additions inside the component's styles block. No behavior changes.
+The fix is CSS-only: native-chrome stripping on the date/time inputs (`appearance: none` + WebKit shim) and a fully custom-rendered all-day checkbox (`appearance: none` + themed border + `::after` checkmark). No behavior changes.
+
+> **Post-implementation note (2026-05-23)**: the initial 2B attempt used `accent-color: var(--primary-color)`, but on both iPad iOS Safari and Chrome with the lucarne light theme the checkbox still rendered with a near-black fill or solid border. The shipped implementation is the custom-checkbox approach originally outlined as the optional Sub-Phase 2C; 2B and 2C are merged below.
 
 ## Structure
 
 ```
 src/components/
-  create-event-popover.ts        # MODIFY: extend input rule + add accent-color to checkbox rule
+  create-event-popover.ts        # MODIFY: strip native input chrome (date/time); replace native checkbox rendering with a custom border + ::after checkmark
 ```
 
 No new files. No new tests (pure visual fix; manual verification via browsermcp screenshots).
@@ -82,45 +84,63 @@ Deployable when: date/time inputs on iPad visually match the text inputs (same h
 - [ ] On Chrome desktop: dialog still looks correct (no regression — the rule was already correct, just adds explicit `appearance: none` which Chrome ignores for these types).
 - [ ] Take AFTER screenshots on both devices for the PR description.
 
-### Sub-Phase 2B: Accent-color on the all-day checkbox (issue 2)
+### Sub-Phase 2B: Custom-styled all-day checkbox (issue 2)
 
-Deployable when: the unchecked all-day checkbox shows a light-blue border (not solid black) on iPad.
+> **Note (post-implementation, 2026-05-23)**: The initial implementation used
+> `accent-color: var(--primary-color)`, but the user confirmed it still
+> rendered solid black on iPad and produced a dark fill on Chrome with the
+> lucarne light theme — the "no fill" UX wasn't achievable via `accent-color`.
+> The shipped implementation is the custom-checkbox approach (formerly
+> Sub-Phase 2C, now folded in here). The original `accent-color` rule is
+> preserved in this section's history for context but is NOT what the code does.
 
-#### Implementation
+Deployable when: the unchecked all-day checkbox shows a themed border (not solid black or filled) on iPad AND Chrome.
 
-- [x] Edit `src/components/create-event-popover.ts`, in the checkbox rule at lines 133-138. Add `accent-color`:
+#### Implementation (shipped)
+
+- [x] Edit `src/components/create-event-popover.ts`, in the checkbox rule. Strip native chrome and render the checkmark with CSS:
 
   ```css
   .allday-row input[type='checkbox'] {
+    appearance: none;
+    -webkit-appearance: none;
     width: 18px;
     height: 18px;
     min-height: unset;
+    margin: 0;
     cursor: pointer;
-    accent-color: var(--primary-color, #03a9f4);
+    border: 2px solid var(--primary-color, #03a9f4);
+    border-radius: 3px;
+    background: transparent;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .allday-row input[type='checkbox']:checked::after {
+    content: '';
+    position: absolute;
+    left: 3px;
+    top: 0;
+    width: 4px;
+    height: 9px;
+    border: solid var(--primary-color, #03a9f4);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+  .allday-row input[type='checkbox']:focus-visible {
+    outline: 2px solid var(--primary-color, #03a9f4);
+    outline-offset: 2px;
   }
   ```
 
-  `var(--primary-color)` resolves to the lucarne theme's `#a8c5e8` (light blue) when the theme is active, and to the HA default otherwise. The fallback `#03a9f4` matches the existing `.btn-create` button color.
+  Border + checkmark both use `var(--primary-color)` (resolves to the lucarne theme's `#a8c5e8` when the theme is active). No fill in either state — reads correctly in light themes. Native `<input>` element is preserved for keyboard accessibility (Tab to focus, Space to toggle).
 
 #### Manual verification (2B)
 
 - [ ] Rebuild and deploy.
-- [ ] On iPad with the lucarne theme: open New-Event dialog. The unchecked all-day checkbox has a light-blue (not black) border.
-- [ ] Tap the checkbox → it becomes a light-blue filled square with a white check.
-- [ ] On Chrome desktop: same behavior (Chrome already supports `accent-color` since v93).
-- [ ] Take AFTER screenshots.
-
-### Sub-Phase 2C: Fallback path (only if needed)
-
-Skip this sub-phase unless manual verification 2B fails. Listed here so an implementer knows the escape hatch.
-
-If `accent-color` does not visibly change the iPad rendering (possible on iPadOS < 15.4, which lacks `accent-color` support — only land this if manual verification 2B fails):
-
-- [ ] Implement a fully custom checkbox: keep the native `<input>` for accessibility, set `appearance: none` on it, give it a 2px border, and use a `:checked` rule with a `background-image: url("data:image/svg+xml,...")` SVG checkmark in the lucarne primary blue.
-- [ ] Test on iPad to confirm the custom rendering looks correct.
-- [ ] Verify keyboard accessibility (Tab to focus, Space to toggle) is preserved.
-
-This fallback is intentionally not implemented preemptively — it adds code and a maintenance surface. Only land it if needed.
+- [ ] On iPad with the lucarne theme: open New-Event dialog. The unchecked all-day checkbox has a themed border (no fill).
+- [ ] Tap the checkbox → the themed checkmark appears inside the box; still no fill.
+- [ ] On Chrome desktop: same rendering as iPad.
+- [ ] Tab to focus → `:focus-visible` outline appears; Space toggles the checkbox.
 
 ### Final verification
 

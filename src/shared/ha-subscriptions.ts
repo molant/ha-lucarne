@@ -28,12 +28,28 @@ export function subscribeEntityState(
   };
 }
 
+/**
+ * Result of `fetchCalendarEvents`.
+ * - `events`: per-entity event list. Failed entities still appear here with
+ *   `[]` so callers that don't care about failure (e.g. simple "render what
+ *   we have") don't need to handle a missing key.
+ * - `failed`: entity ids whose `calendar.get_events` call threw. Callers
+ *   that need to distinguish "really empty" from "fetch failed" (e.g. the
+ *   optimistic-delete tombstone prune in `lucarne-calendar-card`) should
+ *   check this set before treating an entity's empty list as authoritative.
+ */
+export interface FetchCalendarEventsResult {
+  events: Map<string, CalendarEvent[]>;
+  failed: Set<string>;
+}
+
 export async function fetchCalendarEvents(
   hass: HomeAssistant,
   entityIds: string[],
   start: Date,
   end: Date,
-): Promise<Map<string, CalendarEvent[]>> {
+): Promise<FetchCalendarEventsResult> {
+  const failed = new Set<string>();
   const results = await Promise.all(
     entityIds.map((entityId) =>
       hass.connection
@@ -51,11 +67,12 @@ export async function fetchCalendarEvents(
         .then((result) => [entityId, result?.response?.[entityId]?.events ?? []] as const)
         .catch((err) => {
           console.warn(`[lucarne] calendar.get_events failed for ${entityId}:`, err);
+          failed.add(entityId);
           return [entityId, [] as CalendarEvent[]] as const;
         }),
     ),
   );
-  return new Map(results);
+  return { events: new Map(results), failed };
 }
 
 export async function deleteCalendarEvent(
