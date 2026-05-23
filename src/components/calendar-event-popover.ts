@@ -1,7 +1,8 @@
 import { LitElement, html, css } from 'lit';
-import { customElement, property } from 'lit/decorators.js';
+import { customElement, property, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
-import type { CalendarEvent } from '../shared/types.js';
+import { deleteCalendarEvent, entitySupportsDelete } from '../shared/ha-subscriptions.js';
+import type { HomeAssistant, CalendarEvent } from '../shared/types.js';
 
 function formatDateTime(value: string): string {
   const d = new Date(value);
@@ -115,15 +116,95 @@ export class LucarneCalendarEventPopover extends LitElement {
         margin-top: var(--lucarne-spacing-md);
         min-height: 44px;
       }
+      .actions {
+        display: flex;
+        gap: var(--lucarne-spacing-sm);
+        justify-content: flex-start;
+        margin-top: var(--lucarne-spacing-md);
+      }
+      .btn {
+        border: none;
+        border-radius: var(--lucarne-radius-sm);
+        cursor: pointer;
+        font-size: var(--lucarne-fs-sm);
+        padding: 8px 14px;
+        min-height: 44px;
+      }
+      .btn-delete {
+        background: #c62828;
+        color: #fff;
+      }
+      .btn-delete:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .btn-cancel {
+        background: rgba(0, 0, 0, 0.08);
+        color: var(--lucarne-on-surface);
+      }
+      .btn-cancel:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .error-msg {
+        color: #c62828;
+        font-size: var(--lucarne-fs-sm);
+        margin-top: var(--lucarne-spacing-sm);
+      }
     `,
   ];
 
+  @property({ attribute: false }) hass!: HomeAssistant;
   @property({ type: Object }) event: CalendarEvent | null = null;
   @property({ type: String }) color = '#a8d8b9';
   @property({ type: String }) calendarLabel = '';
+  @property({ type: String }) entityId = '';
+
+  @state() private _confirmingDelete = false;
+  @state() private _deleting = false;
+  @state() private _deleteError = '';
 
   private _close() {
     this.dispatchEvent(new CustomEvent('popover-close', { bubbles: true, composed: true }));
+  }
+
+  private _isRecurring(e: CalendarEvent): boolean {
+    return Boolean(e.rrule) || Boolean(e.recurrence_id);
+  }
+
+  private _startDelete() {
+    this._confirmingDelete = true;
+    this._deleteError = '';
+  }
+
+  private _cancelDelete() {
+    this._confirmingDelete = false;
+  }
+
+  private async _confirmDelete() {
+    if (!this.event?.uid || !this.entityId) return;
+    this._deleting = true;
+    this._deleteError = '';
+    // The card stores uid as "entityId::originalUid" for color lookup.
+    // Strip the prefix before calling the service — HA expects the original uid.
+    const rawUid = this.event.uid.includes('::')
+      ? this.event.uid.split('::').slice(1).join('::')
+      : this.event.uid;
+    try {
+      await deleteCalendarEvent(this.hass, this.entityId, rawUid);
+    } catch (err) {
+      this._deleteError = err instanceof Error ? err.message : 'Failed to delete event';
+      this._deleting = false;
+      this._confirmingDelete = false;
+      return;
+    }
+    this.dispatchEvent(new CustomEvent('lucarne-event-deleted', {
+      detail: { entityId: this.entityId, uid: this.event.uid },
+      bubbles: true,
+      composed: true,
+    }));
+    this._deleting = false;
+    this._confirmingDelete = false;
   }
 
   render() {
@@ -142,6 +223,12 @@ export class LucarneCalendarEventPopover extends LitElement {
       rawUid && rawUid.length > 0
         ? `https://calendar.google.com/calendar/u/0/r/eventedit/${encodeURIComponent(rawUid)}`
         : null;
+
+    const canDelete = Boolean(this.entityId)
+      && Boolean(e.uid)
+      && this.hass != null
+      && entitySupportsDelete(this.hass, this.entityId)
+      && !this._isRecurring(e);
 
     return html`
       <div class="backdrop" @click=${this._close}></div>
@@ -196,6 +283,19 @@ export class LucarneCalendarEventPopover extends LitElement {
               </a>
             `
           : ''}
+
+        ${this._deleteError ? html`<div class="error-msg">${this._deleteError}</div>` : ''}
+
+        ${canDelete ? html`
+          <div class="actions">
+            ${this._confirmingDelete
+              ? html`
+                  <button class="btn btn-cancel" @click=${this._cancelDelete} ?disabled=${this._deleting}>Cancel</button>
+                  <button class="btn btn-delete" @click=${this._confirmDelete} ?disabled=${this._deleting}>Confirm delete?</button>
+                `
+              : html`<button class="btn btn-delete" @click=${this._startDelete}>Delete</button>`}
+          </div>
+        ` : ''}
       </div>
     `;
   }
