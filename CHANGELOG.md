@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- `lucarne-calendar-card` — layout engine refactored to accept arbitrary day arrays (no user-visible change in v0.1; foundation for rolling-window in v0.2).
+
 ## v0.1.0 — Initial release
 
 Three custom Lovelace cards, an Apple Reminders sync bridge, and three automation blueprints — all

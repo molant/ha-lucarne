@@ -1,34 +1,5 @@
 import type { CalendarEvent } from './types.js';
 
-export function startOfWeek(date: Date, weekStartsOn: 'monday' | 'sunday'): Date {
-  const d = new Date(date);
-  const day = d.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  const startDay = weekStartsOn === 'monday' ? 1 : 0;
-  const diff = (day - startDay + 7) % 7;
-  d.setDate(d.getDate() - diff);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-export function endOfWeek(date: Date, weekStartsOn: 'monday' | 'sunday'): Date {
-  const start = startOfWeek(date, weekStartsOn);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
-  return end;
-}
-
-export function weekDays(weekStart: Date): Date[] {
-  const days: Date[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(weekStart);
-    d.setDate(weekStart.getDate() + i);
-    d.setHours(0, 0, 0, 0);
-    days.push(d);
-  }
-  return days;
-}
-
 /** Returns inclusive array of hours in the band: hoursInBand("07:00","21:00") → [7,8,...,21] */
 export function hoursInBand(start: string, end: string): number[] {
   const startH = parseInt(start.split(':')[0], 10);

@@ -18,6 +18,7 @@ export interface LucarneCalendarCardConfig {
   title?: string;
   calendars: CalendarConfig[];
   visible_hours?: { start: string; end: string };
+  /** @deprecated silently ignored — see features/visible-days/README.md */
   week_starts_on?: 'monday' | 'sunday';
   show_create_button?: boolean;
 }
@@ -168,7 +169,6 @@ export class LucarneCalendarCard extends LitElement {
       title: 'Calendar',
       calendars: calendars.length ? calendars : [{ entity: 'calendar.example', color: '#a8d8b9' }],
       visible_hours: { start: '07:00', end: '21:00' },
-      week_starts_on: 'monday',
       show_create_button: true,
     };
   }

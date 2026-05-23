@@ -1,9 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  startOfWeek,
-  endOfWeek,
-  weekDays,
   hoursInBand,
   eventOverlapsBand,
   eventBandPortion,
@@ -13,13 +10,6 @@ import {
 import type { CalendarEvent } from '../../src/shared/types.js';
 
 // TZ=America/Los_Angeles is set in the npm test script
-
-function isoLocal(date: Date): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
 
 // ---------------------------------------------------------------------------
 // parseEventBoundary
@@ -38,108 +28,6 @@ describe('parseEventBoundary', () => {
     const d = parseEventBoundary('2026-01-05T10:30:00');
     assert.equal(d.getHours(), 10);
     assert.equal(d.getMinutes(), 30);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// startOfWeek / endOfWeek
-// ---------------------------------------------------------------------------
-describe('startOfWeek', () => {
-  it('Monday-start: Wednesday → returns Monday', () => {
-    // 2026-01-07 is a Wednesday
-    const d = new Date('2026-01-07T12:00:00');
-    const result = startOfWeek(d, 'monday');
-    assert.equal(isoLocal(result), '2026-01-05');
-    assert.equal(result.getHours(), 0);
-    assert.equal(result.getMinutes(), 0);
-  });
-
-  it('Monday-start: Monday itself → returns same day at 00:00', () => {
-    const d = new Date('2026-01-05T15:30:00');
-    const result = startOfWeek(d, 'monday');
-    assert.equal(isoLocal(result), '2026-01-05');
-    assert.equal(result.getHours(), 0);
-  });
-
-  it('Sunday-start: Wednesday → returns Sunday', () => {
-    const d = new Date('2026-01-07T12:00:00');
-    const result = startOfWeek(d, 'sunday');
-    assert.equal(isoLocal(result), '2026-01-04');
-  });
-
-  it('Sunday-start: Sunday itself → returns same day', () => {
-    const d = new Date('2026-01-04T10:00:00');
-    const result = startOfWeek(d, 'sunday');
-    assert.equal(isoLocal(result), '2026-01-04');
-  });
-});
-
-describe('endOfWeek', () => {
-  it('Monday-start week ends on Sunday 23:59:59.999', () => {
-    const d = new Date('2026-01-07T12:00:00');
-    const result = endOfWeek(d, 'monday');
-    assert.equal(isoLocal(result), '2026-01-11');
-    assert.equal(result.getHours(), 23);
-    assert.equal(result.getMinutes(), 59);
-    assert.equal(result.getSeconds(), 59);
-    assert.equal(result.getMilliseconds(), 999);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// weekDays
-// ---------------------------------------------------------------------------
-describe('weekDays', () => {
-  it('always returns exactly 7 dates', () => {
-    const start = new Date('2026-01-05T00:00:00');
-    const days = weekDays(start);
-    assert.equal(days.length, 7);
-  });
-
-  it('each day is at midnight local time', () => {
-    const start = new Date('2026-01-05T00:00:00');
-    const days = weekDays(start);
-    for (const d of days) {
-      assert.equal(d.getHours(), 0);
-      assert.equal(d.getMinutes(), 0);
-    }
-  });
-
-  it('returns sequential days', () => {
-    const start = new Date('2026-01-05T00:00:00');
-    const days = weekDays(start);
-    const dates = days.map((d) => isoLocal(d));
-    assert.deepEqual(dates, ['2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08', '2026-01-09', '2026-01-10', '2026-01-11']);
-  });
-
-  it('spans a month boundary correctly', () => {
-    // Week of Jan 26 – Feb 1
-    const start = new Date('2026-01-26T00:00:00');
-    const days = weekDays(start);
-    assert.equal(days.length, 7);
-    assert.equal(isoLocal(days[6]), '2026-02-01');
-  });
-
-  // DST forward: 2026-03-08 (clocks spring forward in America/Los_Angeles)
-  it('DST forward week (March) still returns 7 days', () => {
-    // Monday before spring-forward
-    const start = new Date('2026-03-02T00:00:00');
-    const days = weekDays(start);
-    assert.equal(days.length, 7);
-    // All days should be at hour 0 local time
-    for (const d of days) {
-      assert.equal(d.getHours(), 0);
-    }
-  });
-
-  // DST backward: 2026-11-01 (clocks fall back in America/Los_Angeles)
-  it('DST backward week (November) still returns 7 days', () => {
-    const start = new Date('2026-10-26T00:00:00');
-    const days = weekDays(start);
-    assert.equal(days.length, 7);
-    for (const d of days) {
-      assert.equal(d.getHours(), 0);
-    }
   });
 });
 
