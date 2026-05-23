@@ -3,33 +3,36 @@ import assert from 'node:assert/strict';
 import { fetchCalendarEvents, deleteCalendarEvent, entitySupportsDelete } from '../../src/shared/ha-subscriptions.js';
 import type { HomeAssistant } from '../../src/shared/types.js';
 
-interface SentMessage {
-  type: string;
-  domain: string;
-  service: string;
-  service_data: { start_date_time: string; end_date_time: string };
-  target: { entity_id: string };
-  return_response: boolean;
-}
+// Raw event shape returned by HA's REST endpoint /api/calendars/<entity_id>.
+// Matches Google-Calendar-v3-style nesting for start/end.
+type RawEvent = {
+  start: string | { dateTime?: string; date?: string };
+  end: string | { dateTime?: string; date?: string };
+  summary?: string;
+  description?: string;
+  location?: string;
+  uid?: string;
+  recurrence_id?: string | null;
+  rrule?: string | null;
+};
 
-type MessageResponse = { response: Record<string, { events: unknown[] }> } | Error;
+type ApiCallRecord = { method: string; path: string };
+type ApiResult = RawEvent[] | Error;
 
-function makeHass(handler: (msg: SentMessage) => Promise<MessageResponse>): {
+function makeHass(handler: (path: string) => Promise<ApiResult>): {
   hass: HomeAssistant;
-  sent: SentMessage[];
+  calls: ApiCallRecord[];
 } {
-  const sent: SentMessage[] = [];
+  const calls: ApiCallRecord[] = [];
   const hass = {
-    connection: {
-      sendMessagePromise: async (msg: SentMessage) => {
-        sent.push(msg);
-        const result = await handler(msg);
-        if (result instanceof Error) throw result;
-        return result;
-      },
+    callApi: async <T,>(method: string, path: string): Promise<T> => {
+      calls.push({ method, path });
+      const result = await handler(path);
+      if (result instanceof Error) throw result;
+      return result as T;
     },
   } as unknown as HomeAssistant;
-  return { hass, sent };
+  return { hass, calls };
 }
 
 const START = new Date('2026-05-18T00:00:00Z');
@@ -48,74 +51,102 @@ describe('fetchCalendarEvents', () => {
     console.warn = originalWarn;
   });
 
-  it('dispatches calendar.get_events with return_response and ISO times', async () => {
-    const { hass, sent } = makeHass(async (msg) => ({
-      response: { [msg.target.entity_id]: { events: [] } },
-    }));
+  it('calls GET /api/calendars/<entity>?start=...&end=... with URL-encoded ISO times', async () => {
+    const { hass, calls } = makeHass(async () => []);
     await fetchCalendarEvents(hass, ['calendar.family'], START, END);
 
-    assert.equal(sent.length, 1);
-    assert.equal(sent[0].type, 'call_service');
-    assert.equal(sent[0].domain, 'calendar');
-    assert.equal(sent[0].service, 'get_events');
-    assert.equal(sent[0].return_response, true);
-    assert.deepEqual(sent[0].target, { entity_id: 'calendar.family' });
-    assert.equal(sent[0].service_data.start_date_time, START.toISOString());
-    assert.equal(sent[0].service_data.end_date_time, END.toISOString());
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].method, 'GET');
+    assert.match(calls[0].path, /^calendars\/calendar\.family\?start=.+&end=.+$/);
+    // URL-encoded ISO strings: ':' → '%3A'
+    assert.ok(calls[0].path.includes(encodeURIComponent(START.toISOString())));
+    assert.ok(calls[0].path.includes(encodeURIComponent(END.toISOString())));
   });
 
-  it('unwraps response keyed by entity_id and returns a Map', async () => {
-    const peloton = { start: '2026-05-22T09:00:00-07:00', end: '2026-05-22T10:00:00-07:00', summary: 'Peloton' };
-    const smoke = { start: '2026-05-22T10:00:00-07:00', end: '2026-05-22T11:00:00-07:00', summary: 'smoke' };
-    const eventsByEntity: Record<string, unknown[]> = {
-      'calendar.ingrid': [peloton],
-      'calendar.family': [smoke],
+  it('normalises nested {dateTime} shape to flat string + preserves uid for timed events', async () => {
+    const peloton: RawEvent = {
+      start: { dateTime: '2026-05-22T09:00:00-07:00' },
+      end: { dateTime: '2026-05-22T10:00:00-07:00' },
+      summary: 'Peloton',
+      uid: 'peloton-uid-123@google.com',
     };
-    const { hass } = makeHass(async (msg) => ({
-      response: { [msg.target.entity_id]: { events: eventsByEntity[msg.target.entity_id] ?? [] } },
-    }));
+    const { hass } = makeHass(async () => [peloton]);
+    const result = await fetchCalendarEvents(hass, ['calendar.ingrid'], START, END);
 
-    const result = await fetchCalendarEvents(
-      hass,
-      ['calendar.ingrid', 'calendar.family'],
-      START,
-      END,
-    );
-
-    assert.equal(result.events.size, 2);
-    assert.deepEqual(result.events.get('calendar.ingrid'), [peloton]);
-    assert.deepEqual(result.events.get('calendar.family'), [smoke]);
-    assert.equal(result.failed.size, 0, 'no failures expected on success');
+    const events = result.events.get('calendar.ingrid')!;
+    assert.equal(events.length, 1);
+    assert.equal(events[0].start, '2026-05-22T09:00:00-07:00');
+    assert.equal(events[0].end, '2026-05-22T10:00:00-07:00');
+    assert.equal(events[0].summary, 'Peloton');
+    assert.equal(events[0].uid, 'peloton-uid-123@google.com', 'uid is preserved end-to-end (the whole point of the REST switch)');
+    assert.equal(result.failed.size, 0);
   });
 
-  it('returns empty array (no throw) when the service call rejects, and logs a warning', async () => {
+  it('normalises nested {date} shape (all-day events) to flat YYYY-MM-DD string', async () => {
+    const birthday: RawEvent = {
+      start: { date: '2026-05-25' },
+      end: { date: '2026-05-26' },
+      summary: 'Birthday',
+      uid: 'bday@local',
+    };
+    const { hass } = makeHass(async () => [birthday]);
+    const result = await fetchCalendarEvents(hass, ['calendar.family'], START, END);
+
+    const events = result.events.get('calendar.family')!;
+    assert.equal(events[0].start, '2026-05-25');
+    assert.equal(events[0].end, '2026-05-26');
+  });
+
+  it('accepts flat-string start/end (forward-compat with integrations that already flatten)', async () => {
+    const raw: RawEvent = {
+      start: '2026-05-22T09:00:00-07:00',
+      end: '2026-05-22T10:00:00-07:00',
+      summary: 'Flat',
+    };
+    const { hass } = makeHass(async () => [raw]);
+    const result = await fetchCalendarEvents(hass, ['calendar.x'], START, END);
+    const e = result.events.get('calendar.x')![0];
+    assert.equal(e.start, '2026-05-22T09:00:00-07:00');
+    assert.equal(e.end, '2026-05-22T10:00:00-07:00');
+  });
+
+  it('preserves recurrence_id and rrule when present; converts null to undefined', async () => {
+    const recurring: RawEvent = {
+      start: { dateTime: '2026-05-22T09:00:00Z' },
+      end: { dateTime: '2026-05-22T10:00:00Z' },
+      summary: 'Weekly',
+      uid: 'r1',
+      rrule: 'FREQ=WEEKLY',
+      recurrence_id: null,
+    };
+    const { hass } = makeHass(async () => [recurring]);
+    const events = (await fetchCalendarEvents(hass, ['calendar.x'], START, END)).events.get('calendar.x')!;
+    assert.equal(events[0].rrule, 'FREQ=WEEKLY');
+    assert.equal(events[0].recurrence_id, undefined, 'null becomes undefined');
+  });
+
+  it('returns empty array (no throw) when the REST call rejects, and logs + tracks the entity', async () => {
     const { hass } = makeHass(async () => new Error('boom'));
     const result = await fetchCalendarEvents(hass, ['calendar.broken'], START, END);
 
     assert.deepEqual(result.events.get('calendar.broken'), []);
     assert.ok(result.failed.has('calendar.broken'), 'failed entity tracked in result.failed');
     assert.equal(warnCalls.length, 1);
-    assert.match(String(warnCalls[0][0]), /calendar\.get_events failed for calendar\.broken/);
-  });
-
-  it('returns empty array when response is missing the entity key', async () => {
-    const { hass } = makeHass(async () => ({ response: {} }));
-    const result = await fetchCalendarEvents(hass, ['calendar.missing'], START, END);
-    assert.deepEqual(result.events.get('calendar.missing'), []);
-    assert.equal(result.failed.size, 0, 'missing entity key is not a fetch failure (call succeeded)');
+    assert.match(String(warnCalls[0][0]), /\/api\/calendars\/calendar\.broken failed/);
   });
 
   it('isolates per-entity failures — one rejection does not poison the batch', async () => {
-    const { hass } = makeHass(async (msg) => {
-      if (msg.target.entity_id === 'calendar.bad') return new Error('nope');
-      return { response: { [msg.target.entity_id]: { events: [{ start: 'x', end: 'y', summary: 'ok' }] } } };
+    const okEvent: RawEvent = {
+      start: { dateTime: '2026-05-22T09:00:00Z' },
+      end: { dateTime: '2026-05-22T10:00:00Z' },
+      summary: 'ok',
+      uid: 'ok-uid',
+    };
+    const { hass } = makeHass(async (path) => {
+      if (path.includes('calendar.bad')) return new Error('nope');
+      return [okEvent];
     });
-    const result = await fetchCalendarEvents(
-      hass,
-      ['calendar.ok', 'calendar.bad'],
-      START,
-      END,
-    );
+    const result = await fetchCalendarEvents(hass, ['calendar.ok', 'calendar.bad'], START, END);
 
     assert.equal(result.events.get('calendar.ok')?.length, 1);
     assert.deepEqual(result.events.get('calendar.bad'), []);
