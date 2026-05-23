@@ -53,7 +53,7 @@ Result: mid-animation the track has the **new** day content but the animation wa
 
 ### Delete-event support detection
 
-Home Assistant's `calendar` domain exposes `calendar.delete_event` but per-integration support varies. The entity carries a `supported_features` attribute bitmask; bit `2` (`CalendarEntityFeature.DELETE_EVENT`; full enum is CREATE=1, DELETE=2, UPDATE=4) signals delete capability. The card reads this bit to decide whether to render the Delete button at all.
+Home Assistant exposes calendar event deletion via the `calendar/event/delete` WebSocket command (NOT a service call — `ha_list_services` confirms only `calendar.create_event` and `calendar.get_events` exist as services). Per-integration support varies, signalled by the entity's `supported_features` attribute bitmask; bit `2` (`CalendarEntityFeature.DELETE_EVENT`; full enum is CREATE=1, DELETE=2, UPDATE=4) means the integration's delete handler is wired up. The card reads this bit to decide whether to render the Delete button at all; the click handler then dispatches the WS command via `hass.connection.sendMessagePromise`.
 
 ## Requirements
 
@@ -76,7 +76,7 @@ Home Assistant's `calendar` domain exposes `calendar.delete_event` but per-integ
 - The event-detail modal shows a Delete button only when the underlying calendar entity supports delete.
 - Tapping Delete shows an inline confirm step (no second modal); a second tap commits.
 - On successful delete: the event disappears from the grid immediately (optimistic removal); the modal closes.
-- On service error: the inline error slot shows the message; modal stays open.
+- On delete error (`calendar/event/delete` WS-command rejection): the inline error slot shows the message; modal stays open.
 - Recurring events: Delete button is hidden (recurring delete is out of scope for this phase).
 
 ### Non-goals (explicitly OUT of scope)
@@ -89,7 +89,7 @@ Home Assistant's `calendar` domain exposes `calendar.delete_event` but per-integ
 
 ### Authorization
 
-Phase 3 adds one new HA service call: `calendar.delete_event`. No new entities, permissions, or storage are introduced. Authorization is enforced by Home Assistant per the user's existing HA session, identical to how `calendar.create_event` is already used.
+Phase 3 adds one new HA WebSocket command: `calendar/event/delete` (HA does NOT expose a `calendar.delete_event` service — only `create_event` and `get_events` are services; the delete affordance uses `hass.connection.sendMessagePromise({type: 'calendar/event/delete', entity_id, uid, recurrence_id?, recurrence_range?})`, the same mechanism HA's own frontend calendar uses). No new entities, permissions, or storage are introduced. Authorization is enforced by Home Assistant per the user's existing HA session.
 
 ## Phases
 
@@ -119,10 +119,10 @@ Phase 3 adds one new HA service call: `calendar.delete_event`. No new entities, 
 
 | Log Source | Location | Format | What to Check |
 |---|---|---|---|
-| Card runtime | Browser DevTools console | Plain text, `[lucarne]` prefix | `calendar.delete_event` service errors; pointer-event-related warnings from the day-pan component |
+| Card runtime | Browser DevTools console | Plain text, `[lucarne]` prefix | `calendar/event/delete` WS-command rejections (uid not found, integration doesn't actually support delete despite the bit); REST-fetch failures (`GET /api/calendars/<entity> failed`); pointer-event-related warnings from the day-pan component |
 | Test output | stdout from `npm test` | node:test TAP | `not ok` lines for `pan-math`, `rolling-window`, and any new `delete-events` tests |
-| HA Core log | `mcp__home-assistant__ha_get_logs` | HA log format | Calendar integration errors when `delete_event` fails (e.g., uid not found, integration doesn't actually support delete despite the bit) |
+| HA Core log | `mcp__home-assistant__ha_get_logs` | HA log format | Calendar integration errors when the `calendar/event/delete` WS command fails (uid not found, integration doesn't actually support delete despite the bit) |
 
 ## Access Control
 
-Phase 3 introduces one new `calendar.delete_event` call via `hass.callService`. Authorization is enforced by Home Assistant per the user's existing HA session. The card never bypasses or elevates HA permissions. The Delete button is hidden client-side when `supported_features` lacks the DELETE_EVENT bit (a UX courtesy — even if shown, the service call would fail at the HA layer).
+Phase 3 introduces one new WebSocket command via `hass.connection.sendMessagePromise({type: 'calendar/event/delete', ...})`. HA does not expose a `calendar.delete_event` service — only the WS command exists, matching HA frontend's own delete flow (`src/data/calendar.ts` in home-assistant/frontend). Authorization is enforced by Home Assistant per the user's existing HA session. The card never bypasses or elevates HA permissions. The Delete button is hidden client-side when `supported_features` lacks the DELETE_EVENT bit (a UX courtesy — even if shown, the WS command would fail at the HA layer).

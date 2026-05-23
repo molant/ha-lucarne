@@ -174,8 +174,9 @@ export class LucarneCalendarEventPopover extends LitElement {
 
   /**
    * Returns true when the uid is a synthetic placeholder (no real upstream
-   * uid available). HA's `calendar.delete_event` and Google's eventedit URL
-   * both require a real uid, so we skip those affordances for synthetic ids.
+   * uid available). The HA `calendar/event/delete` WebSocket command and
+   * Google's eventedit URL both require a real uid, so we skip those
+   * affordances for synthetic ids.
    */
   private _hasSyntheticUid(uid: string | undefined): boolean {
     if (!uid) return true;
@@ -238,8 +239,9 @@ export class LucarneCalendarEventPopover extends LitElement {
         ? `https://calendar.google.com/calendar/u/0/r/eventedit/${encodeURIComponent(rawUid)}`
         : null;
 
-    // Hide Delete when uid is synthetic: HA's calendar.delete_event needs a
-    // real upstream uid; calling it with `syn:...` or `pending:...` would fail.
+    // Hide Delete when uid is synthetic: the `calendar/event/delete` WS
+    // command needs a real upstream uid; calling it with `syn:...` or
+    // `pending:...` would fail.
     const canDelete = Boolean(this.entityId)
       && Boolean(e.uid)
       && this.hass != null
