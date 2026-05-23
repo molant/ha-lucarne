@@ -443,6 +443,36 @@ describe('RollingWindowController — event uid tagging', () => {
   });
 });
 
+describe('RollingWindowController — cachedRange and isDayCached', () => {
+  it('before any fetch: cachedRange is empty and isDayCached returns false', () => {
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, makeBaseOpts());
+    // Do NOT connect or call setHass — no fetch has fired
+    assert.equal(ctrl.cachedRange.length, 0, 'cachedRange should be empty before fetch');
+    assert.equal(ctrl.isDayCached(new Date('2026-05-22T00:00:00')), false, 'isDayCached should be false before fetch');
+  });
+
+  it('after fetch for [May 17, Jun 1): isDayCached(May 22) is true and cachedRange.length === 15', async () => {
+    // visibleCount=5, dayOffset=0, now=May 22 → buffer range = [May 22-5, May 22+10) = [May 17, Jun 1)
+    const { fetcher } = makeTrackingFetcher(ENTITY_ID, []);
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, {
+      ...makeBaseOpts({ fetcher }),
+      visibleCount: 5,
+      now: NOW_2026_05_22,
+    });
+    ctrl.hostConnected();
+    ctrl.setHass(makeStubHass(ENTITY_ID, []));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(ctrl.isDayCached(new Date('2026-05-22T00:00:00')), true, 'May 22 should be cached');
+    assert.equal(ctrl.cachedRange.length, 15, `cachedRange should cover 15 days (May 17–31), got ${ctrl.cachedRange.length}`);
+
+    ctrl.hostDisconnected();
+  });
+});
+
 describe('RollingWindowController — onChange contract', () => {
   it('pan (in-buffer) fires onChange', async () => {
     let onChangeCalls = 0;

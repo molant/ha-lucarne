@@ -68,5 +68,17 @@ export const lucarneStyles = css`
     --lucarne-surface: var(--ha-card-background, var(--card-background-color, #fff));
     --lucarne-on-surface: var(--primary-text-color, #212121);
     --lucarne-on-surface-muted: var(--secondary-text-color, #727272);
+
+    --lucarne-skeleton-base: rgba(0, 0, 0, 0.06);
+    --lucarne-skeleton-highlight: rgba(0, 0, 0, 0.12);
+    --lucarne-pan-easing: cubic-bezier(0.32, 0.72, 0, 1);
+    --lucarne-pan-duration: 240ms;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :host {
+      --lucarne-skeleton-base: rgba(255, 255, 255, 0.08);
+      --lucarne-skeleton-highlight: rgba(255, 255, 255, 0.16);
+    }
   }
 `;

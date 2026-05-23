@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # Phase 3: Touch swipe + skeleton columns + polish
@@ -61,12 +61,12 @@ Deployable when: skeleton renders for any day not in `controller.cachedEvents`; 
 
 #### Tests
 
-- [ ] Skeleton is presentational only; no unit test needed for the component itself.
-- [ ] Add a layout-level test in `tests/shared/calendar-layout.test.ts` (or a new file): `layoutEvents` for an out-of-cache day returns a `perDay` entry that is still well-formed (empty arrays), so the grid knows to use the skeleton instead.
+- [x] Skeleton is presentational only; no unit test needed for the component itself.
+- [x] Add tests for `cachedRange` and `isDayCached` in `tests/shared/rolling-window.test.ts`: before any fetch both return empty/false; after fetch for `[May 17, Jun 1)`, `isDayCached(May 22)` is `true` and `cachedRange.length === 15`. (The grid renders a skeleton for any day not in `cachedDayKeys`; `layoutEvents` always initializes well-formed empty entries for every day in the window, so no separate layout test is needed.)
 
 #### Implementation
 
-- [ ] Add to `src/shared/design-tokens.ts`. **Ship the rgba + `prefers-color-scheme` variant below** (do NOT use `color-mix()` — it requires Safari ≥16.2 / iPadOS 16.2+, and iPad 9 may still be on iPadOS 15). This is the canonical snippet to copy:
+- [x] Add to `src/shared/design-tokens.ts`. **Ship the rgba + `prefers-color-scheme` variant below** (do NOT use `color-mix()` — it requires Safari ≥16.2 / iPadOS 16.2+, and iPad 9 may still be on iPadOS 15). This is the canonical snippet to copy:
   ```css
   /* Light mode default */
   --lucarne-skeleton-base: rgba(0, 0, 0, 0.06);
@@ -84,17 +84,17 @@ Deployable when: skeleton renders for any day not in `controller.cachedEvents`; 
   > **Rejected alternative** (kept for context): the surface-relative `color-mix(in srgb, var(--lucarne-on-surface) 6%, transparent)` form would adapt to arbitrary HA themes more cleanly, but it gates on Safari ≥16.2. Re-evaluate when the wall iPad's minimum supported iPadOS bumps to 16.2.
 
   Confirm the shimmer reads correctly on both light and dark dashboards via `mcp__browsermcp__browser_screenshot` (toggle dashboard theme in HA → Profile → Theme).
-- [ ] **Implement `cachedRange` and `isDayCached` on `RollingWindowController`** (Phase 2 declared these on the class shape with placeholder bodies and a `Phase 3` comment, AND Phase 2 already established the private `Set<string>` populated at the tail of `_fetchRange` — flesh out the getter bodies now, do NOT re-declare or re-populate the Set). `get cachedRange(): Date[]` returns the sorted dates parsed from the Set's `isoDateKey` strings (`new Date(`${key}T00:00:00`)`, local-time parsing per `date-helpers.ts:85-87`); `isDayCached(day: Date): boolean` is a single `_cachedDayKeys.has(isoDateKey(day))` lookup. Add a test in `tests/shared/rolling-window.test.ts`: after a successful fetch for `[May 17, Jun 1)`, `isDayCached(May 22)` is `true` and `cachedRange.length === 15`; before any fetch resolves, both return empty/false.
-- [ ] Create `src/components/skeleton-day-column.ts`:
+- [x] **Implement `cachedRange` and `isDayCached` on `RollingWindowController`** (Phase 2 declared these on the class shape with placeholder bodies and a `Phase 3` comment, AND Phase 2 already established the private `Set<string>` populated at the tail of `_fetchRange` — flesh out the getter bodies now, do NOT re-declare or re-populate the Set). `get cachedRange(): Date[]` returns the sorted dates parsed from the Set's `isoDateKey` strings (`new Date(`${key}T00:00:00`)`, local-time parsing per `date-helpers.ts:85-87`); `isDayCached(day: Date): boolean` is a single `_cachedDayKeys.has(isoDateKey(day))` lookup. Add a test in `tests/shared/rolling-window.test.ts`: after a successful fetch for `[May 17, Jun 1)`, `isDayCached(May 22)` is `true` and `cachedRange.length === 15`; before any fetch resolves, both return empty/false.
+- [x] Create `src/components/skeleton-day-column.ts`:
   - Lit element `<lucarne-skeleton-day-column>` with two `@property` fields: `bandStart`, `bandEnd` (so it can match the time-grid height).
   - Renders: an all-day spacer (24px tall, shimmer), a small number of "fake event" rectangles at plausible y-positions (1 or 2 per day; not random — derived from a deterministic hash of the date for visual consistency between rerenders).
   - Shimmer: a CSS `@keyframes` animation translating a gradient across the rectangles (3s cycle, ease-in-out).
   - `@media (prefers-reduced-motion: reduce)`: replace the shimmer with a static `--lucarne-skeleton-base` background.
-- [ ] Modify `src/components/calendar-grid.ts`:
+- [x] Modify `src/components/calendar-grid.ts`:
   - Accept a new property: `cachedDayKeys: Set<string>` (passed from the card). Derive it in the card via `new Set(controller.cachedRange.map(isoDateKey))` — `cachedRange: Date[]` is a getter on `RollingWindowController` returning every date currently covered by a fetch. Use `controller.isDayCached(d)` for ad-hoc checks; use the Set for the per-day-column render loop (faster than calling `isDayCached` for each column). `isoDateKey` is currently **duplicated** in this codebase: one non-exported copy at `src/shared/calendar-layout.ts:34`, a second non-exported copy at `src/components/calendar-grid.ts:10-15`, **and a third local copy added in Phase 2 inside `src/shared/rolling-window.ts`** (used to populate `_cachedDayKeys` at the tail of `_fetchRange`). Consolidate them: (a) add `export` to the `calendar-layout.ts` declaration, (b) **DELETE the local copies in both `calendar-grid.ts` (lines 10-15) and `rolling-window.ts`**, (c) `import { isoDateKey } from '../shared/calendar-layout.js'` at the top of `calendar-grid.ts` AND `rolling-window.ts`, (d) import it in the card too for the `cachedDayKeys` derivation. Do NOT leave any copies (drift risk).
   - In the day-column render loop, if `cachedDayKeys` does not contain the day's key, render `<lucarne-skeleton-day-column .bandStart=${this.bandStart} .bandEnd=${this.bandEnd}>` in place of the events. `calendar-grid` already receives `bandStart` / `bandEnd` as `@property` fields (see Phase 2 wiring) — forward them so the skeleton matches the time-grid height exactly.
   - Day header still renders the date (skeleton is only inside the column body).
-- [ ] Modify `src/cards/lucarne-calendar-card.ts`:
+- [x] Modify `src/cards/lucarne-calendar-card.ts`:
   - Derive `cachedDayKeys` from the controller's cached event range; pass to the grid.
   - No new props needed on the card → grid handshake for `bandStart` / `bandEnd` (already passed in Phase 2).
 
