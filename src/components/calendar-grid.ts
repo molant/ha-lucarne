@@ -112,6 +112,11 @@ export class LucarneCalendarGrid extends LitElement {
         text-overflow: ellipsis;
         color: rgba(0, 0, 0, 0.8);
       }
+      .clip-chevron {
+        font-style: normal;
+        margin: 0 1px;
+        opacity: 0.7;
+      }
       /* Time grid */
       .time-col {
         grid-column: 1;
@@ -369,24 +374,27 @@ export class LucarneCalendarGrid extends LitElement {
           return html`
             <div class="allday-cell" style="grid-column: ${idx + 2}">
               ${(dayLayout?.allDay ?? []).map(
-                (event) => html`
-                  <div
-                    class="allday-event"
-                    style="background: ${this._eventColor(event)}cc"
-                    @click=${(e: MouseEvent) => {
-                      e.stopPropagation();
-                      this.dispatchEvent(
-                        new CustomEvent('lucarne-event-tap', {
-                          detail: { event, color: this._eventColor(event) },
-                          bubbles: true,
-                          composed: true,
-                        }),
-                      );
-                    }}
-                  >
-                    ${event.summary}
-                  </div>
-                `,
+                (event) => {
+                  const clip = dayLayout?.allDayClipped?.get(event.uid ?? event.summary);
+                  return html`
+                    <div
+                      class="allday-event"
+                      style="background: ${this._eventColor(event)}cc"
+                      @click=${(e: MouseEvent) => {
+                        e.stopPropagation();
+                        this.dispatchEvent(
+                          new CustomEvent('lucarne-event-tap', {
+                            detail: { event, color: this._eventColor(event) },
+                            bubbles: true,
+                            composed: true,
+                          }),
+                        );
+                      }}
+                    >
+                      ${clip?.left ? html`<span class="clip-chevron">‹</span>` : ''}${event.summary}${clip?.right ? html`<span class="clip-chevron">›</span>` : ''}
+                    </div>
+                  `;
+                },
               )}
             </div>
           `;

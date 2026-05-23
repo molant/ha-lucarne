@@ -13,6 +13,8 @@ export interface InBandBlock {
 
 export interface PerDayLayout {
   allDay: CalendarEvent[];
+  /** Clip hints for all-day events extending past the visible window edges. */
+  allDayClipped?: Map<string, { left: boolean; right: boolean }>;
   inBand: InBandBlock[];
   earlier: CalendarEvent[];
   later: CalendarEvent[];
@@ -117,6 +119,10 @@ export function layoutEvents(
     perDay.set(isoDateKey(day), { allDay: [], inBand: [], earlier: [], later: [] });
   }
 
+  // Window boundary dates for chevron computation
+  const windowFirstDay = days.length > 0 ? days[0] : null;
+  const windowLastDay = days.length > 0 ? days[days.length - 1] : null;
+
   for (const event of events) {
     if (isAllDay(event)) {
       // All-day event: add to every day it covers within the week
@@ -124,12 +130,31 @@ export function layoutEvents(
       // For all-day events, end is exclusive (e.g., single day event end = start + 1 day)
       const eventEndDate = new Date(event.end + 'T00:00:00');
 
+      // Determine clip hints (left = event started before window, right = event ends after window)
+      const clipLeft = windowFirstDay !== null && eventStartDate < windowFirstDay;
+      // right-clip: event extends past the last visible day (its exclusive end > lastDay+1)
+      const dayAfterLast = windowLastDay ? new Date(windowLastDay) : null;
+      if (dayAfterLast) dayAfterLast.setDate(dayAfterLast.getDate() + 1);
+      const clipRight = dayAfterLast !== null && eventEndDate > dayAfterLast;
+
       for (const day of days) {
         const dayKey = isoDateKey(day);
         const layout = perDay.get(dayKey)!;
         // Day falls within [eventStart, eventEnd)
         if (day >= eventStartDate && day < eventEndDate) {
           layout.allDay.push(event);
+          // Populate clip hints only when the event is actually clipped
+          if (clipLeft || clipRight) {
+            if (!layout.allDayClipped) {
+              layout.allDayClipped = new Map();
+            }
+            const isFirst = windowFirstDay !== null && isoDateKey(day) === isoDateKey(windowFirstDay);
+            const isLast = windowLastDay !== null && isoDateKey(day) === isoDateKey(windowLastDay);
+            layout.allDayClipped.set(event.uid ?? event.summary, {
+              left: clipLeft && isFirst,
+              right: clipRight && isLast,
+            });
+          }
         }
       }
       continue;

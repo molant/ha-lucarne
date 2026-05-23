@@ -22,6 +22,9 @@ uses Lovelace's `panel: false` (default) with a grid layout:
 
 - **Family tab**: `lucarne-today-card` left (span 4) + `lucarne-calendar-card` right (span 8) in a
   12-column grid. At 1080 px total, today card ≈ 360 px wide, calendar ≈ 720 px.
+  The calendar pane now auto-fits **4 columns** at 720 px (was 7 fixed). The `computeVisibleDays`
+  formula with defaults (`min_col_width=140`, `max_col_width=220`) yields visibleCount=4 at 720 px
+  available width (680 px after the 40 px time gutter, 680÷220=3.1→4 min-fitting, 680÷140=4.86→4 max-fitting).
 - **Chores tab**: `lucarne-chores-card` full-width. Three kids render in a `auto-fit minmax(220px,
   1fr)` grid → 3 columns at 1080 px (each ≈ 360 px), 4 columns if a fourth kid is added.
 

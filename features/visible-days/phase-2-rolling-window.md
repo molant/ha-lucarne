@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 ---
 
 # Phase 2: Rolling window + responsive day count
@@ -256,12 +256,12 @@ Deployable when: the header shows the date range, arrows step by `visibleCount`,
 
 #### Tests
 
-- [ ] Add to `tests/shared/calendar-layout.test.ts`: a test that an all-day event spanning 10 days, intersected with a 3-day visible window, has `allDay` entries with `clipLeft` / `clipRight` boolean hints on the layout output. (Yes, this means `PerDayLayout` gains optional clip hints — see Technical Details.)
-- [ ] Add to `tests/shared/rolling-window.test.ts`: midnight tick re-anchor case (already covered in Sub-Phase A; verify it still passes after wiring is complete).
+- [x] Add to `tests/shared/calendar-layout.test.ts`: a test that an all-day event spanning 10 days, intersected with a 3-day visible window, has `allDay` entries with `clipLeft` / `clipRight` boolean hints on the layout output. (Yes, this means `PerDayLayout` gains optional clip hints — see Technical Details.)
+- [x] Add to `tests/shared/rolling-window.test.ts`: midnight tick re-anchor case (already covered in Sub-Phase A; verify it still passes after wiring is complete).
 
 #### Implementation
 
-- [ ] In `src/cards/lucarne-calendar-card.ts`:
+- [x] In `src/cards/lucarne-calendar-card.ts`:
   - **Delete the placeholder `_weekLabel` and `_navWeek` methods kept alive in Sub-Phase A.** They are replaced by `_rangeLabel()` and direct `controller.pan(±this._lastVisibleCount)` calls below.
   - Header label: compute via a `_rangeLabel()` method using `Intl.DateTimeFormat`. Format:
     - Same month: `"May 22 – 26"`
@@ -272,29 +272,29 @@ Deployable when: the header shows the date range, arrows step by `visibleCount`,
     - "Today" button (calls `this._rolling.goToToday()`); only rendered when `!isAtToday`.
     - `→` (calls `this._rolling.pan(+this._lastVisibleCount)`); disabled when `!canPanForward`.
   - aria-labels: `"Previous ${this._lastVisibleCount} days"`, `"Today"`, `"Next ${this._lastVisibleCount} days"` (use the `_lastVisibleCount` field declared in Technical Details > ResizeObserver loop guard; it's the most recent value computed by `_onResize` and is the single source of truth for the current visible-count in the card).
-- [ ] In `src/shared/calendar-layout.ts`:
+- [x] In `src/shared/calendar-layout.ts`:
   - Extend `PerDayLayout` to add an optional `allDayClipped: Map<string, { left: boolean; right: boolean }>` keyed by event uid. Populate it for all-day events whose `[eventStart, eventEnd)` extends past the `days[0]` or `days[days.length - 1]` boundary.
   - For timed events that span multiple days, do **not** chevron — the existing band-clipping already handles them visually within a day.
-- [ ] In `src/components/calendar-grid.ts`:
+- [x] In `src/components/calendar-grid.ts`:
   - When rendering an `.allday-event`, check the clip map for this day + event; if `left`, prepend a `‹` glyph; if `right`, append `›`. Use a span with a small CSS class so it can be styled without breaking the text ellipsis.
-- [ ] Verify the midnight tick (already in the controller) actually fires by manually advancing system time during a dev build, or by injecting a faster `now()` in a debug build. Document a one-time manual test.
+- [x] Verify the midnight tick (already in the controller) actually fires by manually advancing system time during a dev build, or by injecting a faster `now()` in a debug build. Document a one-time manual test.
 
 #### Documentation (End of Sub-Phase)
 
-- [ ] `docs/architecture.md` — update the **Card subscription model** section's `lucarne-calendar-card` bullet to describe the rolling-window fetch (visible + buffer, day-anchored).
-- [ ] `docs/config-recipes.md` — show a recipe with the new options under `lucarne-calendar-card`. **Also remove the stale `week_starts_on: monday` line at `config-recipes.md:55`** (the option is silently ignored now; leaving it in a recipe would mislead users into thinking it does something).
-- [ ] `docs/ipad-landscape.md` — note that the calendar pane now auto-fits 4–5 columns at 720px width (was 7).
-- [ ] `CHANGELOG.md` — under `[Unreleased]`, `### Changed`: `lucarne-calendar-card` now uses a rolling N-day window anchored on today (replaces fixed Monday-anchored week). `### Added`: editor options `min_days`, `max_days`, `min_col_width`, `max_col_width`. `### Deprecated`: `week_starts_on` (silently ignored from old configs; the rolling window has no week start; field kept in the schema so old YAML still loads).
-- [ ] `README.md` — update the `lucarne-calendar-card` YAML example: drop `week_starts_on`, add the four new options with their defaults.
+- [x] `docs/architecture.md` — update the **Card subscription model** section's `lucarne-calendar-card` bullet to describe the rolling-window fetch (visible + buffer, day-anchored).
+- [x] `docs/config-recipes.md` — show a recipe with the new options under `lucarne-calendar-card`. **Also remove the stale `week_starts_on: monday` line at `config-recipes.md:55`** (the option is silently ignored now; leaving it in a recipe would mislead users into thinking it does something).
+- [x] `docs/ipad-landscape.md` — note that the calendar pane now auto-fits 4–5 columns at 720px width (was 7).
+- [x] `CHANGELOG.md` — under `[Unreleased]`, `### Changed`: `lucarne-calendar-card` now uses a rolling N-day window anchored on today (replaces fixed Monday-anchored week). `### Added`: editor options `min_days`, `max_days`, `min_col_width`, `max_col_width`. `### Deprecated`: `week_starts_on` (silently ignored from old configs; the rolling window has no week start; field kept in the schema so old YAML still loads).
+- [x] `README.md` — update the `lucarne-calendar-card` YAML example: drop `week_starts_on`, add the four new options with their defaults.
 
 ### Build Verification (required before marking phase complete)
 
-- [ ] `npm run lint` — zero warnings.
-- [ ] `npm run typecheck` — zero errors.
-- [ ] `npm test` — all tests pass. Scan stdout for warnings.
-- [ ] `npm run build` — produces `dist/ha-lucarne.js`.
-- [ ] `package-lock.json` — should not have changed in this phase. If it did, investigate.
-- [ ] Mark this phase `status: done` only after all gates pass.
+- [x] `npm run lint` — zero warnings.
+- [x] `npm run typecheck` — zero errors.
+- [x] `npm test` — all tests pass. Scan stdout for warnings.
+- [x] `npm run build` — produces `dist/ha-lucarne.js`.
+- [x] `package-lock.json` — should not have changed in this phase. If it did, investigate.
+- [x] Mark this phase `status: done` only after all gates pass.
 
 ### Manual Verification with MCP Tools
 
