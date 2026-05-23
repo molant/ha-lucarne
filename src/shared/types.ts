@@ -17,6 +17,8 @@ export interface CalendarEvent {
   location?: string;
   uid?: string;
   pending?: boolean;
+  rrule?: string;
+  recurrence_id?: string;
 }
 
 export interface WeatherForecast {
