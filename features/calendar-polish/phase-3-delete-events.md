@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 ---
 
 # Phase 3: Delete events
@@ -39,9 +39,9 @@ tests/components/
 
 ### Baseline verification
 
-- [ ] Phase 1 (pan fixes) merged — the Chrome-desktop click → detail-modal path must work end-to-end to validate the new Delete button on a laptop. Phase 2 (event dialog) is independent and may be merged in any order.
-- [ ] Confirm the Family calendar entity has `supported_features` including the DELETE_EVENT bit (4). Read via MCP: `mcp__home-assistant__ha_get_state(entity_id="calendar.family")` and check `attributes.supported_features`. The local calendar integration and CalDAV both set this bit; some integrations do not.
-- [ ] Note the `supported_features` value for one supporting entity and one non-supporting entity (if available) for end-to-end verification.
+- [x] Phase 1 (pan fixes) merged — the Chrome-desktop click → detail-modal path must work end-to-end to validate the new Delete button on a laptop. Phase 2 (event dialog) is independent and may be merged in any order.
+- [x] Confirm the Family calendar entity has `supported_features` including the DELETE_EVENT bit (4). Read via MCP: `mcp__home-assistant__ha_get_state(entity_id="calendar.family")` and check `attributes.supported_features`. The local calendar integration and CalDAV both set this bit; some integrations do not.
+- [x] Note the `supported_features` value for one supporting entity and one non-supporting entity (if available) for end-to-end verification.
 
 ### Sub-Phase 3A: `deleteCalendarEvent` helper + types
 
@@ -49,16 +49,16 @@ Deployable when: the helper is unit-tested and importable, even if no UI uses it
 
 #### Tests
 
-- [ ] Create or extend `tests/shared/ha-subscriptions.test.ts` to assert `deleteCalendarEvent` calls `hass.callService` with:
+- [x] Create or extend `tests/shared/ha-subscriptions.test.ts` to assert `deleteCalendarEvent` calls `hass.callService` with:
   - domain `'calendar'`
   - service `'delete_event'`
   - `service_data: { uid }`
   - `target: { entity_id }`
-- [ ] Test rejection path: when `callService` rejects, the helper rejects with the same error (no swallow).
+- [x] Test rejection path: when `callService` rejects, the helper rejects with the same error (no swallow).
 
 #### Implementation
 
-- [ ] Add at the end of `src/shared/ha-subscriptions.ts`:
+- [x] Add at the end of `src/shared/ha-subscriptions.ts`:
 
   ```typescript
   export async function deleteCalendarEvent(
@@ -70,8 +70,8 @@ Deployable when: the helper is unit-tested and importable, even if no UI uses it
   }
   ```
 
-- [ ] Verify `HomeAssistant.callService` signature in `src/shared/types.ts` supports the `(domain, service, serviceData, target)` shape. If it differs from how `create-event-popover.ts:259` calls it, mirror the existing call shape exactly.
-- [ ] Inspect `CalendarEvent` in `src/shared/types.ts` and add `rrule?: string` if not already present — we use its presence to detect recurring events in Sub-Phase C. If HA's `get_events` returns `recurrence_id` instead, use that field; check what an actual recurring event in the wiki/MCP HA instance returns via `mcp__home-assistant__ha_config_get_calendar_events`.
+- [x] Verify `HomeAssistant.callService` signature in `src/shared/types.ts` supports the `(domain, service, serviceData, target)` shape. If it differs from how `create-event-popover.ts:259` calls it, mirror the existing call shape exactly.
+- [x] Inspect `CalendarEvent` in `src/shared/types.ts` and add `rrule?: string` if not already present — we use its presence to detect recurring events in Sub-Phase C. If HA's `get_events` returns `recurrence_id` instead, use that field; check what an actual recurring event in the wiki/MCP HA instance returns via `mcp__home-assistant__ha_config_get_calendar_events`.
 
 ### Sub-Phase 3B: Supported-features detection helper
 
@@ -79,14 +79,14 @@ Deployable when: a pure helper exists and is unit-tested.
 
 #### Tests
 
-- [ ] Add `tests/shared/calendar-features.test.ts` (or extend an existing helpers test file):
+- [x] Add `tests/shared/calendar-features.test.ts` (or extend an existing helpers test file):
   - `entitySupportsDelete(hass, "calendar.family")` returns `true` when `attributes.supported_features` includes bit 4.
   - Returns `false` when the bit is absent.
   - Returns `false` when the entity does not exist in `hass.states`.
 
 #### Implementation
 
-- [ ] Add a small helper to `src/shared/ha-subscriptions.ts` (or a new `src/shared/calendar-features.ts` if you prefer a dedicated file):
+- [x] Add a small helper to `src/shared/ha-subscriptions.ts` (or a new `src/shared/calendar-features.ts` if you prefer a dedicated file):
 
   ```typescript
   const CALENDAR_DELETE_EVENT_FEATURE = 4;
@@ -106,7 +106,7 @@ Deployable when: the user can delete a non-recurring event end-to-end and see th
 
 #### Tests
 
-- [ ] `tests/components/calendar-event-popover.test.ts`:
+- [x] `tests/components/calendar-event-popover.test.ts`:
   - Renders Delete button when `hass` reports the entity supports delete AND the event is non-recurring.
   - Does NOT render Delete button when the entity does not support delete.
   - Does NOT render Delete button when the event is recurring (has `rrule` or `recurrence_id`).
@@ -117,14 +117,14 @@ Deployable when: the user can delete a non-recurring event end-to-end and see th
 
 #### Implementation
 
-- [ ] Add new properties to `LucarneCalendarEventPopover`:
+- [x] Add new properties to `LucarneCalendarEventPopover`:
   - `@property({ attribute: false }) hass!: HomeAssistant;` — needed to call the delete service and check supported_features
   - `@property({ type: String }) entityId = '';` — the calendar entity id this event belongs to (passed from the card)
-- [ ] Add internal state:
+- [x] Add internal state:
   - `@state() private _confirmingDelete = false;`
   - `@state() private _deleting = false;`
   - `@state() private _deleteError = '';`
-- [ ] In `render()`, after the existing details and before the closing `</div>`, add an actions row:
+- [x] In `render()`, after the existing details and before the closing `</div>`, add an actions row:
 
   ```typescript
   const canDelete = this.entityId
@@ -146,7 +146,7 @@ Deployable when: the user can delete a non-recurring event end-to-end and see th
   ` : ''}
   ```
 
-- [ ] Add CSS for `.btn-delete` (re-use the existing `.btn` base; add a destructive color):
+- [x] Add CSS for `.btn-delete` (re-use the existing `.btn` base; add a destructive color):
 
   ```css
   .btn-delete {
@@ -164,7 +164,7 @@ Deployable when: the user can delete a non-recurring event end-to-end and see th
 
   (Re-use the `.actions` rule from `create-event-popover.ts:147` if patterns overlap — but here it's left-aligned, vs right-aligned for create. Keep distinct rules to avoid coupling.)
 
-- [ ] Methods:
+- [x] Methods:
 
   ```typescript
   private _isRecurring(e: CalendarEvent): boolean {
@@ -214,13 +214,13 @@ Deployable when: deleting an event removes it from the visible grid immediately 
 
 #### Tests
 
-- [ ] Extend `tests/shared/rolling-window.test.ts` (or wherever `_recompute` is exercised in card-level tests):
+- [x] Extend `tests/shared/rolling-window.test.ts` (or wherever `_recompute` is exercised in card-level tests):
   - When the card has `_deletedUids` containing `"calendar.family::abc-123"`, the recompute output excludes any event with that uid.
   - Optimistic removal survives across renders until a real fetch returns without the event (the set is cleared on fetch success).
 
 #### Implementation
 
-- [ ] In `src/cards/lucarne-calendar-card.ts`:
+- [x] In `src/cards/lucarne-calendar-card.ts`:
   - Add state: `@state() private _deletedUids = new Set<string>();`
   - Add handler:
 
@@ -250,12 +250,12 @@ Deployable when: deleting an event removes it from the visible grid immediately 
 
 ### Final verification
 
-- [ ] All four gates green:
-  - [ ] `npm run typecheck`
-  - [ ] `npm run lint`
-  - [ ] `npm test`
-  - [ ] `npm run build`
-- [ ] Commit message format: `feat(calendar-polish): Phase 3 — delete events (single, non-recurring)`.
+- [x] All four gates green:
+  - [x] `npm run typecheck`
+  - [x] `npm run lint`
+  - [x] `npm test`
+  - [x] `npm run build`
+- [x] Commit message format: `feat(calendar-polish): Phase 3 — delete events (single, non-recurring)`.
 
 ## Out of scope for this phase
 
