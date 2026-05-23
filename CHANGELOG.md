@@ -4,7 +4,16 @@
 
 ### Changed
 
-- `lucarne-calendar-card` — layout engine refactored to accept arbitrary day arrays (no user-visible change in v0.1; foundation for rolling-window in v0.2).
+- `lucarne-calendar-card` — now uses a rolling N-day window anchored on today (replaces fixed Monday-anchored week). Column count adapts to container width. Navigation arrows step by `visibleCount` days; a "Today" button re-anchors when panned away.
+- `lucarne-calendar-card` — layout engine refactored to accept arbitrary day arrays (foundation for rolling-window).
+
+### Added
+
+- `lucarne-calendar-card` — editor options `min_days`, `max_days`, `min_col_width`, `max_col_width` for the responsive visible-day-count algorithm.
+
+### Deprecated
+
+- `lucarne-calendar-card` — `week_starts_on` config field is now silently ignored. The rolling window has no week start. The field is kept in the schema so old YAML/saved configs still parse without errors.
 
 ## v0.1.0 — Initial release
 

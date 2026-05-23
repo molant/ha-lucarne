@@ -261,6 +261,63 @@ describe('layoutEvents', () => {
     assert.equal(result.perDay.get('2026-01-09')!.allDay.length, 1);
   });
 
+  it('all-day event spanning 10 days clipped by 3-day window has clipLeft/clipRight hints', () => {
+    // Window: Jan 8, 9, 10 (3 days)
+    // Event: Jan 5 – Jan 15 (10 days, extends past both edges of the window)
+    const days3 = mkDays(new Date('2026-01-08T00:00:00'), 3);
+    const events = [makeAllDay('2026-01-05', '2026-01-15', 'LongSpan')];
+    events[0].uid = 'cal::evt-uid';
+    const result = layoutEvents(events, days3, BAND_START, BAND_END);
+
+    // All 3 days in window should have the event
+    for (const dayKey of ['2026-01-08', '2026-01-09', '2026-01-10']) {
+      assert.equal(result.perDay.get(dayKey)!.allDay.length, 1, `${dayKey} should have the event`);
+    }
+
+    // First visible day (Jan 8) → clipLeft=true (event started before window)
+    const jan8 = result.perDay.get('2026-01-08')!;
+    assert.ok(jan8.allDayClipped, 'allDayClipped should exist on first day');
+    const clips8 = jan8.allDayClipped!.get('cal::evt-uid');
+    assert.ok(clips8, 'clip entry should exist for event uid');
+    assert.equal(clips8.left, true, 'first visible day should have clipLeft=true');
+    assert.equal(clips8.right, false, 'first visible day should NOT have clipRight=true');
+
+    // Last visible day (Jan 10) → clipRight=true (event ends after window)
+    const jan10 = result.perDay.get('2026-01-10')!;
+    assert.ok(jan10.allDayClipped, 'allDayClipped should exist on last day');
+    const clips10 = jan10.allDayClipped!.get('cal::evt-uid');
+    assert.ok(clips10, 'clip entry should exist for event uid');
+    assert.equal(clips10.right, true, 'last visible day should have clipRight=true');
+    assert.equal(clips10.left, false, 'last visible day should NOT have clipLeft=true');
+
+    // Middle day (Jan 9) → no clips
+    const jan9 = result.perDay.get('2026-01-09')!;
+    const clips9 = jan9.allDayClipped?.get('cal::evt-uid');
+    if (clips9) {
+      assert.equal(clips9.left, false, 'middle day should NOT have clipLeft=true');
+      assert.equal(clips9.right, false, 'middle day should NOT have clipRight=true');
+    }
+  });
+
+  it('all-day event starting before window but ending within it has only clipLeft', () => {
+    // Window: Jan 8, 9, 10
+    // Event: Jan 5 – Jan 10 (end=Jan 10 exclusive means last day in window is Jan 9)
+    const days3 = mkDays(new Date('2026-01-08T00:00:00'), 3);
+    const events = [makeAllDay('2026-01-05', '2026-01-10', 'LeftClipOnly')];
+    events[0].uid = 'cal::left-clip';
+    const result = layoutEvents(events, days3, BAND_START, BAND_END);
+
+    const jan8 = result.perDay.get('2026-01-08')!;
+    const clips8 = jan8.allDayClipped?.get('cal::left-clip');
+    assert.ok(clips8, 'clip entry for Jan 8');
+    assert.equal(clips8.left, true, 'clipLeft on first day');
+    assert.equal(clips8.right, false, 'no clipRight since event ends within window');
+
+    // Jan 10 is not in the window for this event (end="2026-01-10" is exclusive)
+    const jan10 = result.perDay.get('2026-01-10')!;
+    assert.equal(jan10.allDay.length, 0, 'event should NOT appear on Jan 10 (exclusive end)');
+  });
+
   it('layout 7 days starting on a Wednesday (not week start) → events on correct days', () => {
     // 2026-01-07 is a Wednesday — not a Monday/Sunday week start
     // Events placed on Jan 7 and Jan 11 should land on those exact days

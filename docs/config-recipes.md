@@ -52,7 +52,11 @@ views:
         visible_hours:
           start: "07:00"
           end:   "22:00"
-        week_starts_on: monday
+        # Rolling window options (all optional — defaults shown):
+        min_days: 3        # never show fewer columns than this
+        max_days: 7        # cap at this many columns even on wide screens
+        min_col_width: 140 # refuse to make columns narrower than this (px)
+        max_col_width: 220 # show more days if columns would be wider than this (px)
 ```
 
 ---

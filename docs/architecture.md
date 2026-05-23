@@ -39,10 +39,12 @@ Each card manages its own HA subscriptions independently.
 - `subscribeTodoItems` — `subscribe_trigger` on entity state change + `todo.get_items` re-poll for live task-count badge
 
 **lucarne-calendar-card**
-- `fetchCalendarEvents` WebSocket `calendar/list_events` call on connect + 5-minute poll for the current week window
-- Re-fetches on week navigation (prev/next buttons)
-- Optimistic UI: newly created events are injected into local state immediately; real data clears
-  them on the next poll
+- `RollingWindowController` (Lit ReactiveController) owns the fetch lifecycle: fetches `visible + ±visibleCount buffer` days on connect, on `setHass` first-arrival, on day-step navigation (pan), and on a 5-minute background poll
+- Fetch range: `[today + dayOffset − visibleCount, today + dayOffset + 2×visibleCount)` — 3×visibleCount days total (past buffer + visible + future buffer)
+- ResizeObserver on `.grid-area` computes `visibleCount` from container width using `computeVisibleDays(width, cfg)` and calls `controller.setVisibleCount(n)` on change
+- Navigation: `←` / `→` arrows step by `visibleCount` days; "Today" button re-anchors to today as column 0
+- Midnight rollover: 60-second tick compares stored "today" to current local date; re-anchors and re-fetches when the user is at the today anchor
+- Optimistic UI: newly created events injected into local state immediately; real data clears them on the next fetch via `onFetchComplete` callback
 
 **lucarne-chores-card**
 - No subscriptions — reads `hass.states` reactively via Lit's `@property` mechanism

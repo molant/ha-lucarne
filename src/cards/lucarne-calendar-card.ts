@@ -81,8 +81,12 @@ export class LucarneCalendarCard extends LitElement {
         min-width: 44px;
         touch-action: manipulation;
       }
-      .nav-btn:hover {
+      .nav-btn:hover:not(:disabled) {
         background: rgba(0, 0, 0, 0.04);
+      }
+      .nav-btn:disabled {
+        opacity: 0.3;
+        cursor: default;
       }
       .week-label {
         font-size: var(--lucarne-fs-sm);
@@ -353,20 +357,21 @@ export class LucarneCalendarCard extends LitElement {
     this._closeCreatePopover();
   }
 
-  // Sub-Phase A: keep _navWeek and _weekLabel alive so the card remains usable.
-  // Sub-Phase C deletes these and introduces day-step arrows + range label.
-  private _navWeek(delta: number) {
-    // Translate legacy week-step to day-step; positive delta = forward
-    this._rolling.pan(delta * 7);
-  }
-
-  private _weekLabel(): string {
+  private _rangeLabel(): string {
     const days = this._rolling.days;
     if (days.length === 0) return '';
     const start = days[0];
     const end = days[days.length - 1];
-    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `${fmt(start)} – ${fmt(end)}`;
+    const mdy = (d: Date, opts: Intl.DateTimeFormatOptions) => d.toLocaleDateString('en-US', opts);
+    const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+    const sameYear = start.getFullYear() === end.getFullYear();
+    if (sameMonth) {
+      return `${mdy(start, { month: 'short', day: 'numeric' })} – ${mdy(end, { day: 'numeric' })}`;
+    }
+    if (sameYear) {
+      return `${mdy(start, { month: 'short', day: 'numeric' })} – ${mdy(end, { month: 'short', day: 'numeric' })}`;
+    }
+    return `${mdy(start, { month: 'short', day: 'numeric', year: 'numeric' })} – ${mdy(end, { month: 'short', day: 'numeric', year: 'numeric' })}`;
   }
 
   render() {
@@ -381,9 +386,22 @@ export class LucarneCalendarCard extends LitElement {
         <div class="card-header">
           <h2 class="card-title">${this._config.title ?? 'Calendar'}</h2>
           <div class="week-nav">
-            <button class="nav-btn" @click=${() => this._navWeek(-1)} aria-label="Previous week">←</button>
-            <span class="week-label">${this._weekLabel()}</span>
-            <button class="nav-btn" @click=${() => this._navWeek(1)} aria-label="Next week">→</button>
+            <button
+              class="nav-btn"
+              @click=${() => this._rolling.pan(-this._lastVisibleCount)}
+              ?disabled=${!this._rolling.canPanBack}
+              aria-label="Previous ${this._lastVisibleCount} days"
+            >←</button>
+            ${!this._rolling.isAtToday
+              ? html`<button class="nav-btn" @click=${() => this._rolling.goToToday()} aria-label="Today">Today</button>`
+              : ''}
+            <span class="week-label">${this._rangeLabel()}</span>
+            <button
+              class="nav-btn"
+              @click=${() => this._rolling.pan(+this._lastVisibleCount)}
+              ?disabled=${!this._rolling.canPanForward}
+              aria-label="Next ${this._lastVisibleCount} days"
+            >→</button>
           </div>
         </div>
 
