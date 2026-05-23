@@ -1,10 +1,12 @@
 import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, property, query, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
-import { fetchCalendarEvents } from '../shared/ha-subscriptions.js';
 import { installPreviewColumnOverride, type PreviewOverrideHandle } from '../shared/grid-preview-override.js';
 import { resolveCalendars, resolveCalendarLabel } from '../shared/calendar-helpers.js';
 import { layoutEvents } from '../shared/calendar-layout.js';
+import { computeVisibleDays } from '../shared/visible-window.js';
+import type { VisibleWindowConfig } from '../shared/visible-window.js';
+import { RollingWindowController } from '../shared/rolling-window.js';
 import type { HomeAssistant, CalendarConfig, CalendarEvent } from '../shared/types.js';
 import type { CalendarLayoutResult } from '../shared/calendar-layout.js';
 
@@ -21,6 +23,10 @@ export interface LucarneCalendarCardConfig {
   /** @deprecated silently ignored — see features/visible-days/README.md */
   week_starts_on?: 'monday' | 'sunday';
   show_create_button?: boolean;
+  min_days?: number;     // default 3
+  max_days?: number;     // default 7
+  min_col_width?: number; // px, default 140
+  max_col_width?: number; // px, default 220
 }
 
 (window as Window & typeof globalThis & { customCards?: object[] }).customCards =
@@ -99,23 +105,25 @@ export class LucarneCalendarCard extends LitElement {
 
   @property({ attribute: false }) hass!: HomeAssistant;
 
+  @query('.grid-area') private _gridAreaEl?: HTMLElement;
+
   @state() private _config?: LucarneCalendarCardConfig;
   @state() private _layout: CalendarLayoutResult | null = null;
   @state() private _visibleIds: Set<string> = new Set();
-  @state() private _weekOffset = 0;
   @state() private _openEvent: CalendarEvent | null = null;
   @state() private _openEventColor = '';
   @state() private _openEventCalLabel = '';
   @state() private _createDay: Date | null = null;
   @state() private _createStartHour = 9;
-  // Cached stable array — only replaced when entity list or support changes
   @state() private _creatableCalendars: CalendarConfig[] = [];
+  @state() private _dayWidthPx = 0;
 
-  private _intervalId?: ReturnType<typeof setInterval>;
-  private _fetchSeq = 0;
+  private _rolling!: RollingWindowController;
   private _previewOverride?: PreviewOverrideHandle | null;
-  private _rawEvents: Map<string, CalendarEvent[]> = new Map();
   private _pendingEvents: CalendarEvent[] = [];
+  private _resizeObserver?: ResizeObserver;
+  private _resizeFrame?: number;
+  private _lastVisibleCount = 3;
 
   setConfig(config: LucarneCalendarCardConfig) {
     if (!config.calendars || !Array.isArray(config.calendars) || config.calendars.length === 0) {
@@ -126,7 +134,7 @@ export class LucarneCalendarCard extends LitElement {
         throw new Error('lucarne-calendar-card: each calendar requires "entity" and "color"');
       }
     }
-    // Normalize visible_hours to whole-hour boundaries — band math only operates on integer hours
+    // Normalize visible_hours to whole-hour boundaries
     let normalizedConfig = config;
     if (config.visible_hours) {
       const hhmmRe = /^\d{1,2}:\d{2}$/;
@@ -146,12 +154,37 @@ export class LucarneCalendarCard extends LitElement {
         },
       };
     }
+
+    const prevConfig = this._config;
     this._config = normalizedConfig;
     this._visibleIds = new Set(config.calendars.map((c) => c.entity));
     if (this.hass) this._updateCreatableCalendars();
-    if (this.isConnected) {
-      this._teardown();
-      this._setup();
+
+    if (!this._rolling) {
+      // First setConfig call — instantiate the controller
+      const effectiveCfg = this._effectiveConfig();
+      this._lastVisibleCount = effectiveCfg.minDays;
+      this._rolling = new RollingWindowController(this, {
+        calendars: normalizedConfig.calendars,
+        visibleCount: effectiveCfg.minDays,
+        onFetchComplete: () => {
+          this._pendingEvents = [];
+          this._recompute();
+        },
+        onChange: () => this._recompute(),
+      });
+    } else {
+      // Subsequent setConfig calls — update calendars if changed
+      this._rolling.updateCalendars(normalizedConfig.calendars);
+      // Re-run resize if window-related config changed
+      if (
+        prevConfig?.min_days !== config.min_days ||
+        prevConfig?.max_days !== config.max_days ||
+        prevConfig?.min_col_width !== config.min_col_width ||
+        prevConfig?.max_col_width !== config.max_col_width
+      ) {
+        this._onResize();
+      }
     }
   }
 
@@ -170,6 +203,10 @@ export class LucarneCalendarCard extends LitElement {
       calendars: calendars.length ? calendars : [{ entity: 'calendar.example', color: '#a8d8b9' }],
       visible_hours: { start: '07:00', end: '21:00' },
       show_create_button: true,
+      min_days: 3,
+      max_days: 7,
+      min_col_width: 140,
+      max_col_width: 220,
     };
   }
 
@@ -187,7 +224,7 @@ export class LucarneCalendarCard extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    this._setup();
+    // Lit auto-invokes RollingWindowController.hostConnected() via addController
     requestAnimationFrame(() => {
       this._previewOverride = installPreviewColumnOverride(this);
     });
@@ -195,81 +232,58 @@ export class LucarneCalendarCard extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    this._teardown();
+    // Lit auto-invokes RollingWindowController.hostDisconnected() via addController
+    this._resizeObserver?.disconnect();
     this._previewOverride?.uninstall();
     this._previewOverride = undefined;
+  }
+
+  firstUpdated() {
+    if (!this._resizeObserver && this._gridAreaEl) {
+      this._resizeObserver = new ResizeObserver(() => this._onResize());
+      this._resizeObserver.observe(this._gridAreaEl);
+      // Seed _lastVisibleCount / _dayWidthPx from the initial container width
+      this._onResize();
+    }
   }
 
   updated(changedProps: Map<string, unknown>) {
     super.updated(changedProps);
     if (!changedProps.has('hass') || !this._config) return;
-    const prevHass = changedProps.get('hass');
-    if (!prevHass && this.hass && !this._intervalId) {
-      this._setup();
-    }
+    this._rolling.setHass(this.hass);
     this._updateCreatableCalendars();
   }
 
-  private _setup() {
-    if (!this._config || !this.hass) return;
-    this._fetchEvents();
-    this._intervalId = setInterval(() => this._fetchEvents(), 5 * 60 * 1000);
+  private _effectiveConfig(): VisibleWindowConfig {
+    const cfg = this._config!;
+    return {
+      minDays:     cfg.min_days      && cfg.min_days      > 0 ? cfg.min_days      : 3,
+      maxDays:     cfg.max_days      && cfg.max_days      > 0 ? cfg.max_days      : 7,
+      minColWidth: cfg.min_col_width && cfg.min_col_width > 0 ? cfg.min_col_width : 140,
+      maxColWidth: cfg.max_col_width && cfg.max_col_width > 0 ? cfg.max_col_width : 220,
+      timeColWidth: 40,
+    };
   }
 
-  private _teardown() {
-    clearInterval(this._intervalId);
-    this._intervalId = undefined;
-  }
-
-  // Single source of truth for the day array during Phase 1; Phase 2 deletes this
-  // entirely (controller.days replaces it). Called by both _recompute and _fetchEvents.
-  private _currentDays(): Date[] {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    // Snap to week start, honoring the user's existing week_starts_on setting
-    // (still present in the config in Phase 1; Phase 2 removes the setting and
-    // anchors to today instead). This preserves behavior parity for users on
-    // both 'monday' and 'sunday' configs.
-    const day = start.getDay(); // 0=Sun..6=Sat
-    const startDay = (this._config?.week_starts_on ?? 'monday') === 'monday' ? 1 : 0;
-    const diff = (day - startDay + 7) % 7;
-    start.setDate(start.getDate() - diff + this._weekOffset * 7);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start);
-      d.setDate(start.getDate() + i);
-      return d;
+  private _onResize() {
+    if (this._resizeFrame !== undefined) return;
+    this._resizeFrame = requestAnimationFrame(() => {
+      this._resizeFrame = undefined;
+      const w = this._gridAreaEl?.getBoundingClientRect().width ?? 0;
+      const { visibleCount, dayWidthPx } = computeVisibleDays(w, this._effectiveConfig());
+      if (visibleCount !== this._lastVisibleCount) {
+        this._lastVisibleCount = visibleCount;
+        this._rolling.setVisibleCount(visibleCount);
+        this.style.setProperty('--lucarne-day-count', String(visibleCount));
+      }
+      this._dayWidthPx = dayWidthPx;
     });
-  }
-
-  private async _fetchEvents() {
-    if (!this._config || !this.hass) return;
-    const seq = ++this._fetchSeq;
-    const days = this._currentDays();
-    const weekStart = days[0];
-    const weekEnd = new Date(days[6]);
-    weekEnd.setDate(weekEnd.getDate() + 1);
-    weekEnd.setHours(0, 0, 0, 0);
-    const entityIds = this._config.calendars.map((c) => c.entity);
-    const map = await fetchCalendarEvents(this.hass, entityIds, weekStart, weekEnd);
-    if (seq !== this._fetchSeq) return; // discard stale response from a previous week
-
-    // Tag events with entity_id in uid for color lookup
-    const tagged = new Map<string, CalendarEvent[]>();
-    for (const [entityId, events] of map.entries()) {
-      tagged.set(
-        entityId,
-        events.map((e) => ({ ...e, uid: `${entityId}::${e.uid ?? ''}` })),
-      );
-    }
-    this._rawEvents = tagged;
-    this._pendingEvents = []; // real data arrived, discard optimistic events
-    this._recompute();
   }
 
   private _recompute() {
     if (!this._config) return;
     const allEvents: CalendarEvent[] = [];
-    for (const [entityId, events] of this._rawEvents.entries()) {
+    for (const [entityId, events] of this._rolling.cachedEvents.entries()) {
       if (this._visibleIds.has(entityId)) {
         allEvents.push(...events);
       }
@@ -282,7 +296,7 @@ export class LucarneCalendarCard extends LitElement {
     );
     const bandStart = this._config.visible_hours?.start ?? '07:00';
     const bandEnd = this._config.visible_hours?.end ?? '21:00';
-    const days = this._currentDays();
+    const days = this._rolling.days;
     this._layout = layoutEvents(allEvents, days, bandStart, bandEnd);
   }
 
@@ -309,7 +323,6 @@ export class LucarneCalendarCard extends LitElement {
     const { event, color } = e.detail;
     this._openEvent = event;
     this._openEventColor = color;
-    // Find calendar label
     if (event.uid?.includes('::')) {
       const entityId = event.uid.split('::')[0];
       const cal = this._config?.calendars.find((c) => c.entity === entityId);
@@ -340,19 +353,19 @@ export class LucarneCalendarCard extends LitElement {
     this._closeCreatePopover();
   }
 
+  // Sub-Phase A: keep _navWeek and _weekLabel alive so the card remains usable.
+  // Sub-Phase C deletes these and introduces day-step arrows + range label.
   private _navWeek(delta: number) {
-    this._weekOffset += delta;
-    this._fetchEvents();
+    // Translate legacy week-step to day-step; positive delta = forward
+    this._rolling.pan(delta * 7);
   }
 
   private _weekLabel(): string {
-    const days = this._currentDays();
+    const days = this._rolling.days;
+    if (days.length === 0) return '';
     const start = days[0];
     const end = days[days.length - 1];
     const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    if (this._weekOffset === 0) return 'This week';
-    if (this._weekOffset === -1) return 'Last week';
-    if (this._weekOffset === 1) return 'Next week';
     return `${fmt(start)} – ${fmt(end)}`;
   }
 
@@ -392,6 +405,7 @@ export class LucarneCalendarCard extends LitElement {
             .bandStart=${bandStart}
             .bandEnd=${bandEnd}
             .calendars=${resolvedCalendars}
+            .dayWidthPx=${this._dayWidthPx}
             .showCreateButton=${(this._config.show_create_button ?? true) && this._creatableCalendars.length > 0}
           ></lucarne-calendar-grid>
         </div>
