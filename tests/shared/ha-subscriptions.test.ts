@@ -158,37 +158,48 @@ describe('fetchCalendarEvents', () => {
 describe('deleteCalendarEvent', () => {
   function makeDeleteHass(): {
     hass: HomeAssistant;
-    calls: Array<{ domain: string; service: string; serviceData: unknown; target: unknown }>;
+    msgs: Array<Record<string, unknown>>;
     rejectNext: boolean;
   } {
-    const calls: Array<{ domain: string; service: string; serviceData: unknown; target: unknown }> = [];
+    const msgs: Array<Record<string, unknown>> = [];
     let rejectNext = false;
     const hass = {
-      callService: async (domain: string, service: string, serviceData: unknown, target: unknown) => {
-        calls.push({ domain, service, serviceData, target });
-        if (rejectNext) throw new Error('service failed');
+      connection: {
+        sendMessagePromise: async (msg: Record<string, unknown>) => {
+          msgs.push(msg);
+          if (rejectNext) throw new Error('ws command failed');
+        },
       },
     } as unknown as HomeAssistant;
-    return { hass, calls, get rejectNext() { return rejectNext; }, set rejectNext(v) { rejectNext = v; } };
+    return { hass, msgs, get rejectNext() { return rejectNext; }, set rejectNext(v) { rejectNext = v; } };
   }
 
-  it('calls hass.callService with correct domain, service, uid, and entity_id', async () => {
-    const { hass, calls } = makeDeleteHass();
+  it('sends calendar/event/delete WebSocket command with uid and entity_id', async () => {
+    const { hass, msgs } = makeDeleteHass();
     await deleteCalendarEvent(hass, 'calendar.family', 'abc-123');
 
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].domain, 'calendar');
-    assert.equal(calls[0].service, 'delete_event');
-    assert.deepEqual(calls[0].serviceData, { uid: 'abc-123' });
-    assert.deepEqual(calls[0].target, { entity_id: 'calendar.family' });
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0].type, 'calendar/event/delete');
+    assert.equal(msgs[0].entity_id, 'calendar.family');
+    assert.equal(msgs[0].uid, 'abc-123');
+    assert.equal(msgs[0].recurrence_id, undefined, 'no recurrence_id by default');
+    assert.equal(msgs[0].recurrence_range, undefined, 'no recurrence_range by default');
   });
 
-  it('rejects with the same error when callService rejects', async () => {
+  it('forwards optional recurrence_id and recurrence_range for recurring-event variants', async () => {
+    const { hass, msgs } = makeDeleteHass();
+    await deleteCalendarEvent(hass, 'calendar.family', 'abc-123', 'rec-1', 'THISANDFUTURE');
+
+    assert.equal(msgs[0].recurrence_id, 'rec-1');
+    assert.equal(msgs[0].recurrence_range, 'THISANDFUTURE');
+  });
+
+  it('rejects with the same error when the WS command rejects', async () => {
     const stub = makeDeleteHass();
     stub.rejectNext = true;
     await assert.rejects(
       () => deleteCalendarEvent(stub.hass, 'calendar.family', 'abc-123'),
-      /service failed/,
+      /ws command failed/,
     );
   });
 });

@@ -118,12 +118,37 @@ export async function fetchCalendarEvents(
   return { events: new Map(results), failed };
 }
 
+/**
+ * Delete a calendar event via the WebSocket `calendar/event/delete` command.
+ *
+ * HA does NOT expose a `calendar.delete_event` service — only `create_event`
+ * and `get_events` exist as services. Deletion (and update) go through the
+ * WebSocket API, same as HA's own frontend calendar dashboard. The card's
+ * `entitySupportsDelete` capability check is still based on the entity's
+ * `supported_features & CalendarEntityFeature.DELETE_EVENT` bit, which
+ * remains the authoritative signal for whether the entity supports delete.
+ *
+ * @param recurrenceId  For recurring events: pass the instance's
+ *   `recurrence_id` to scope the delete to a single occurrence (or
+ *   together with `recurrenceRange` to a range). Omit for non-recurring.
+ * @param recurrenceRange  Omit (the default) to delete only this
+ *   instance; pass `'THISANDFUTURE'` to delete this and all future
+ *   occurrences. Only relevant when `recurrenceId` is set.
+ */
 export async function deleteCalendarEvent(
   hass: HomeAssistant,
   entityId: string,
   uid: string,
+  recurrenceId?: string,
+  recurrenceRange?: string,
 ): Promise<void> {
-  await hass.callService('calendar', 'delete_event', { uid }, { entity_id: entityId });
+  await hass.connection.sendMessagePromise({
+    type: 'calendar/event/delete',
+    entity_id: entityId,
+    uid,
+    recurrence_id: recurrenceId,
+    recurrence_range: recurrenceRange,
+  });
 }
 
 // HA's CalendarEntityFeature: CREATE_EVENT=1, DELETE_EVENT=2, UPDATE_EVENT=4
