@@ -46,13 +46,13 @@ interface MockTrackEl {
   addEventListener(type: string, fn: Function, opts?: { once?: boolean }): void;
   // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   removeEventListener(type: string, fn: Function): void;
-  fireTransitionEnd(): void;
+  fireTransitionEnd(opts?: { propertyName?: string; targetEl?: unknown }): void;
 }
 
 function makeMockTrack(): MockTrackEl {
   const listeners = new Map<string, Set<Function>>();
   const onceSet = new WeakSet<Function>();
-  return {
+  const track: MockTrackEl = {
     style: { transform: '', transition: '' },
     get offsetWidth() { return 100; },
     addEventListener(type: string, fn: Function, opts?: { once?: boolean }) {
@@ -63,14 +63,23 @@ function makeMockTrack(): MockTrackEl {
     removeEventListener(type: string, fn: Function) {
       listeners.get(type)?.delete(fn);
     },
-    fireTransitionEnd() {
+    fireTransitionEnd(opts: { propertyName?: string; targetEl?: unknown } = {}) {
       const fns = [...(listeners.get('transitionend') ?? [])];
       for (const fn of fns) {
-        fn(new Event('transitionend'));
+        // Production code now filters bubbled events by target/propertyName.
+        // Default both fields to "the track's own transform" so existing tests
+        // that just call fireTransitionEnd() continue to drive the happy path.
+        const ev = {
+          type: 'transitionend',
+          target: opts.targetEl ?? track,
+          propertyName: opts.propertyName ?? 'transform',
+        } as unknown as TransitionEvent;
+        fn(ev);
         if (onceSet.has(fn)) listeners.get('transitionend')?.delete(fn);
       }
     },
   };
+  return track;
 }
 
 // ---------------------------------------------------------------------------
@@ -331,6 +340,91 @@ describe('LucarneCalendarDayPan — snap animation (1B)', () => {
     el.bufferDays = 1;
     (el as unknown as Record<string, Function>)._setTranslate(50);
     assert.equal(track.style.transform, 'translateX(-100px)');
+  });
+
+  // -------------------------------------------------------------------------
+  // Boundary-clamp guard: at a pan bound (e.g. ±90 days), a fast flick into
+  // the disabled direction must NOT dispatch pan-snap, because the controller
+  // would just clamp it back to 0. Without the clamp in _onPointerUp,
+  // snapToDay's velocity branch can return ±1 even though rubberBand has
+  // reduced the displacement to ~1/3 of its raw value.
+  // -------------------------------------------------------------------------
+  it('fast flick into !canPanBack bound → pan-snap NOT dispatched (clamped to 0)', () => {
+    const panWrapper = el.shadowRoot!.querySelector('.pan-wrapper')!;
+    (panWrapper as unknown as { releasePointerCapture(id: number): void }).releasePointerCapture = () => {};
+    el.canPanBack = false;
+    el.canPanForward = true;
+    setReducedMotion(true); // dispatches immediately, makes assertion synchronous
+    (el as unknown as Record<string, unknown>)._isDragging = true;
+    (el as unknown as Record<string, unknown>)._startX = 100;
+    (el as unknown as Record<string, unknown>)._pointerId = 1;
+    (el as unknown as Record<string, unknown>)._startTime = performance.now() - 20;
+    // dx=+20px over 20ms → velocity = +1000 px/s, well above the 500 threshold
+    (el as unknown as Record<string, Function>)._onPointerUp(
+      makePE('pointerup', { clientX: 120, currentTarget: panWrapper }),
+    );
+    assert.equal(snapEvents.length, 0);
+  });
+
+  it('fast flick into !canPanForward bound → pan-snap NOT dispatched (clamped to 0)', () => {
+    const panWrapper = el.shadowRoot!.querySelector('.pan-wrapper')!;
+    (panWrapper as unknown as { releasePointerCapture(id: number): void }).releasePointerCapture = () => {};
+    el.canPanBack = true;
+    el.canPanForward = false;
+    setReducedMotion(true);
+    (el as unknown as Record<string, unknown>)._isDragging = true;
+    (el as unknown as Record<string, unknown>)._startX = 100;
+    (el as unknown as Record<string, unknown>)._pointerId = 1;
+    (el as unknown as Record<string, unknown>)._startTime = performance.now() - 20;
+    // dx=-20px over 20ms → velocity = -1000 px/s
+    (el as unknown as Record<string, Function>)._onPointerUp(
+      makePE('pointerup', { clientX: 80, currentTarget: panWrapper }),
+    );
+    assert.equal(snapEvents.length, 0);
+  });
+
+  it('fast flick when both directions allowed → pan-snap dispatched (clamp is direction-specific)', () => {
+    const panWrapper = el.shadowRoot!.querySelector('.pan-wrapper')!;
+    (panWrapper as unknown as { releasePointerCapture(id: number): void }).releasePointerCapture = () => {};
+    el.canPanBack = true;
+    el.canPanForward = true;
+    setReducedMotion(true);
+    (el as unknown as Record<string, unknown>)._isDragging = true;
+    (el as unknown as Record<string, unknown>)._startX = 100;
+    (el as unknown as Record<string, unknown>)._pointerId = 1;
+    (el as unknown as Record<string, unknown>)._startTime = performance.now() - 20;
+    (el as unknown as Record<string, Function>)._onPointerUp(
+      makePE('pointerup', { clientX: 120, currentTarget: panWrapper }),
+    );
+    assert.equal(snapEvents.length, 1);
+    assert.equal(snapEvents[0].detail.deltaDays, 1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Bubble-filter guard: transitionend bubbles, so an unrelated descendant
+  // transition (e.g. lucarne-calendar-event-block's `filter` transition)
+  // must NOT trigger pan-snap. Only targets[0]'s own transform-property
+  // completion counts.
+  // -------------------------------------------------------------------------
+  it('transitionend from a descendant (different target) does NOT dispatch pan-snap', () => {
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    assert.equal(snapEvents.length, 0);
+    // Simulate a child element bubbling its transitionend up to the track listener.
+    const fakeChild = { isFakeDescendant: true };
+    track.fireTransitionEnd({ targetEl: fakeChild });
+    assert.equal(snapEvents.length, 0, 'descendant event must be ignored');
+    // The real transform completion that follows still dispatches pan-snap.
+    track.fireTransitionEnd();
+    assert.equal(snapEvents.length, 1);
+    assert.equal(snapEvents[0].detail.deltaDays, 1);
+  });
+
+  it('transitionend on a non-transform property (e.g. filter) does NOT dispatch pan-snap', () => {
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    track.fireTransitionEnd({ propertyName: 'filter' });
+    assert.equal(snapEvents.length, 0, 'non-transform property must be ignored');
+    track.fireTransitionEnd({ propertyName: 'transform' });
+    assert.equal(snapEvents.length, 1);
   });
 
   it('new pointerdown during snap cancels the pending transitionend dispatch', async () => {

@@ -107,6 +107,7 @@ export class LucarneTodayCard extends LitElement {
   private _fetchingForecast = false;
   private _lastWeatherState = '';
   private _previewOverride?: PreviewOverrideHandle | null;
+  private _previewOverrideRaf?: number;
 
   setConfig(config: LucarneTodayCardConfig) {
     if (!config.calendars || !Array.isArray(config.calendars) || config.calendars.length === 0) {
@@ -161,7 +162,9 @@ export class LucarneTodayCard extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._setupSubscriptions();
-    requestAnimationFrame(() => {
+    this._previewOverrideRaf = requestAnimationFrame(() => {
+      this._previewOverrideRaf = undefined;
+      if (!this.isConnected) return;
       this._previewOverride = installPreviewColumnOverride(this);
     });
   }
@@ -169,6 +172,10 @@ export class LucarneTodayCard extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this._teardownSubscriptions();
+    if (this._previewOverrideRaf !== undefined) {
+      cancelAnimationFrame(this._previewOverrideRaf);
+      this._previewOverrideRaf = undefined;
+    }
     this._previewOverride?.uninstall();
     this._previewOverride = undefined;
   }

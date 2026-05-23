@@ -79,8 +79,14 @@ export class LucarneCalendarCardEditor extends LitElement {
   }
 
   private _windowFieldChanged(field: 'min_days' | 'max_days' | 'min_col_width' | 'max_col_width', e: Event) {
-    const raw = (e.target as HTMLInputElement).value;
-    const val = raw === '' ? undefined : Number(raw);
+    const input = e.target as HTMLInputElement;
+    // valueAsNumber is NaN for empty/invalid input. Coerce non-finite values
+    // (NaN, ±Infinity) to undefined so the persisted config never contains
+    // NaN — JSON.stringify turns NaN into `null`, and NaN comparisons inside
+    // the inline validation (minD > maxD) are always false, so leaking NaN
+    // silently disables the error UI as well.
+    const parsed = input.value === '' ? undefined : input.valueAsNumber;
+    const val = parsed !== undefined && Number.isFinite(parsed) ? parsed : undefined;
     const next = { ...this._config!, [field]: val };
     const minD = next.min_days ?? 3;
     const maxD = next.max_days ?? 7;

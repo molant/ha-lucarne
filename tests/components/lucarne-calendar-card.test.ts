@@ -46,6 +46,10 @@ function makeEvent(uid: string, summary = 'Test Event'): CalendarEvent {
   };
 }
 
+/** May 25 2026, local time — matches the date in makeEvent's all-day start. */
+const FIXTURE_DAY = new Date(2026, 4, 25);
+const FIXTURE_DAY_KEY = '2026-05-25';
+
 function makeCard(): LucarneCalendarCard {
   const card = document.createElement('lucarne-calendar-card') as LucarneCalendarCard;
   document.body.appendChild(card);
@@ -56,7 +60,16 @@ function priv(card: LucarneCalendarCard): CardPrivate {
   return card as unknown as CardPrivate;
 }
 
-function setupCardState(card: LucarneCalendarCard, events: CalendarEvent[], entityId = 'calendar.family') {
+function setupCardState(
+  card: LucarneCalendarCard,
+  events: CalendarEvent[],
+  opts: { entityId?: string; days?: Date[] } = {},
+) {
+  const entityId = opts.entityId ?? 'calendar.family';
+  // Default to a single-day window covering FIXTURE_DAY so layoutEvents
+  // actually places the all-day fixture events; tests can then inspect the
+  // resulting layout to verify _deletedUids filtering really took effect.
+  const days = opts.days ?? [FIXTURE_DAY];
   const p = priv(card);
   p._config = {
     visible_hours: { start: '07:00', end: '21:00' },
@@ -68,9 +81,9 @@ function setupCardState(card: LucarneCalendarCard, events: CalendarEvent[], enti
   cachedMap.set(entityId, events);
   p._rolling = {
     cachedEvents: cachedMap,
-    days: [],
-    renderDays: [],
-    cachedRange: [],
+    days,
+    renderDays: days,
+    cachedRange: days,
     canPanBack: false,
     canPanForward: false,
     isAtToday: true,
@@ -89,15 +102,20 @@ describe('LucarneCalendarCard — _deletedUids filtering in _recompute', () => {
 
   it('_recompute includes all events when _deletedUids is empty', () => {
     card = makeCard();
-    const events = [makeEvent('calendar.family::abc-123'), makeEvent('calendar.family::def-456')];
+    const events = [makeEvent('calendar.family::abc-123', 'A'), makeEvent('calendar.family::def-456', 'B')];
     setupCardState(card, events);
 
     priv(card)._deletedUids = new Set();
     priv(card)._recompute();
 
-    // _layout is set; layoutEvents was called with both events (days=[] so layout is empty but no error)
-    // The key assertion: no crash and _layout was updated
-    assert.ok(priv(card)._layout !== undefined);
+    const layout = priv(card)._layout;
+    assert.ok(layout !== null, '_layout must be populated');
+    const allDay = layout.perDay.get(FIXTURE_DAY_KEY)?.allDay ?? [];
+    assert.equal(allDay.length, 2, 'both events should be placed');
+    assert.deepEqual(
+      allDay.map((e) => e.uid).sort(),
+      ['calendar.family::abc-123', 'calendar.family::def-456'],
+    );
   });
 
   it('_recompute excludes an event whose uid is in _deletedUids', () => {
@@ -109,9 +127,11 @@ describe('LucarneCalendarCard — _deletedUids filtering in _recompute', () => {
     priv(card)._deletedUids = new Set(['calendar.family::abc-123']);
     priv(card)._recompute();
 
-    // _layout was produced from [keep] only. With days=[], no placed events, but we can verify
-    // no crash and _layout is set (null only when !_config).
-    assert.ok(priv(card)._layout !== undefined, '_layout should be computed');
+    const layout = priv(card)._layout;
+    assert.ok(layout !== null, '_layout must be populated');
+    const allDay = layout.perDay.get(FIXTURE_DAY_KEY)?.allDay ?? [];
+    assert.equal(allDay.length, 1, 'only one event should remain after filter');
+    assert.equal(allDay[0].uid, 'calendar.family::def-456', 'the kept event should be the non-deleted one');
   });
 
   it('_recompute passes all events when _deletedUids has a different uid', () => {
@@ -122,8 +142,11 @@ describe('LucarneCalendarCard — _deletedUids filtering in _recompute', () => {
     priv(card)._deletedUids = new Set(['calendar.family::OTHER']);
     priv(card)._recompute();
 
-    // Should not crash; event is not filtered out
-    assert.ok(priv(card)._layout !== undefined);
+    const layout = priv(card)._layout;
+    assert.ok(layout !== null, '_layout must be populated');
+    const allDay = layout.perDay.get(FIXTURE_DAY_KEY)?.allDay ?? [];
+    assert.equal(allDay.length, 1, 'unrelated tombstone must not filter the event');
+    assert.equal(allDay[0].uid, 'calendar.family::abc-123');
   });
 
   it('_recompute is idempotent with an empty _deletedUids set (no filter branch taken)', () => {
@@ -137,8 +160,12 @@ describe('LucarneCalendarCard — _deletedUids filtering in _recompute', () => {
     priv(card)._recompute();
     const layout2 = priv(card)._layout;
 
-    assert.ok(layout1 !== undefined);
-    assert.ok(layout2 !== undefined);
+    assert.ok(layout1 !== null && layout2 !== null);
+    const allDay1 = layout1.perDay.get(FIXTURE_DAY_KEY)?.allDay ?? [];
+    const allDay2 = layout2.perDay.get(FIXTURE_DAY_KEY)?.allDay ?? [];
+    assert.equal(allDay1.length, 1);
+    assert.equal(allDay2.length, 1);
+    assert.equal(allDay1[0].uid, allDay2[0].uid);
   });
 });
 

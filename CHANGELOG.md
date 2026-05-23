@@ -1,5 +1,14 @@
 # Changelog
 
+> **Release flow.** Versions are not bumped by hand. `scripts/create-release.sh`
+> reads commits since the last `bump:` commit / `vX.Y.Z` tag, infers the bump
+> type (`feat:` → minor, `fix:` → patch, `breaking:` → major), updates
+> `package.json` + `CHANGELOG.md`, rebuilds `dist/`, tags, and publishes. So
+> `package.json` always reflects the **last released** version, not the
+> in-progress one — the `[Unreleased] — targeting vX.Y.Z` heading below is
+> only an intent marker, and the script may pick a different version if the
+> commit mix shifts before release.
+
 ## [Unreleased] — targeting v0.2.0
 
 ### Added

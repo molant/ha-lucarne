@@ -190,7 +190,7 @@ log_success "Build complete (${BUNDLE_SIZE_KB} KB)"
 
 log_info "Committing changes..."
 
-git add package.json package-lock.json CHANGELOG.md dist/ha-lucarne.js
+git add package.json package-lock.json CHANGELOG.md dist/ha-lucarne.js dist/ha-lucarne.js.map
 git commit -m "bump: v${NEW_VERSION}"
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -214,7 +214,8 @@ gh release create "v${NEW_VERSION}" \
     --verify-tag \
     --title "v${NEW_VERSION}" \
     --notes "$CHANGELOG_ENTRY" \
-    dist/ha-lucarne.js
+    dist/ha-lucarne.js \
+    dist/ha-lucarne.js.map
 
 log_success "Release created!"
 REPO_URL=$(gh repo view --json url -q '.url')
