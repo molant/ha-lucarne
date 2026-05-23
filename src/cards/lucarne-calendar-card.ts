@@ -28,6 +28,12 @@ export interface LucarneCalendarCardConfig {
   max_days?: number;     // default 7
   min_col_width?: number; // px, default 140
   max_col_width?: number; // px, default 220
+  /**
+   * Off-screen days rendered on each side of the visible window so the user
+   * never sees a blank gap during a swipe-pan. Defaults to the current
+   * visibleCount (matches the event-data cache range).
+   */
+  render_buffer_days?: number;
 }
 
 (window as Window & typeof globalThis & { customCards?: object[] }).customCards =
@@ -174,6 +180,7 @@ export class LucarneCalendarCard extends LitElement {
       this._rolling = new RollingWindowController(this, {
         calendars: normalizedConfig.calendars,
         visibleCount: effectiveCfg.minDays,
+        bufferDays: normalizedConfig.render_buffer_days,
         onFetchComplete: () => {
           this._pendingEvents = [];
           this._deletedUids = new Set();
@@ -184,6 +191,9 @@ export class LucarneCalendarCard extends LitElement {
     } else {
       // Subsequent setConfig calls — update calendars if changed
       this._rolling.updateCalendars(normalizedConfig.calendars);
+      if (prevConfig?.render_buffer_days !== normalizedConfig.render_buffer_days) {
+        this._rolling.setBufferDays(normalizedConfig.render_buffer_days);
+      }
       // Re-run resize if window-related config changed
       if (
         prevConfig?.min_days !== config.min_days ||
@@ -307,7 +317,10 @@ export class LucarneCalendarCard extends LitElement {
       : allEvents;
     const bandStart = this._config.visible_hours?.start ?? '07:00';
     const bandEnd = this._config.visible_hours?.end ?? '21:00';
-    const days = this._rolling.days;
+    // Lay out events across the FULL render range (visible + buffer on each
+    // side). The grid renders all of them; off-screen buffer columns slide
+    // into view during pan, so the user never sees a blank gap.
+    const days = this._rolling.renderDays;
     this._layout = layoutEvents(filtered, days, bandStart, bandEnd);
   }
 
@@ -436,6 +449,7 @@ export class LucarneCalendarCard extends LitElement {
         >
           <lucarne-calendar-day-pan
             .dayWidthPx=${this._dayWidthPx}
+            .bufferDays=${this._rolling.bufferDays}
             .canPanBack=${this._rolling.canPanBack}
             .canPanForward=${this._rolling.canPanForward}
             @pan-snap=${(e: CustomEvent<{ deltaDays: number }>) => this._rolling.pan(-e.detail.deltaDays)}
@@ -446,6 +460,7 @@ export class LucarneCalendarCard extends LitElement {
               .bandEnd=${bandEnd}
               .calendars=${resolvedCalendars}
               .dayWidthPx=${this._dayWidthPx}
+              .bufferDays=${this._rolling.bufferDays}
               .cachedDayKeys=${new Set(this._rolling.cachedRange.map(isoDateKey))}
               .showCreateButton=${(this._config.show_create_button ?? true) && this._creatableCalendars.length > 0}
             ></lucarne-calendar-grid>

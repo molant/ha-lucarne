@@ -25,7 +25,9 @@ export class LucarneCalendarGrid extends LitElement {
       }
       .grid-wrapper {
         display: grid;
-        grid-template-columns: 40px 1fr;
+        /* minmax(0, 1fr) prevents the .day-cols-track (which is wider than 1fr
+           when render buffer columns are present) from expanding the column. */
+        grid-template-columns: 40px minmax(0, 1fr);
         grid-template-rows: auto auto 1fr;
       }
       /*
@@ -35,11 +37,22 @@ export class LucarneCalendarGrid extends LitElement {
        * Using a single spanning element would decouple the inner sub-grid row
        * sizing from the outer grid rows and cause the time-column gutter labels
        * to misalign with the day content (no CSS subgrid on Safari < 16).
+       *
+       * Track is rendered at fixed px widths (--lucarne-day-render-count columns
+       * × --lucarne-day-width-px each) so visible columns keep their target width
+       * even with buffer days added on either side. The baseline transform shifts
+       * the track left by bufferDays * dayWidthPx so visible day 0 lands at the
+       * container's left edge. The pan handler overrides transform via inline
+       * style during gestures; on snap completion it clears the inline style so
+       * this CSS baseline reapplies (the new days then occupy the same screen
+       * position as the OLD days at the snap target — visually invisible swap).
        */
       .day-cols-track {
         grid-column: 2;
         display: grid;
-        grid-template-columns: repeat(var(--lucarne-day-count, 7), minmax(0, 1fr));
+        grid-template-columns: repeat(var(--lucarne-day-render-count, 7), var(--lucarne-day-width-px, 140px));
+        width: calc(var(--lucarne-day-render-count, 7) * var(--lucarne-day-width-px, 140px));
+        transform: translateX(var(--lucarne-day-baseline-px, 0px));
         will-change: transform;
       }
       /* Header row: day names */
@@ -229,6 +242,8 @@ export class LucarneCalendarGrid extends LitElement {
   @property({ type: Boolean }) showCreateButton = false;
   /** Current day width in px — informational; used by Phase 3 skeleton and pan math. */
   @property({ type: Number }) dayWidthPx = 0;
+  /** Off-screen render buffer (days drawn on each side of the visible window). */
+  @property({ type: Number }) bufferDays = 0;
   /** Set of ISO date keys (YYYY-MM-DD) for days that have cached events. Days not in this set render as skeletons. */
   @property({ attribute: false }) cachedDayKeys: Set<string> = new Set();
 
@@ -388,7 +403,11 @@ export class LucarneCalendarGrid extends LitElement {
     const weekdayFmt = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
 
     return html`
-      <div class="grid-wrapper" style=${styleMap({ '--lucarne-day-count': String(this.layout.days.length) })}>
+      <div class="grid-wrapper" style=${styleMap({
+        '--lucarne-day-render-count': String(this.layout.days.length),
+        '--lucarne-day-width-px': `${this.dayWidthPx}px`,
+        '--lucarne-day-baseline-px': `${-this.bufferDays * this.dayWidthPx}px`,
+      })}>
         <!-- Time-column gutter cells (col 1): stay fixed during pan -->
         <div class="header-spacer" style="grid-row:1; grid-column:1"></div>
         <div class="allday-spacer" style="grid-row:2; grid-column:1">all-day</div>

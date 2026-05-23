@@ -473,6 +473,75 @@ describe('RollingWindowController — cachedRange and isDayCached', () => {
   });
 });
 
+describe('RollingWindowController — renderDays + bufferDays', () => {
+  it('default bufferDays equals visibleCount (matches spec event-buffer range)', () => {
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, makeBaseOpts({ visibleCount: 5 }));
+    assert.equal(ctrl.bufferDays, 5);
+  });
+
+  it('renderDays defaults to length 3*visibleCount centered on the visible window', () => {
+    const host = makeHostStub();
+    // visibleCount=5, dayOffset=0, now=May 22 → renderDays = [May 17 .. May 31] (15 days)
+    const ctrl = new RollingWindowController(host, makeBaseOpts({ visibleCount: 5 }));
+    const render = ctrl.renderDays;
+    assert.equal(render.length, 15);
+    assert.equal(render[0].toISOString().slice(0, 10), '2026-05-17', 'first renderDay is today - bufferDays');
+    assert.equal(render[5].toISOString().slice(0, 10), '2026-05-22', 'visible window starts at index bufferDays');
+    assert.equal(render[14].toISOString().slice(0, 10), '2026-05-31', 'last renderDay is today + visibleCount + bufferDays - 1');
+  });
+
+  it('explicit bufferDays opt overrides the default', () => {
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, makeBaseOpts({ visibleCount: 5, bufferDays: 1 }));
+    assert.equal(ctrl.bufferDays, 1);
+    assert.equal(ctrl.renderDays.length, 7); // 1 + 5 + 1
+  });
+
+  it('bufferDays=0 means renderDays === days (no buffer)', () => {
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, makeBaseOpts({ visibleCount: 5, bufferDays: 0 }));
+    assert.equal(ctrl.bufferDays, 0);
+    assert.equal(ctrl.renderDays.length, 5);
+    assert.deepEqual(
+      ctrl.renderDays.map((d) => d.toISOString().slice(0, 10)),
+      ctrl.days.map((d) => d.toISOString().slice(0, 10)),
+    );
+  });
+
+  it('setBufferDays(undefined) reverts to visibleCount default', () => {
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, makeBaseOpts({ visibleCount: 5, bufferDays: 2 }));
+    assert.equal(ctrl.bufferDays, 2);
+    ctrl.setBufferDays(undefined);
+    assert.equal(ctrl.bufferDays, 5);
+  });
+
+  it('setBufferDays clamps negative input to 0', () => {
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, makeBaseOpts({ visibleCount: 5 }));
+    ctrl.setBufferDays(-3);
+    assert.equal(ctrl.bufferDays, 0);
+  });
+
+  it('NaN / Infinity input reverts to default (does not blank the grid)', () => {
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, makeBaseOpts({ visibleCount: 5, bufferDays: 2 }));
+    assert.equal(ctrl.bufferDays, 2);
+    ctrl.setBufferDays(NaN);
+    assert.equal(ctrl.bufferDays, 5, 'NaN should revert to default = visibleCount');
+    ctrl.setBufferDays(2);
+    ctrl.setBufferDays(Infinity);
+    assert.equal(ctrl.bufferDays, 5, 'Infinity should revert to default = visibleCount');
+  });
+
+  it('constructor with NaN bufferDays opt → default applies', () => {
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, makeBaseOpts({ visibleCount: 5, bufferDays: NaN as unknown as number }));
+    assert.equal(ctrl.bufferDays, 5);
+  });
+});
+
 describe('RollingWindowController — onChange contract', () => {
   it('pan (in-buffer) fires onChange', async () => {
     let onChangeCalls = 0;

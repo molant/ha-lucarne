@@ -285,16 +285,19 @@ describe('LucarneCalendarDayPan — snap animation (1B)', () => {
     assert.equal(snapEvents.length, 0);
   });
 
-  it('after transitionend, transform is reset to translateX(0) for the swap', () => {
+  it('after transitionend, transform stays at animation target until rAF clears inline style', () => {
+    // The atomic swap happens via requestAnimationFrame AFTER transitionend:
+    //   1. transitionend handler dispatches pan-snap synchronously
+    //   2. Card updates dayOffset → Lit re-renders grid with new days
+    //   3. rAF fires → _clearInlineTransform removes inline style → CSS baseline
+    //      (`--lucarne-day-baseline-px`) applies; new days at baseline visually
+    //      equal old days at animation target.
+    // In this test the mock track isn't reachable via _panTargets, so the
+    // rAF-based clear doesn't touch it. We assert the pre-clear state.
     (el as unknown as Record<string, Function>)._snapAndCommit(1);
     track.fireTransitionEnd();
-    assert.equal(track.style.transform, 'translateX(0px)');
-  });
-
-  it('after transitionend, transition is cleared (no re-animation on re-render)', () => {
-    (el as unknown as Record<string, Function>)._snapAndCommit(1);
-    track.fireTransitionEnd();
-    assert.equal(track.style.transition, '');
+    assert.equal(track.style.transform, 'translateX(150px)', 'transform stays at animation target before rAF clear');
+    assert.match(track.style.transition, /transform 240ms/, 'transition stays until rAF clear');
   });
 
   it('with prefers-reduced-motion, pan-snap is dispatched immediately', () => {
@@ -307,6 +310,27 @@ describe('LucarneCalendarDayPan — snap animation (1B)', () => {
     setReducedMotion(true);
     (el as unknown as Record<string, Function>)._snapAndCommit(1);
     assert.equal(track.style.transform, 'translateX(0px)');
+  });
+
+  it('with bufferDays=1, dayWidthPx=150, deltaDays=1 → target includes baseline (-150 + 150 = 0)', () => {
+    el.bufferDays = 1;
+    // baseline = -bufferDays * dayWidthPx = -150
+    // target = baseline + deltaDays * dayWidthPx = -150 + 150 = 0
+    (el as unknown as Record<string, Function>)._snapAndCommit(1);
+    assert.equal(track.style.transform, 'translateX(0px)');
+  });
+
+  it('with bufferDays=2, dayWidthPx=150, deltaDays=-1 → target = -300 + (-150) = -450', () => {
+    el.bufferDays = 2;
+    // baseline = -300, target = -300 + (-1 * 150) = -450
+    (el as unknown as Record<string, Function>)._snapAndCommit(-1);
+    assert.equal(track.style.transform, 'translateX(-450px)');
+  });
+
+  it('with bufferDays=1, _setTranslate(50) → translateX(-150 + 50) = -100px', () => {
+    el.bufferDays = 1;
+    (el as unknown as Record<string, Function>)._setTranslate(50);
+    assert.equal(track.style.transform, 'translateX(-100px)');
   });
 
   it('new pointerdown during snap cancels the pending transitionend dispatch', async () => {
