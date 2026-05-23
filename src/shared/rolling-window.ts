@@ -1,13 +1,19 @@
 import type { ReactiveController, ReactiveControllerHost } from 'lit';
 import type { HomeAssistant, CalendarEvent, CalendarConfig } from './types.js';
-import { fetchCalendarEvents } from './ha-subscriptions.js';
+import { fetchCalendarEvents, type FetchCalendarEventsResult } from './ha-subscriptions.js';
 import { isoDateKey } from './calendar-layout.js';
 
 export interface RollingWindowOptions {
   calendars: CalendarConfig[];
   visibleCount: number;
   onFetchStart?: (range: { start: Date; end: Date }) => void;
-  onFetchComplete?: (events: Map<string, CalendarEvent[]>) => void;
+  /**
+   * Fires on every successful fetch. `events` contains the tagged events
+   * (uid prefixed with `${entityId}::`); `failed` contains entity ids whose
+   * fetch threw — callers should NOT treat their absence from `events` as
+   * authoritative (e.g. for optimistic-delete tombstone pruning).
+   */
+  onFetchComplete?: (events: Map<string, CalendarEvent[]>, failed: Set<string>) => void;
   /**
    * Fires whenever `dayOffset`, `visibleCount`, or the anchor day (midnight tick)
    * changes — even when no fetch is triggered. The card MUST hook this to
@@ -17,7 +23,7 @@ export interface RollingWindowOptions {
   now?: () => Date;
   panBoundDays?: number;
   /** Injected fetcher for tests; defaults to `fetchCalendarEvents`. */
-  fetcher?: (hass: HomeAssistant, entityIds: string[], start: Date, end: Date) => Promise<Map<string, CalendarEvent[]>>;
+  fetcher?: (hass: HomeAssistant, entityIds: string[], start: Date, end: Date) => Promise<FetchCalendarEventsResult>;
   /** Set to 0 in tests to suppress the real-time poll. Default: 5 * 60_000. */
   pollIntervalMs?: number;
   /** Set to 0 in tests to suppress the real-time midnight tick. Default: 60_000. */
@@ -31,6 +37,19 @@ export interface RollingWindowOptions {
    * not yet fetched.
    */
   bufferDays?: number;
+}
+
+/**
+ * Stable synthetic uid for events whose upstream uid is missing or empty.
+ * Built from `start|end|summary` so the same event maps to the same uid
+ * across fetches. Prevents downstream collisions (color lookup, optimistic
+ * delete filter, allDayClipped keying) when an integration returns
+ * uid-less events. Prefixed with `syn:` so consumers (Delete button, Google
+ * deep-link) can detect synthetic ids and skip operations that need a real
+ * upstream uid.
+ */
+function makeSyntheticUid(e: CalendarEvent): string {
+  return `syn:${e.start}|${e.end}|${e.summary ?? ''}`;
 }
 
 /**
@@ -60,7 +79,7 @@ function todayMidnight(now: Date): Date {
 export class RollingWindowController implements ReactiveController {
   private readonly _host: ReactiveControllerHost;
   private readonly _opts: RollingWindowOptions;
-  private readonly _fetcher: (hass: HomeAssistant, ids: string[], start: Date, end: Date) => Promise<Map<string, CalendarEvent[]>>;
+  private readonly _fetcher: (hass: HomeAssistant, ids: string[], start: Date, end: Date) => Promise<FetchCalendarEventsResult>;
   private readonly _pollIntervalMs: number;
   private readonly _tickIntervalMs: number;
   private readonly _panBound: number;
@@ -326,16 +345,22 @@ export class RollingWindowController implements ReactiveController {
     const entityIds = this._opts.calendars.map((c) => c.entity);
     this._opts.onFetchStart?.({ start, end });
 
-    this._fetcher(this._hass, entityIds, start, end).then((map) => {
+    this._fetcher(this._hass, entityIds, start, end).then(({ events: map, failed }) => {
       if (seq !== this._fetchSeq) return; // stale response — discard
 
       // Tag every event's uid with its source entity (required for color lookup
-      // in calendar-grid._eventColor and the visibility filter in _recompute)
+      // in calendar-grid._eventColor and the visibility filter in _recompute).
+      // Events with no upstream uid get a stable synthetic one — same content
+      // produces the same uid across fetches, avoiding the `entity::` collision
+      // that would otherwise merge multiple uid-less events under one key.
       const tagged = new Map<string, CalendarEvent[]>();
       for (const [entityId, events] of map.entries()) {
         tagged.set(
           entityId,
-          events.map((e) => ({ ...e, uid: `${entityId}::${e.uid ?? ''}` })),
+          events.map((e) => {
+            const original = e.uid && e.uid.length > 0 ? e.uid : makeSyntheticUid(e);
+            return { ...e, uid: `${entityId}::${original}` };
+          }),
         );
       }
       this._cachedEvents = tagged;
@@ -350,7 +375,7 @@ export class RollingWindowController implements ReactiveController {
       this._cacheStart = new Date(start);
       this._cacheEnd = new Date(end);
 
-      this._opts.onFetchComplete?.(tagged);
+      this._opts.onFetchComplete?.(tagged, failed);
     }).catch((err) => {
       console.warn('[lucarne] RollingWindowController fetch failed:', err);
     });

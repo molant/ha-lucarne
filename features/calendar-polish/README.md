@@ -36,7 +36,7 @@ iOS Safari (iPad 9 included) styles `<input type="date">` and `<input type="time
 
 ### Why the unchecked checkbox is black
 
-Native `<input type="checkbox">` without an `accent-color` falls back to the page's foreground text color on iOS Safari for the box fill/border. The lucarne theme sets `--lucarne-on-surface` to `#3a3a3a` (near-black). At 18×18px, the box reads as fully black. Setting `accent-color: var(--primary-color)` (the theme's light blue `#a8c5e8`) tints both the unchecked border and the checked fill consistently.
+Native `<input type="checkbox">` without an `accent-color` falls back to the page's foreground text color on iOS Safari for the box fill/border. The lucarne theme sets `--lucarne-on-surface` to `#3a3a3a` (near-black), so at 18×18px the box reads as fully black. The shipped fix is a fully custom-rendered checkbox: `appearance: none` strips the native chrome, a 2px themed border (`var(--primary-color)`) draws the box, and a CSS `::after` pseudo-element with a rotated border-bottom + border-right draws the checkmark in the same theme color when `:checked`. No fill in either state. (An initial attempt using `accent-color` alone did not eliminate the black fill on the user's iPad / Chrome with the lucarne theme — see `phase-2-event-dialog.md` for the pivot.)
 
 ### `setPointerCapture` and the lost click
 
@@ -53,7 +53,7 @@ Result: mid-animation the track has the **new** day content but the animation wa
 
 ### Delete-event support detection
 
-Home Assistant's `calendar` domain exposes `calendar.delete_event` but per-integration support varies. The entity carries a `supported_features` attribute bitmask; bit `4` (`CalendarEntityFeature.DELETE_EVENT`) signals delete capability. The card reads this bit to decide whether to render the Delete button at all.
+Home Assistant's `calendar` domain exposes `calendar.delete_event` but per-integration support varies. The entity carries a `supported_features` attribute bitmask; bit `2` (`CalendarEntityFeature.DELETE_EVENT`; full enum is CREATE=1, DELETE=2, UPDATE=4) signals delete capability. The card reads this bit to decide whether to render the Delete button at all.
 
 ## Requirements
 
@@ -69,7 +69,7 @@ Home Assistant's `calendar` domain exposes `calendar.delete_event` but per-integ
 
 - Date and time inputs render the same on iPad and Chrome (no iOS native "fat pill").
 - Tapping a date/time input still opens the native picker — strip only the resting appearance, not the picker integration.
-- All-day checkbox: light-blue border when unchecked, light-blue fill with a white check when checked, on both iPad and Chrome.
+- All-day checkbox: themed border (no fill) when unchecked; themed checkmark inside the box (still no fill) when checked, on both iPad and Chrome. Uses a fully custom-rendered checkbox (`appearance: none` + border + `::after` checkmark) — see `phase-2-event-dialog.md`.
 
 ### Delete events (Phase 3)
 
@@ -82,7 +82,7 @@ Home Assistant's `calendar` domain exposes `calendar.delete_event` but per-integ
 ### Non-goals (explicitly OUT of scope)
 
 - Recurring event delete (single instance / this-and-future / all variants).
-- Custom-styled All-day toggle component — only set `accent-color`. If `accent-color` proves insufficient on a specific iPadOS version, full custom checkbox styling can be added in a follow-up.
+- Replacing the native `<input type="checkbox">` with a Lit component — the shipped fix keeps the native input element (for accessibility) and only customises its CSS rendering (`appearance: none` + custom border + `::after` checkmark).
 - Pan momentum / inertia.
 - Editing existing events (only delete + create stay in scope).
 - Any change to the `lucarne-today-card`, `lucarne-chores-card`, or Reminders bridge.
@@ -96,7 +96,7 @@ Phase 3 adds one new HA service call: `calendar.delete_event`. No new entities, 
 | Phase | Title | Description |
 |---|---|---|
 | 1 | Pan interaction fixes | Defer `setPointerCapture` to drag threshold (fixes Chrome click). Re-target snap animation + defer offset update to `transitionend` (fixes snap jump). |
-| 2 | Event dialog UX | iPad date/time input appearance + all-day checkbox accent-color. Pure CSS in `create-event-popover.ts`. |
+| 2 | Event dialog UX | iPad date/time input appearance normalised (`appearance: none` + WebKit shim) + custom-rendered all-day checkbox (themed border + `::after` checkmark, no fill). Pure CSS in `create-event-popover.ts`. |
 | 3 | Delete events | Add `deleteCalendarEvent` helper, supported-features detection, Delete button + confirm step in event-detail modal, optimistic cache removal, error handling. |
 
 ## Related Documentation
@@ -113,7 +113,7 @@ Phase 3 adds one new HA service call: `calendar.delete_event`. No new entities, 
 | MCP Server | Tool Prefix | Use For |
 |---|---|---|
 | browsermcp | `mcp__browsermcp__*` | Visual before/after screenshots of the New-Event dialog, event-detail modal with/without Delete, and the swipe-snap animation. Toggle `prefers-reduced-motion` in devtools to verify Phase 1 fallback. |
-| home-assistant | `mcp__home-assistant__*` | Read `calendar.*` entity `supported_features` to verify the bit-4 detection logic. Create a test event via `ha_config_set_calendar_event`, delete it from the card, confirm via `ha_config_get_calendar_events` that it's gone server-side. Useful for Phase 3 end-to-end verification. |
+| home-assistant | `mcp__home-assistant__*` | Read `calendar.*` entity `supported_features` to verify the bit-2 (DELETE_EVENT) detection logic. Create a test event via `ha_config_set_calendar_event`, delete it from the card, confirm via `ha_config_get_calendar_events` that it's gone server-side. Useful for Phase 3 end-to-end verification. |
 
 ## Logging & Diagnostics
 

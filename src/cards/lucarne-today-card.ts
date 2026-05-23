@@ -224,7 +224,7 @@ export class LucarneTodayCard extends LitElement {
     const entityIds = this._config.calendars.map((c) => c.entity);
     const start = new Date();
     const end = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const map = await fetchCalendarEvents(this.hass, entityIds, start, end);
+    const { events: map } = await fetchCalendarEvents(this.hass, entityIds, start, end);
 
     // Tag events with entity_id prefix in uid for color lookup
     const tagged = new Map<string, CalendarEvent[]>();

@@ -172,6 +172,17 @@ export class LucarneCalendarEventPopover extends LitElement {
     return Boolean(e.rrule) || Boolean(e.recurrence_id);
   }
 
+  /**
+   * Returns true when the uid is a synthetic placeholder (no real upstream
+   * uid available). HA's `calendar.delete_event` and Google's eventedit URL
+   * both require a real uid, so we skip those affordances for synthetic ids.
+   */
+  private _hasSyntheticUid(uid: string | undefined): boolean {
+    if (!uid) return true;
+    const raw = uid.includes('::') ? uid.split('::').slice(1).join('::') : uid;
+    return raw.startsWith('syn:') || raw.startsWith('pending:') || raw.length === 0;
+  }
+
   private _startDelete() {
     this._confirmingDelete = true;
     this._deleteError = '';
@@ -218,17 +229,23 @@ export class LucarneCalendarEventPopover extends LitElement {
 
     // Google Calendar deep link. The card prefixes uid as "entity_id::original_uid"
     // for internal color lookup; strip the prefix to recover the original Google ID.
+    // Skip the link entirely for synthetic / pending uids — those aren't real
+    // Google event ids and the URL would 404.
     const rawUid = e.uid?.includes('::') ? e.uid.split('::').slice(1).join('::') : e.uid;
+    const synthetic = this._hasSyntheticUid(e.uid);
     const googleLink =
-      rawUid && rawUid.length > 0
+      rawUid && rawUid.length > 0 && !synthetic
         ? `https://calendar.google.com/calendar/u/0/r/eventedit/${encodeURIComponent(rawUid)}`
         : null;
 
+    // Hide Delete when uid is synthetic: HA's calendar.delete_event needs a
+    // real upstream uid; calling it with `syn:...` or `pending:...` would fail.
     const canDelete = Boolean(this.entityId)
       && Boolean(e.uid)
       && this.hass != null
       && entitySupportsDelete(this.hass, this.entityId)
-      && !this._isRecurring(e);
+      && !this._isRecurring(e)
+      && !synthetic;
 
     return html`
       <div class="backdrop" @click=${this._close}></div>

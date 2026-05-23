@@ -46,7 +46,7 @@ function makeTrackingFetcher(entityId: string, events: CalendarEvent[]) {
     calls.push({ start, end });
     const m = new Map<string, CalendarEvent[]>();
     m.set(entityId, events);
-    return m;
+    return { events: m, failed: new Set<string>() };
   };
   return { fetcher, calls };
 }
@@ -331,17 +331,17 @@ describe('RollingWindowController — poll and stale responses', () => {
   });
 
   it('stale fetch responses are discarded', async () => {
-    let resolveFirst!: (value: Map<string, CalendarEvent[]>) => void;
+    let resolveFirst!: (value: { events: Map<string, CalendarEvent[]>; failed: Set<string> }) => void;
     let callCount = 0;
     const fetcher = async (_hass: HomeAssistant, _ids: string[], _start: Date, _end: Date) => {
       callCount++;
       if (callCount === 1) {
         // First fetch hangs until we resolve it
-        return new Promise<Map<string, CalendarEvent[]>>((res) => { resolveFirst = res; });
+        return new Promise<{ events: Map<string, CalendarEvent[]>; failed: Set<string> }>((res) => { resolveFirst = res; });
       }
       const m = new Map<string, CalendarEvent[]>();
       m.set(ENTITY_ID, [makeCannedEvent('evt-2')]);
-      return m;
+      return { events: m, failed: new Set<string>() };
     };
 
     const host = makeHostStub();
@@ -359,7 +359,7 @@ describe('RollingWindowController — poll and stale responses', () => {
     // Now resolve the stale first fetch with different data
     const staleMap = new Map<string, CalendarEvent[]>();
     staleMap.set(ENTITY_ID, [makeCannedEvent('stale-evt')]);
-    resolveFirst(staleMap);
+    resolveFirst({ events: staleMap, failed: new Set<string>() });
     await Promise.resolve();
     await Promise.resolve();
 
@@ -419,13 +419,13 @@ describe('RollingWindowController — setHass first-arrival', () => {
 });
 
 describe('RollingWindowController — event uid tagging', () => {
-  it('tags events with entity prefix', async () => {
+  it('tags events with entity prefix and synthesises uid when upstream is missing', async () => {
     const canned: CalendarEvent[] = [makeCannedEvent('abc'), makeCannedEvent(undefined as unknown as string)];
     canned[1].uid = undefined;
     const fetcher = async (_hass: HomeAssistant, _ids: string[], _start: Date, _end: Date) => {
       const m = new Map<string, CalendarEvent[]>();
       m.set(ENTITY_ID, canned);
-      return m;
+      return { events: m, failed: new Set<string>() };
     };
     const host = makeHostStub();
     const ctrl = new RollingWindowController(host, { ...makeBaseOpts({ fetcher }) });
@@ -436,10 +436,52 @@ describe('RollingWindowController — event uid tagging', () => {
 
     const events = ctrl.cachedEvents.get(ENTITY_ID) ?? [];
     assert.ok(events.length >= 2, `expected at least 2 events, got ${events.length}`);
-    assert.equal(events[0].uid, `${ENTITY_ID}::abc`, 'uid should be tagged with entity prefix');
-    assert.equal(events[1].uid, `${ENTITY_ID}::`, 'undefined uid should become entity::(empty)');
+    assert.equal(events[0].uid, `${ENTITY_ID}::abc`, 'real uid should be tagged with entity prefix');
+    // Synthetic uid is `syn:start|end|summary`, deterministic from the event content.
+    // Verifies (a) the synthesis fires when upstream uid is missing and (b) it includes the syn: marker.
+    assert.match(
+      events[1].uid ?? '',
+      /^calendar\.foo::syn:/,
+      `missing uid should become a synthetic 'syn:'-prefixed uid, got ${events[1].uid}`,
+    );
+  });
 
-    ctrl.hostDisconnected();
+  it('two uid-less events with different content get distinct synthetic uids', async () => {
+    const e1: CalendarEvent = { start: '2026-05-22T09:00:00', end: '2026-05-22T10:00:00', summary: 'Standup' };
+    const e2: CalendarEvent = { start: '2026-05-22T14:00:00', end: '2026-05-22T15:00:00', summary: 'Lunch' };
+    const fetcher = async () => ({ events: new Map([[ENTITY_ID, [e1, e2]]]), failed: new Set<string>() });
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, { ...makeBaseOpts({ fetcher }) });
+    ctrl.hostConnected();
+    ctrl.setHass(makeStubHass(ENTITY_ID, []));
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const events = ctrl.cachedEvents.get(ENTITY_ID) ?? [];
+    assert.equal(events.length, 2);
+    assert.notEqual(events[0].uid, events[1].uid, 'distinct content → distinct synthetic uids');
+  });
+
+  it('same event content across two fetches yields the same synthetic uid (stable)', async () => {
+    const evt: CalendarEvent = { start: '2026-05-22T09:00:00', end: '2026-05-22T10:00:00', summary: 'Standup' };
+    let callCount = 0;
+    const fetcher = async () => {
+      callCount++;
+      return { events: new Map([[ENTITY_ID, [evt]]]), failed: new Set<string>() };
+    };
+    const host = makeHostStub();
+    const ctrl = new RollingWindowController(host, { ...makeBaseOpts({ fetcher }) });
+    ctrl.hostConnected();
+    ctrl.setHass(makeStubHass(ENTITY_ID, []));
+    await Promise.resolve();
+    await Promise.resolve();
+    const uid1 = (ctrl.cachedEvents.get(ENTITY_ID) ?? [])[0]?.uid;
+    await ctrl._poll();
+    await Promise.resolve();
+    await Promise.resolve();
+    const uid2 = (ctrl.cachedEvents.get(ENTITY_ID) ?? [])[0]?.uid;
+    assert.ok(callCount >= 2, 'fetcher should have run at least twice');
+    assert.equal(uid1, uid2, 'stable synthetic uid across fetches');
   });
 });
 

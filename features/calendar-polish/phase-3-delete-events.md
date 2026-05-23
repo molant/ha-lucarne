@@ -12,7 +12,7 @@ The detail modal (`src/components/calendar-event-popover.ts`) currently shows ev
 
 For delete, we mirror this pattern:
 
-1. Detect per-entity delete support via `attributes.supported_features & 4` (the `CalendarEntityFeature.DELETE_EVENT` bit).
+1. Detect per-entity delete support via `attributes.supported_features & 2` (the `CalendarEntityFeature.DELETE_EVENT` bit — full enum: CREATE=1, DELETE=2, UPDATE=4).
 2. Add a `deleteCalendarEvent` helper in `src/shared/ha-subscriptions.ts`.
 3. Add a Delete button + inline confirm step in `calendar-event-popover.ts`, gated on the supported-features bit.
 4. On success, the popover dispatches `lucarne-event-deleted`, the card adds the event's uid to a `_deletedUids` set, and the recompute step filters it out. The next 5-minute background poll converges canonical state.
@@ -40,7 +40,7 @@ tests/components/
 ### Baseline verification
 
 - [x] Phase 1 (pan fixes) merged — the Chrome-desktop click → detail-modal path must work end-to-end to validate the new Delete button on a laptop. Phase 2 (event dialog) is independent and may be merged in any order.
-- [x] Confirm the Family calendar entity has `supported_features` including the DELETE_EVENT bit (4). Read via MCP: `mcp__home-assistant__ha_get_state(entity_id="calendar.family")` and check `attributes.supported_features`. The local calendar integration and CalDAV both set this bit; some integrations do not.
+- [x] Confirm the Family calendar entity has `supported_features` including the DELETE_EVENT bit (2). Read via MCP: `mcp__home-assistant__ha_get_state(entity_id="calendar.family")` and check `attributes.supported_features`. The local calendar integration and CalDAV both set this bit; some integrations do not.
 - [x] Note the `supported_features` value for one supporting entity and one non-supporting entity (if available) for end-to-end verification.
 
 ### Sub-Phase 3A: `deleteCalendarEvent` helper + types
@@ -80,7 +80,7 @@ Deployable when: a pure helper exists and is unit-tested.
 #### Tests
 
 - [x] Add `tests/shared/calendar-features.test.ts` (or extend an existing helpers test file):
-  - `entitySupportsDelete(hass, "calendar.family")` returns `true` when `attributes.supported_features` includes bit 4.
+  - `entitySupportsDelete(hass, "calendar.family")` returns `true` when `attributes.supported_features` includes bit 2 (DELETE_EVENT).
   - Returns `false` when the bit is absent.
   - Returns `false` when the entity does not exist in `hass.states`.
 
@@ -89,7 +89,8 @@ Deployable when: a pure helper exists and is unit-tested.
 - [x] Add a small helper to `src/shared/ha-subscriptions.ts` (or a new `src/shared/calendar-features.ts` if you prefer a dedicated file):
 
   ```typescript
-  const CALENDAR_DELETE_EVENT_FEATURE = 4;
+  // HA's CalendarEntityFeature: CREATE_EVENT=1, DELETE_EVENT=2, UPDATE_EVENT=4
+  const CALENDAR_DELETE_EVENT_FEATURE = 2;
 
   export function entitySupportsDelete(hass: HomeAssistant, entityId: string): boolean {
     const features = hass.states[entityId]?.attributes?.supported_features;

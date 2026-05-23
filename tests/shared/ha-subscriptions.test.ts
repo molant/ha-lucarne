@@ -1,4 +1,4 @@
-import { describe, it, beforeEach } from 'node:test';
+import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { fetchCalendarEvents, deleteCalendarEvent, entitySupportsDelete } from '../../src/shared/ha-subscriptions.js';
 import type { HomeAssistant } from '../../src/shared/types.js';
@@ -36,11 +36,16 @@ const START = new Date('2026-05-18T00:00:00Z');
 const END = new Date('2026-05-25T00:00:00Z');
 
 describe('fetchCalendarEvents', () => {
+  // Restore console.warn in afterEach so an assertion that throws mid-test
+  // can't leak the stub into later tests (in this file or sibling files).
   let warnCalls: unknown[][];
   const originalWarn = console.warn;
   beforeEach(() => {
     warnCalls = [];
     console.warn = (...args: unknown[]) => warnCalls.push(args);
+  });
+  afterEach(() => {
+    console.warn = originalWarn;
   });
 
   it('dispatches calendar.get_events with return_response and ISO times', async () => {
@@ -57,8 +62,6 @@ describe('fetchCalendarEvents', () => {
     assert.deepEqual(sent[0].target, { entity_id: 'calendar.family' });
     assert.equal(sent[0].service_data.start_date_time, START.toISOString());
     assert.equal(sent[0].service_data.end_date_time, END.toISOString());
-
-    console.warn = originalWarn;
   });
 
   it('unwraps response keyed by entity_id and returns a Map', async () => {
@@ -79,30 +82,27 @@ describe('fetchCalendarEvents', () => {
       END,
     );
 
-    assert.equal(result.size, 2);
-    assert.deepEqual(result.get('calendar.ingrid'), [peloton]);
-    assert.deepEqual(result.get('calendar.family'), [smoke]);
-
-    console.warn = originalWarn;
+    assert.equal(result.events.size, 2);
+    assert.deepEqual(result.events.get('calendar.ingrid'), [peloton]);
+    assert.deepEqual(result.events.get('calendar.family'), [smoke]);
+    assert.equal(result.failed.size, 0, 'no failures expected on success');
   });
 
   it('returns empty array (no throw) when the service call rejects, and logs a warning', async () => {
     const { hass } = makeHass(async () => new Error('boom'));
     const result = await fetchCalendarEvents(hass, ['calendar.broken'], START, END);
 
-    assert.deepEqual(result.get('calendar.broken'), []);
+    assert.deepEqual(result.events.get('calendar.broken'), []);
+    assert.ok(result.failed.has('calendar.broken'), 'failed entity tracked in result.failed');
     assert.equal(warnCalls.length, 1);
     assert.match(String(warnCalls[0][0]), /calendar\.get_events failed for calendar\.broken/);
-
-    console.warn = originalWarn;
   });
 
   it('returns empty array when response is missing the entity key', async () => {
     const { hass } = makeHass(async () => ({ response: {} }));
     const result = await fetchCalendarEvents(hass, ['calendar.missing'], START, END);
-    assert.deepEqual(result.get('calendar.missing'), []);
-
-    console.warn = originalWarn;
+    assert.deepEqual(result.events.get('calendar.missing'), []);
+    assert.equal(result.failed.size, 0, 'missing entity key is not a fetch failure (call succeeded)');
   });
 
   it('isolates per-entity failures — one rejection does not poison the batch', async () => {
@@ -117,10 +117,10 @@ describe('fetchCalendarEvents', () => {
       END,
     );
 
-    assert.equal(result.get('calendar.ok')?.length, 1);
-    assert.deepEqual(result.get('calendar.bad'), []);
-
-    console.warn = originalWarn;
+    assert.equal(result.events.get('calendar.ok')?.length, 1);
+    assert.deepEqual(result.events.get('calendar.bad'), []);
+    assert.ok(result.failed.has('calendar.bad'), 'failed entity tracked');
+    assert.equal(result.failed.has('calendar.ok'), false, 'successful entity NOT in failed set');
   });
 });
 
