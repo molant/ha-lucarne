@@ -42,8 +42,8 @@ tests/shared/
 
 ### Baseline Test Verification
 
-- [ ] Phase 1 is merged and `status: done`.
-- [ ] All four gates green on the current branch (`npm test`, `npm run lint`, `npm run typecheck`, `npm run build`).
+- [x] Phase 1 is merged and `status: done`.
+- [x] All four gates green on the current branch (`npm test`, `npm run lint`, `npm run typecheck`, `npm run build`).
 - [ ] Manually verified Phase 1 deploy on the wall iPad — the existing card still works.
 
 ### Sub-Phase A: `RollingWindowController` + ResizeObserver wiring
@@ -52,8 +52,8 @@ Deployable when: the card uses today as the leftmost column, ResizeObserver pick
 
 #### Tests first (TDD)
 
-- [ ] Create `tests/shared/rolling-window.test.ts`.
-- [ ] Build a stub `ReactiveControllerHost` — the controller must be constructable in node tests without a real Lit element. A minimal stub looks like:
+- [x] Create `tests/shared/rolling-window.test.ts`.
+- [x] Build a stub `ReactiveControllerHost` — the controller must be constructable in node tests without a real Lit element. A minimal stub looks like:
   ```typescript
   function makeHostStub(): ReactiveControllerHost & { updateCount: number } {
     return {
@@ -66,27 +66,27 @@ Deployable when: the card uses today as the leftmost column, ResizeObserver pick
   }
   ```
   Pass this as the first arg to `new RollingWindowController(host, opts)`. Drive lifecycle manually: call `controller.hostConnected()` / `controller.hostDisconnected()` directly (the stub does not auto-invoke them).
-- [ ] Build a stub HA: a fake `hass` object whose shape matches the calls `fetchCalendarEvents` actually makes — it sends `hass.connection.sendMessagePromise({ type: 'call_service', domain: 'calendar', service: 'get_events', service_data: { start_date_time, end_date_time }, target: { entity_id }, return_response: true })`. The stub's `sendMessagePromise` returns `Promise.resolve({ response: { [entityId]: { events: cannedEvents } } })`. Track calls so tests can assert "fetched range X..Y once". To avoid real-network risk in tests, inject the stub by wrapping the controller's fetch in a `fetcher` option (default `fetchCalendarEvents`) — see Implementation below.
-- [ ] Build an injected clock: the controller must accept a `now: () => Date` for testability (default `() => new Date()`). Use this to test midnight rollover deterministically. **Also disable real timers in tests** — pass `pollIntervalMs: 0` and `tickIntervalMs: 0` (or similar) so `hostConnected` does not start real `setInterval`s during a node test run. Tests then call `controller.tick()` and `controller._poll()` directly.
-- [ ] Test: `controller.setVisibleCount(5)` with `dayOffset=0` and `now=2026-05-22T10:00` (so today = 2026-05-22) → cached range is `start=2026-05-17T00:00:00` (today − visibleCount), `end=2026-06-01T00:00:00` (today + 2 × visibleCount, exclusive). That is **15 days total**: 5 past buffer (May 17–21) + 5 visible (May 22–26) + 5 future buffer (May 27–31). Assert exact `Date` equality on both endpoints.
-- [ ] Test: setting `visibleCount` from 5 → 3 does not trigger a re-fetch (buffer covers the smaller range).
-- [ ] Test: setting `visibleCount` from 3 → 7 triggers a re-fetch (buffer grows; new edge days needed).
-- [ ] Test: `controller.pan(+5)` shifts the day offset by 5 days; fetch is triggered when the new visible+buffer extends past the cache.
-- [ ] Test: `controller.goToToday()` resets `dayOffset = 0`.
-- [ ] Test: `controller.tick()` with `now` advanced past midnight, when `dayOffset === 0`, re-anchors and re-fetches.
-- [ ] Test: `controller.tick()` with `now` advanced past midnight, when `dayOffset !== 0`, does NOT re-anchor (user has panned away).
-- [ ] Test: pan bound — with `visibleCount=5` and `panBoundDays=90`:
+- [x] Build a stub HA: a fake `hass` object whose shape matches the calls `fetchCalendarEvents` actually makes — it sends `hass.connection.sendMessagePromise({ type: 'call_service', domain: 'calendar', service: 'get_events', service_data: { start_date_time, end_date_time }, target: { entity_id }, return_response: true })`. The stub's `sendMessagePromise` returns `Promise.resolve({ response: { [entityId]: { events: cannedEvents } } })`. Track calls so tests can assert "fetched range X..Y once". To avoid real-network risk in tests, inject the stub by wrapping the controller's fetch in a `fetcher` option (default `fetchCalendarEvents`) — see Implementation below.
+- [x] Build an injected clock: the controller must accept a `now: () => Date` for testability (default `() => new Date()`). Use this to test midnight rollover deterministically. **Also disable real timers in tests** — pass `pollIntervalMs: 0` and `tickIntervalMs: 0` (or similar) so `hostConnected` does not start real `setInterval`s during a node test run. Tests then call `controller.tick()` and `controller._poll()` directly.
+- [x] Test: `controller.setVisibleCount(5)` with `dayOffset=0` and `now=2026-05-22T10:00` (so today = 2026-05-22) → cached range is `start=2026-05-17T00:00:00` (today − visibleCount), `end=2026-06-01T00:00:00` (today + 2 × visibleCount, exclusive). That is **15 days total**: 5 past buffer (May 17–21) + 5 visible (May 22–26) + 5 future buffer (May 27–31). Assert exact `Date` equality on both endpoints.
+- [x] Test: setting `visibleCount` from 5 → 3 does not trigger a re-fetch (buffer covers the smaller range).
+- [x] Test: setting `visibleCount` from 3 → 7 triggers a re-fetch (buffer grows; new edge days needed).
+- [x] Test: `controller.pan(+5)` shifts the day offset by 5 days; fetch is triggered when the new visible+buffer extends past the cache.
+- [x] Test: `controller.goToToday()` resets `dayOffset = 0`.
+- [x] Test: `controller.tick()` with `now` advanced past midnight, when `dayOffset === 0`, re-anchors and re-fetches.
+- [x] Test: `controller.tick()` with `now` advanced past midnight, when `dayOffset !== 0`, does NOT re-anchor (user has panned away).
+- [x] Test: pan bound — with `visibleCount=5` and `panBoundDays=90`:
   - `controller.pan(+100)` from `dayOffset=0` clamps `dayOffset` to `+85` (= `panBoundDays − visibleCount`). The visible window is then `[today + 85, today + 89]` inclusive, with its **exclusive right edge** at `today + 90` (i.e. `dayOffset + visibleCount === panBoundDays`). After the clamp: `canPanForward === false` (`85 + 5 < 90` is false), `canPanBack === true` (`85 > −90`). Assert `controller.dayOffset === 85` and the rightmost element of `controller.days` equals `today + 89` (NOT `today + 90` — that would be off-by-one).
   - `controller.pan(-100)` from `dayOffset=0` clamps `dayOffset` to `−90`. The visible window is then `[today − 90, today − 86]` inclusive (leftmost visible day = `today − 90`). After the clamp: `canPanBack === false` (`−90 > −90` is false), `canPanForward === true` (`−90 + 5 < 90`). Assert `controller.dayOffset === -90` and `controller.days[0]` equals `today − 90`.
   - The clamp range `[−panBound, panBound − visibleCount]` is asymmetric on purpose: `dayOffset` represents the **leftmost** visible day's offset from today, so on the past side we cap the leftmost (`dayOffset >= −90`), on the future side we cap the rightmost (`dayOffset + visibleCount <= panBound`, i.e. exclusive right edge of the visible window sits no further than `today + 90`).
-- [ ] Test: 5-min poll calls `_fetchRange` with the **full** visible+buffer range, not just visible.
-- [ ] Test: stale fetch responses (controller's sequence number bumped during fetch) are discarded.
-- [ ] Test: `setHass` first-arrival fetch — construct controller without ever calling `setHass` (hass is not part of `RollingWindowOptions`; it always arrives via `setHass`), call `controller.hostConnected()`, assert fetcher was NOT called (no hass yet), then call `controller.setHass(stubHass)` and assert fetcher IS called once. Subsequent calls to `setHass` with the same or another hass instance must NOT trigger a re-fetch (only the first-arrival transition does).
-- [ ] Test: event uid tagging — the canned fetcher returns events with bare `uid: 'abc'`; after a successful fetch, `controller.cachedEvents.get('calendar.foo')![0].uid === 'calendar.foo::abc'`. Also assert events with `uid: undefined` get tagged as `'calendar.foo::'`. This guards the color-lookup contract in `calendar-grid.ts:197-204`.
+- [x] Test: 5-min poll calls `_fetchRange` with the **full** visible+buffer range, not just visible.
+- [x] Test: stale fetch responses (controller's sequence number bumped during fetch) are discarded.
+- [x] Test: `setHass` first-arrival fetch — construct controller without ever calling `setHass` (hass is not part of `RollingWindowOptions`; it always arrives via `setHass`), call `controller.hostConnected()`, assert fetcher was NOT called (no hass yet), then call `controller.setHass(stubHass)` and assert fetcher IS called once. Subsequent calls to `setHass` with the same or another hass instance must NOT trigger a re-fetch (only the first-arrival transition does).
+- [x] Test: event uid tagging — the canned fetcher returns events with bare `uid: 'abc'`; after a successful fetch, `controller.cachedEvents.get('calendar.foo')![0].uid === 'calendar.foo::abc'`. Also assert events with `uid: undefined` get tagged as `'calendar.foo::'`. This guards the color-lookup contract in `calendar-grid.ts:197-204`.
 
 #### Implementation
 
-- [ ] Create `src/shared/rolling-window.ts`:
+- [x] Create `src/shared/rolling-window.ts`:
   ```typescript
   import type { ReactiveController, ReactiveControllerHost } from 'lit';
   import type { HomeAssistant, CalendarEvent, CalendarConfig } from './types.js';
@@ -145,7 +145,7 @@ Deployable when: the card uses today as the leftmost column, ResizeObserver pick
   }
   ```
   (The bodies above are placeholders to keep the TypeScript class shape valid in a snippet; replace with real implementations per the bullets below. Don't ship the placeholders.)
-- [ ] Implement:
+- [x] Implement:
   - On `hostConnected`: if `tickIntervalMs > 0`, set up `setInterval(() => this.tick(), tickIntervalMs)` for midnight check; if `pollIntervalMs > 0`, set up `setInterval(() => this._poll(), pollIntervalMs)` for the 5-min refresh. Trigger the initial fetch (no waiting for the interval). On `hostDisconnected`, clear both intervals. **Do not assume `hostConnected` is called before `setHass` / `setVisibleCount`** — guard fetches with `if (!this._hass) return;`.
   - **`setHass(hass)` must trigger an initial fetch when `hass` transitions from undefined to defined** (the host may connect before `hass` is wired up — see the existing `updated()` handshake at `lucarne-calendar-card.ts:204-212` which uses `if (!prevHass && this.hass)` to detect the first-arrival case). Concretely: store `const wasUnset = !this._hass; this._hass = hass; if (wasUnset && this._isConnected) this._fetchRange(...);`. Without this, the card silently never fetches when `hass` arrives after `connectedCallback`.
   - Track `_isConnected` via `hostConnected` / `hostDisconnected` so `setHass` knows whether to fetch immediately or wait.
@@ -181,7 +181,7 @@ Deployable when: the card uses today as the leftmost column, ResizeObserver pick
   - `setVisibleCount(n)`: same rule — if `n` differs from the current count, update it; if buffer covers the new range, no fetch is needed, but still call `opts.onChange?.()` + `this._host.requestUpdate()`. (The buffer-shrinks-to-fit case is the easy trap: 5 → 3 covers itself, but the card must still re-layout with 3 days.)
   - `goToToday()`: set `dayOffset = 0`; if not already there, fire `opts.onChange?.()`; fetch if needed; `this._host.requestUpdate()`.
   - `tick()`: compare stored `today` to `now()`; if changed AND `dayOffset === 0`, re-anchor, fire `opts.onChange?.()`, and re-fetch. If changed but `dayOffset !== 0`, the visible range hasn't shifted — no re-anchor, no `onChange`, but DO update the internal "today" so the next `goToToday()` lands on the right day. **`tick` is public** so tests can drive it deterministically (advance the injected `now()` then call `controller.tick()`).
-- [ ] Modify `src/cards/lucarne-calendar-card.ts`:
+- [x] Modify `src/cards/lucarne-calendar-card.ts`:
   - Delete `_weekOffset`, the inline `_currentDays()` from Phase 1, `_setup`, `_teardown`, `_intervalId`, `_fetchSeq`, `_rawEvents`, the inline `_fetchEvents`. (Note: `_weekStart`/`_weekEnd` were already deleted in Phase 1 Sub-Phase C.) The controller now owns the fetch lifecycle, the interval, the sequence number, and the cached event map. **Keep `_weekLabel` and `_navWeek` for now** — they are deleted in Sub-Phase C in the same edit that introduces the day-step arrows + range label, so the card always has working navigation between sub-phase deploys. In this sub-phase:
     - `_navWeek(delta)` becomes `this._rolling.pan(delta * 7)` (legacy week-step semantics; positive `delta` advances into the future, matching the existing API).
     - `_weekLabel()` becomes a simple range string from `controller.days[0]` to `controller.days[controller.days.length - 1]` using the same `month: 'short', day: 'numeric'` `toLocaleDateString('en-US')` formatter as today. Drop the `"This week" / "Last week" / "Next week"` branches — they no longer have a stable meaning once the offset is in days instead of weeks, and Sub-Phase C deletes the method entirely anyway.
@@ -198,7 +198,7 @@ Deployable when: the card uses today as the leftmost column, ResizeObserver pick
   - In `_recompute`, build the days array from `this._rolling.days`; call `layoutEvents(allEvents, days, bandStart, bandEnd)`.
   - Pass `dayWidthPx` from `computeVisibleDays` down to `<lucarne-calendar-grid>` as a property.
   - **Crash debounce**: ResizeObserver can fire in a loop if you set a CSS property in the callback. Guard with `requestAnimationFrame` and only update if `visibleCount` actually changed.
-- [ ] Extend `LucarneCalendarCardConfig` **in `src/cards/lucarne-calendar-card.ts`** (where the interface is already defined and already imported by the editor — keep it co-located, do not move to `types.ts`):
+- [x] Extend `LucarneCalendarCardConfig` **in `src/cards/lucarne-calendar-card.ts`** (where the interface is already defined and already imported by the editor — keep it co-located, do not move to `types.ts`):
     ```typescript
     export interface LucarneCalendarCardConfig {
       // ...existing fields...
@@ -212,7 +212,7 @@ Deployable when: the card uses today as the leftmost column, ResizeObserver pick
     }
     ```
   - The `@deprecated` tag here must match the comment added in Phase 1 Sub-Phase C — single source of truth.
-- [ ] Modify `src/components/calendar-grid.ts`:
+- [x] Modify `src/components/calendar-grid.ts`:
   - Add `@property({ type: Number }) dayWidthPx = 0;` — currently informational; consumed in Phase 3 by the skeleton column and pan math. The grid itself uses CSS `1fr` for the day columns; `dayWidthPx` does not need to be wired into the grid's own CSS.
   - Apply the day-count CSS var on the `.grid-wrapper` element so the existing `grid-template-columns: 40px repeat(var(--lucarne-day-count, 7), minmax(0, 1fr))` rule picks up the live count. Use Lit's `styleMap` (`import { styleMap } from 'lit/directives/style-map.js'`) — plain inline `style="..."` interpolation in Lit does not reliably re-apply custom-property values across re-renders:
     ```typescript
@@ -222,7 +222,7 @@ Deployable when: the card uses today as the leftmost column, ResizeObserver pick
     ```
     This is in addition to the card-host-level set in `_onResize`; the wrapper style guards against stale renders where the host attribute has not flushed yet.
   - Update `min-width: 480px` rule to use the dynamic count: drop it (the parent's ResizeObserver handles the width contract).
-- [ ] Run `npm test` — controller tests pass, layout tests still pass.
+- [x] Run `npm test` — controller tests pass, layout tests still pass.
 
 ### Sub-Phase B: Editor — 4 new number inputs
 

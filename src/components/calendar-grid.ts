@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
+import { styleMap } from 'lit/directives/style-map.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import type { CalendarConfig, CalendarEvent } from '../shared/types.js';
 import type { CalendarLayoutResult } from '../shared/calendar-layout.js';
@@ -31,7 +32,6 @@ export class LucarneCalendarGrid extends LitElement {
         display: grid;
         grid-template-columns: 40px repeat(var(--lucarne-day-count, 7), minmax(0, 1fr));
         grid-template-rows: auto auto 1fr;
-        min-width: 480px;
       }
       /* Header row: day names */
       .header-spacer {
@@ -187,6 +187,8 @@ export class LucarneCalendarGrid extends LitElement {
   @property({ type: Array }) calendars: CalendarConfig[] = [];
   @property({ type: Number }) hourHeightPx = 60;
   @property({ type: Boolean }) showCreateButton = false;
+  /** Current day width in px — informational; used by Phase 3 skeleton and pan math. */
+  @property({ type: Number }) dayWidthPx = 0;
 
   private get _colorMap(): Map<string, string> {
     const m = new Map<string, string>();
@@ -344,7 +346,7 @@ export class LucarneCalendarGrid extends LitElement {
     const weekdayFmt = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
 
     return html`
-      <div class="grid-wrapper">
+      <div class="grid-wrapper" style=${styleMap({ '--lucarne-day-count': String(this.layout.days.length) })}>
         <!-- Header row -->
         <div class="header-spacer"></div>
         ${this.layout.days.map(
