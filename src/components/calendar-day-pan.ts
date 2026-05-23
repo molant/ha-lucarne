@@ -10,6 +10,12 @@ import { snapToDay, rubberBand } from '../shared/pan-math.js';
  *   - snapToDay returns px-direction count (positive = dragged right = past).
  *   - The card's pan-snap handler inverts the sign before calling controller.pan()
  *     (positive controller.pan() = advance into the future).
+ *
+ * `pan-snap` is dispatched after the snap CSS transition completes (via
+ * `transitionend`), not synchronously on pointerup. This lets the OLD day
+ * content animate smoothly to the snap target before Lit replaces it with new
+ * content. When `prefers-reduced-motion: reduce` is active, the dispatch is
+ * immediate (no animation).
  */
 @customElement('lucarne-calendar-day-pan')
 export class LucarneCalendarDayPan extends LitElement {
@@ -46,6 +52,8 @@ export class LucarneCalendarDayPan extends LitElement {
   private _startTime = 0;
   private _isDragging = false;
   private _cachedTargets: HTMLElement[] = [];
+  private _pendingSnapTarget?: HTMLElement;
+  private _pendingTransitionEnd?: () => void;
 
   /** All .day-cols-track elements inside the slotted calendar-grid's shadow root. */
   private get _panTargets(): HTMLElement[] {
@@ -78,45 +86,88 @@ export class LucarneCalendarDayPan extends LitElement {
     }
   }
 
-  private _snapBack() {
+  private _cancelPendingSnap() {
+    if (this._pendingTransitionEnd && this._pendingSnapTarget) {
+      this._pendingSnapTarget.removeEventListener('transitionend', this._pendingTransitionEnd);
+    }
+    this._pendingTransitionEnd = undefined;
+    this._pendingSnapTarget = undefined;
+  }
+
+  private _snapAndCommit(deltaDays: number) {
     const targets = this._cachedTargets;
-    if (targets.length === 0) return;
+    if (targets.length === 0) {
+      if (deltaDays !== 0) this._dispatchPanSnap(deltaDays);
+      return;
+    }
+    this._cancelPendingSnap();
+
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced) {
       for (const el of targets) {
-        el.style.transform = 'translateX(0)';
         el.style.transition = '';
+        el.style.transform = 'translateX(0px)';
       }
-    } else {
-      const duration = getComputedStyle(this).getPropertyValue('--lucarne-pan-duration').trim() || '240ms';
-      const easing = getComputedStyle(this).getPropertyValue('--lucarne-pan-easing').trim() || 'cubic-bezier(0.32, 0.72, 0, 1)';
-      const transition = `transform ${duration} ${easing}`;
-      for (const el of targets) {
-        el.style.transition = transition;
-        el.style.transform = 'translateX(0)';
-      }
-      // Clean up transition after it ends (listen on the first target)
-      const onEnd = () => {
-        for (const el of targets) {
-          el.style.transition = '';
-        }
-        targets[0].removeEventListener('transitionend', onEnd);
-      };
-      targets[0].addEventListener('transitionend', onEnd, { once: true });
+      if (deltaDays !== 0) this._dispatchPanSnap(deltaDays);
+      return;
     }
+
+    const duration = getComputedStyle(this).getPropertyValue('--lucarne-pan-duration').trim() || '240ms';
+    const easing = getComputedStyle(this).getPropertyValue('--lucarne-pan-easing').trim() || 'cubic-bezier(0.32, 0.72, 0, 1)';
+    const transition = `transform ${duration} ${easing}`;
+
+    // Animate OLD content to where NEW content's translateX(0) will appear.
+    // deltaDays=0 → snap back to 0 (unchanged behavior).
+    const targetPx = deltaDays * this.dayWidthPx;
+
+    for (const el of targets) {
+      el.style.transition = transition;
+      el.style.transform = `translateX(${targetPx}px)`;
+    }
+
+    const onEnd = () => {
+      this._pendingTransitionEnd = undefined;
+      targets[0].removeEventListener('transitionend', onEnd);
+      // Atomic swap: reset transform so the OLD content sits at translateX(0),
+      // then dispatch pan-snap. Lit renders NEW content at translateX(0) — the
+      // positions are identical so the swap is visually invisible.
+      for (const el of targets) {
+        el.style.transition = '';
+        el.style.transform = 'translateX(0px)';
+      }
+      // Flush the layout before the Lit re-render so the transform reset is applied.
+      void targets[0].offsetWidth;
+      if (deltaDays !== 0) this._dispatchPanSnap(deltaDays);
+    };
+    this._pendingSnapTarget = targets[0];
+    this._pendingTransitionEnd = onEnd;
+    targets[0].addEventListener('transitionend', onEnd, { once: true });
+  }
+
+  private _dispatchPanSnap(deltaDays: number) {
+    this.dispatchEvent(
+      new CustomEvent('pan-snap', {
+        detail: { deltaDays },
+        bubbles: true,
+        composed: true,
+      }),
+    );
   }
 
   private _onPointerDown(e: PointerEvent) {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     // Ignore second pointer while a gesture is in progress
     if (this._pointerId !== undefined) return;
+    this._cancelPendingSnap();
     this._pointerId = e.pointerId;
     this._startX = e.clientX;
     this._startY = e.clientY;
     this._startTime = performance.now();
     this._isDragging = false;
     this._cachePanTargets();
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    // NOTE: setPointerCapture is intentionally deferred to _onPointerMove.
+    // Capturing on pointerdown would steal the synthesized click event on
+    // Chrome desktop, preventing event-pill clicks from opening the detail modal.
   }
 
   private _onPointerMove(e: PointerEvent) {
@@ -133,6 +184,14 @@ export class LucarneCalendarDayPan extends LitElement {
         return;
       }
       this._isDragging = true;
+      // Defer capture to here: first horizontal drag event past the threshold.
+      // This allows a click (pointerdown→pointerup with no drag) to reach
+      // descendant elements normally.
+      try {
+        (e.currentTarget as Element).setPointerCapture(e.pointerId);
+      } catch {
+        /* capture failed; events will still arrive on the wrapper */
+      }
     }
 
     const effective = this._applyRubberBand(dx);
@@ -153,18 +212,7 @@ export class LucarneCalendarDayPan extends LitElement {
       // Use rubber-banded dx so snap math sees the same magnitude as the visual
       const effective = this._applyRubberBand(dx);
       const deltaDays = snapToDay(effective, this.dayWidthPx, velocity);
-      // Animate back to translateX(0) regardless of whether we advance days
-      this._snapBack();
-      // Only dispatch if there's something to snap to (suppresses no-op at bounds)
-      if (deltaDays !== 0) {
-        this.dispatchEvent(
-          new CustomEvent('pan-snap', {
-            detail: { deltaDays },
-            bubbles: true,
-            composed: true,
-          }),
-        );
-      }
+      this._snapAndCommit(deltaDays);
     }
     this._pointerId = undefined;
     this._isDragging = false;
