@@ -36,7 +36,7 @@ without manual entry.
 
 - **`lucarne-today-card`** — agenda strip (next 7 days, per-person color dots), today's weather +
   tomorrow's forecast, task-count badge, presence pills
-- **`lucarne-calendar-card`** — full week-view grid, per-person color coding, calendar visibility pills,
+- **`lucarne-calendar-card`** — rolling N-day window with touch swipe (auto-fits 3–7 days to width), per-person color coding, calendar visibility pills,
   event-detail popover, create-event flow (on calendars that support it)
 - **`lucarne-chores-card`** — per-kid chore columns, tap to toggle, streak counter, celebration animation,
   `ha_lucarne_chores_all_done` custom event
@@ -160,7 +160,7 @@ max_days: 7             # cap at this many columns even on wide screens
 min_col_width: 140      # refuse to make columns narrower than this (px)
 max_col_width: 220      # show more days if columns would be wider than this (px)
 show_create_button: true  # optional; shows a + button on empty slots (requires calendar to support event creation)
-# week_starts_on is deprecated and silently ignored (rolling window has no week start)
+# NOTE: week_starts_on is deprecated and silently ignored — remove from your config
 ```
 
 ### `lucarne-chores-card`

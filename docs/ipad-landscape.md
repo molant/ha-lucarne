@@ -58,6 +58,30 @@ All interactive elements (chore checkboxes, calendar nav buttons, visibility pil
 tap zones) use `min-height: 44px; min-width: 44px` per Apple HIG recommendations. This is enforced
 in the component CSS, not via JavaScript.
 
+## Touch swipe
+
+The calendar card supports horizontal swipe-to-pan using the Pointer Events API
+(`pointerdown / pointermove / pointerup / pointercancel`). This unifies mouse, Apple Pencil, and
+finger touch without needing `touchstart` / `touchmove`.
+
+**Vertical-scroll precedence**: The first 10 px of movement decide the gesture axis. If vertical
+movement dominates, pointer capture is released immediately and Safari's native vertical scroll
+takes over for the time-grid column. If horizontal movement dominates, the pan gesture locks in.
+The pan wrapper sets `touch-action: pan-y` so the browser never pre-empts vertical scrolling.
+
+**Snap-to-day**: On pointer release, `snapToDay(dx, dayWidthPx, velocity)` rounds `dx / dayWidthPx`
+to the nearest integer. A "flick" (velocity ≥ 500 px/s) rounds in the direction of motion
+regardless of distance, so a fast short swipe advances one day cleanly.
+
+**Rubber-band at bound**: When `canPanBack` or `canPanForward` is false (±90-day limit reached),
+further displacement in the blocked direction is passed through `rubberBand(dx, 0)`, yielding
+a 1/3-rate slowdown from the very first pixel.
+
+**Snap-back animation**: The inner `.day-cols-track` elements animate back to `translateX(0)` using
+`--lucarne-pan-easing: cubic-bezier(0.32, 0.72, 0, 1)` (iOS-like spring) and
+`--lucarne-pan-duration: 240ms`. Under `prefers-reduced-motion: reduce`, the snap-back is instant
+(checked at runtime via `window.matchMedia('(prefers-reduced-motion: reduce)').matches`).
+
 ## Kiosk-mode interactions
 
 ### Kiosk-mode HACS integration

@@ -46,6 +46,14 @@ Each card manages its own HA subscriptions independently.
 - Midnight rollover: 60-second tick compares stored "today" to current local date; re-anchors and re-fetches when the user is at the today anchor
 - Optimistic UI: newly created events injected into local state immediately; real data clears them on the next fetch via `onFetchComplete` callback
 
+### RollingWindowController
+
+`RollingWindowController` (`src/shared/rolling-window.ts`) is a Lit `ReactiveController` that owns the calendar-event fetch lifecycle and maintains the sliding day window. It stores a `_dayOffset` (integer, steps of one day), an `_anchorToday` (local midnight `Date`), and a `_visibleCount`. When `pan(deltaDays)` is called, the offset is clamped to ±90 days; if the new range extends past the event cache, a fresh fetch is issued. The event cache is keyed by calendar entity ID (`Map<string, CalendarEvent[]>`); a parallel `_cachedDayKeys: Set<string>` (ISO `YYYY-MM-DD` strings) lets the grid decide per-column whether to render real events or a skeleton placeholder. `cachedRange` returns a sorted array of cached `Date` objects; `isDayCached(day)` is a single Set lookup. See [visible-days.md](visible-days.md) for the formula and state machine.
+
+### `calendar-day-pan` wrapper
+
+`LucarneCalendarDayPan` (`src/components/calendar-day-pan.ts`) is a thin Lit element that wraps `<lucarne-calendar-grid>` via a `<slot>` and translates Pointer Events into a `pan-snap` CustomEvent carrying a `deltaDays` count. It uses the Pointer Events API (`pointerdown / pointermove / pointerup / pointercancel`) so that mouse, pen, and touch are handled uniformly without fighting the browser's native scroll. Direction lock: the first 10 px of movement decide the axis — if vertical movement dominates, pointer capture is released immediately and the browser's native vertical scroll takes over. During a horizontal pan the slotted grid's inner `.day-cols-track` elements receive a `transform: translateX(...)`, while the time-column gutter (grid column 1, outside `.day-cols-track`) remains stationary. When the pointer is released, `snapToDay(dx, dayWidthPx, velocity)` (from `pan-math.ts`) computes the day count with a flick-velocity bias (≥500 px/s overcomes the half-column threshold), and `rubberBand(dx, 0)` provides resistance when panning into a disabled direction. The snap-back animation uses the `--lucarne-pan-easing` and `--lucarne-pan-duration` tokens; under `prefers-reduced-motion: reduce`, the transform is applied instantly.
+
 **lucarne-chores-card**
 - No subscriptions — reads `hass.states` reactively via Lit's `@property` mechanism
 - HA pushes state updates over the existing WebSocket; Lovelace propagates them down as prop changes
@@ -64,6 +72,9 @@ src/shared/design-tokens.ts   ← single source of truth
    └─► lucarneStyles (CSSResult)
          └─► imported by every card and component
 ```
+
+See [visible-days.md](visible-days.md) for the `computeVisibleDays` formula, worked examples,
+and the `RollingWindowController` state machine.
 
 ## Blueprints
 

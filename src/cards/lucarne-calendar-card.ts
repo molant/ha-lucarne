@@ -12,6 +12,7 @@ import type { CalendarLayoutResult } from '../shared/calendar-layout.js';
 
 import '../components/visibility-pills.js';
 import '../components/calendar-grid.js';
+import '../components/calendar-day-pan.js';
 import '../components/calendar-event-popover.js';
 import '../components/create-event-popover.js';
 
@@ -101,7 +102,7 @@ export class LucarneCalendarCard extends LitElement {
         overflow: auto;
         max-height: calc(100vh - 280px);
         max-height: calc(100dvh - 280px);
-        touch-action: pan-x pan-y;
+        touch-action: pan-y;
         -webkit-overflow-scrolling: touch;
       }
     `,
@@ -418,15 +419,22 @@ export class LucarneCalendarCard extends LitElement {
           @lucarne-event-tap=${this._onEventTap}
           @lucarne-create-event-tap=${this._onCreateEventTap}
         >
-          <lucarne-calendar-grid
-            .layout=${this._layout}
-            .bandStart=${bandStart}
-            .bandEnd=${bandEnd}
-            .calendars=${resolvedCalendars}
+          <lucarne-calendar-day-pan
             .dayWidthPx=${this._dayWidthPx}
-            .cachedDayKeys=${new Set(this._rolling.cachedRange.map(isoDateKey))}
-            .showCreateButton=${(this._config.show_create_button ?? true) && this._creatableCalendars.length > 0}
-          ></lucarne-calendar-grid>
+            .canPanBack=${this._rolling.canPanBack}
+            .canPanForward=${this._rolling.canPanForward}
+            @pan-snap=${(e: CustomEvent<{ deltaDays: number }>) => this._rolling.pan(-e.detail.deltaDays)}
+          >
+            <lucarne-calendar-grid
+              .layout=${this._layout}
+              .bandStart=${bandStart}
+              .bandEnd=${bandEnd}
+              .calendars=${resolvedCalendars}
+              .dayWidthPx=${this._dayWidthPx}
+              .cachedDayKeys=${new Set(this._rolling.cachedRange.map(isoDateKey))}
+              .showCreateButton=${(this._config.show_create_button ?? true) && this._creatableCalendars.length > 0}
+            ></lucarne-calendar-grid>
+          </lucarne-calendar-day-pan>
         </div>
 
         ${this._openEvent
