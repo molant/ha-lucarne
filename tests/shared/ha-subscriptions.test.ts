@@ -153,6 +153,29 @@ describe('fetchCalendarEvents', () => {
     assert.ok(result.failed.has('calendar.bad'), 'failed entity tracked');
     assert.equal(result.failed.has('calendar.ok'), false, 'successful entity NOT in failed set');
   });
+
+  // Regression guard: an earlier version of this fetcher used
+  // `hass.connection.sendMessagePromise({type: 'call_service', service:
+  // 'calendar.get_events', return_response: true, ...})`. The service-call
+  // response deliberately STRIPS uid from events, which broke delete (no uid
+  // to address the event with). The fix is the REST endpoint
+  // `/api/calendars/<entity>` — see commit `ae86d62f` and the JSDoc on
+  // `fetchCalendarEvents`. This test fails if someone reverts the fetcher
+  // to either the call_service WS path or the `callService` helper.
+  it('regression: uses hass.callApi (REST), NOT callService or sendMessagePromise', async () => {
+    let sendMessageCalls = 0;
+    let callServiceCalls = 0;
+    let callApiCalls = 0;
+    const hass = {
+      callApi: async () => { callApiCalls++; return []; },
+      callService: async () => { callServiceCalls++; },
+      connection: { sendMessagePromise: async () => { sendMessageCalls++; return undefined; } },
+    } as unknown as HomeAssistant;
+    await fetchCalendarEvents(hass, ['calendar.family'], START, END);
+    assert.equal(callApiCalls, 1, 'callApi must be the fetch path (REST endpoint returns uid)');
+    assert.equal(sendMessageCalls, 0, 'sendMessagePromise must NOT be used — HA call_service strips uid');
+    assert.equal(callServiceCalls, 0, 'callService must NOT be used for the same reason');
+  });
 });
 
 describe('deleteCalendarEvent', () => {
@@ -201,6 +224,23 @@ describe('deleteCalendarEvent', () => {
       () => deleteCalendarEvent(stub.hass, 'calendar.family', 'abc-123'),
       /ws command failed/,
     );
+  });
+
+  // Regression guard for the actual bug we shipped: an earlier version of this
+  // helper called `hass.callService('calendar', 'delete_event', ...)`, but
+  // `calendar.delete_event` is NOT a registered HA service (only
+  // `calendar.create_event` and `calendar.get_events` exist — confirmed via
+  // `ha_list_services`). HA's frontend deletes via the
+  // `calendar/event/delete` WebSocket command. This test fails if someone
+  // re-introduces the service-call path.
+  it('regression: does NOT call hass.callService (HA has no calendar.delete_event service)', async () => {
+    let callServiceCalls = 0;
+    const hass = {
+      callService: async () => { callServiceCalls++; },
+      connection: { sendMessagePromise: async () => undefined },
+    } as unknown as HomeAssistant;
+    await deleteCalendarEvent(hass, 'calendar.family', 'abc-123');
+    assert.equal(callServiceCalls, 0, 'callService must not be called — delete is a WS command');
   });
 });
 
