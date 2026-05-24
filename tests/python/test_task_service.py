@@ -5,7 +5,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import pytest
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
@@ -187,3 +189,331 @@ async def test_adult_none_preset_seeds_no_routines(
 
     tasks = await store.async_get_tasks_for_member("ingrid")
     assert len(tasks) == 0
+
+
+# ---------------------------------------------------------------------------
+# Helper shared by Sub-Phase D service tests
+# ---------------------------------------------------------------------------
+
+
+async def _setup_with_member(
+    hass: HomeAssistant,
+    tmp_path: Path,
+    slug: str = "anna",
+    name: str = "Anna",
+) -> tuple[MockConfigEntry, LucarneFamilyStore, Member]:
+    """Boot local_todo + todo, create a member todo entity, register services."""
+    await async_setup_component(hass, "local_todo", {})
+    await async_setup_component(hass, "todo", {})
+    await hass.async_block_till_done()
+
+    result = await hass.config_entries.flow.async_init(
+        "local_todo",
+        context={"source": "user"},
+        data={"todo_list_name": slug},
+    )
+    await hass.async_block_till_done()
+    assert result.get("type") == "create_entry"
+
+    member = Member(
+        slug=slug,
+        name=name,
+        color="#ff0000",
+        avatar=None,
+        created_at=datetime.now(UTC),
+        preset="school-age",
+        todo_entity_id=f"todo.{slug}",
+        streak_counter_id=f"counter.{slug}_streak",
+    )
+
+    entry = _make_entry(hass, members=[member.to_dict()])
+    store = await _make_store(hass, entry.entry_id, tmp_path)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"store": store}
+
+    from custom_components.lucarne_family.task_service import async_setup_services
+    await async_setup_services(hass, entry.entry_id)
+
+    return entry, store, member
+
+
+# ---------------------------------------------------------------------------
+# Sub-Phase D: Task services
+# ---------------------------------------------------------------------------
+
+
+async def test_add_task_creates_todo_item_and_metadata(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """add_task inserts a todo item and a task_metadata row, fires an event."""
+    _entry, store, _ = await _setup_with_member(hass, tmp_path)
+
+    events: list[Any] = []
+    hass.bus.async_listen("lucarne_family_task_added", lambda e: events.append(e))
+
+    await hass.services.async_call(
+        DOMAIN,
+        "add_task",
+        {"member": "anna", "summary": "Make the bed", "type": "routine"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    tasks = await store.async_get_tasks_for_member("anna")
+    assert len(tasks) == 1
+    task = tasks[0]
+    assert task["member_slug"] == "anna"
+    assert task["type"] == "routine"
+    assert task["source"] == "manual"
+
+    assert len(events) == 1
+    assert events[0].data["summary"] == "Make the bed"
+
+
+async def test_add_task_invalid_member_raises(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """add_task with unknown member slug raises ServiceValidationError."""
+    await _setup_with_member(hass, tmp_path)
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "add_task",
+            {"member": "nobody", "summary": "Task"},
+            blocking=True,
+        )
+
+
+async def test_add_task_invalid_rrule_raises(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """add_task with malformed RRULE raises vol.Invalid at schema validation."""
+    from voluptuous import MultipleInvalid
+
+    await _setup_with_member(hass, tmp_path)
+
+    with pytest.raises((ServiceValidationError, MultipleInvalid)):
+        await hass.services.async_call(
+            DOMAIN,
+            "add_task",
+            {"member": "anna", "summary": "Task", "recurrence": "NOTANRRULE"},
+            blocking=True,
+        )
+
+
+async def test_add_task_household_with_assignee(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """add_task with member=household and valid assignee stores correct metadata."""
+    await async_setup_component(hass, "local_todo", {})
+    await async_setup_component(hass, "todo", {})
+    await hass.async_block_till_done()
+
+    # Create member todo entity
+    await hass.config_entries.flow.async_init(
+        "local_todo",
+        context={"source": "user"},
+        data={"todo_list_name": "anna"},
+    )
+    # Create household todo entity
+    await hass.config_entries.flow.async_init(
+        "local_todo",
+        context={"source": "user"},
+        data={"todo_list_name": "lucarne_household"},
+    )
+    await hass.async_block_till_done()
+
+    member = Member(
+        slug="anna",
+        name="Anna",
+        color="#ff0000",
+        avatar=None,
+        created_at=datetime.now(UTC),
+        preset="school-age",
+        todo_entity_id="todo.anna",
+        streak_counter_id="counter.anna_streak",
+    )
+    entry = _make_entry(hass, members=[member.to_dict()])
+    store = await _make_store(hass, entry.entry_id, tmp_path)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"store": store}
+
+    from custom_components.lucarne_family.task_service import async_setup_services
+    await async_setup_services(hass, entry.entry_id)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "add_task",
+        {"member": "household", "summary": "Buy groceries", "assignee": "anna"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    tasks = await store.async_get_tasks_for_member("household")
+    assert len(tasks) == 1
+    assert tasks[0]["member_slug"] == "household"
+    assert tasks[0]["assignee_slug"] == "anna"
+
+
+async def test_add_task_assignee_on_non_household_raises(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """add_task with assignee on a non-household member raises ServiceValidationError."""
+    await _setup_with_member(hass, tmp_path)
+
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN,
+            "add_task",
+            {"member": "anna", "summary": "Task", "assignee": "anna"},
+            blocking=True,
+        )
+
+
+async def test_update_task_metadata_changes_only_specified_fields(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """update_task_metadata updates only the fields present in the call."""
+    _entry, store, _ = await _setup_with_member(hass, tmp_path)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "add_task",
+        {"member": "anna", "summary": "Task", "type": "chore", "icon": "🧹"},
+        blocking=True,
+    )
+    tasks = await store.async_get_tasks_for_member("anna")
+    uid = tasks[0]["item_uid"]
+
+    await hass.services.async_call(
+        DOMAIN,
+        "update_task_metadata",
+        {"uid": uid, "icon": "🏠"},
+        blocking=True,
+    )
+
+    updated = await store.async_get_task_metadata(uid)
+    assert updated is not None
+    assert updated["icon"] == "🏠"
+    assert updated["type"] == "chore"  # unchanged
+
+
+async def test_delete_task_removes_item_and_metadata(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """delete_task removes the todo item and metadata row, leaves completion_log."""
+    _entry, store, _ = await _setup_with_member(hass, tmp_path)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "add_task",
+        {"member": "anna", "summary": "Chore to delete"},
+        blocking=True,
+    )
+    tasks = await store.async_get_tasks_for_member("anna")
+    uid = tasks[0]["item_uid"]
+
+    # Append a log row so we can verify it survives deletion
+    await store.async_append_completion("anna", uid, "Chore to delete", "completed")
+
+    await hass.services.async_call(
+        DOMAIN,
+        "delete_task",
+        {"uid": uid},
+        blocking=True,
+    )
+
+    assert await store.async_get_task_metadata(uid) is None
+    # Log row still present
+
+    def _count_log() -> int:
+        with store._db_connect() as con:
+            return con.execute(
+                "SELECT COUNT(*) FROM completion_log WHERE item_uid = ?", (uid,)
+            ).fetchone()[0]
+
+    count = await hass.async_add_executor_job(_count_log)
+    assert count == 1
+
+
+async def test_toggle_task_flips_status_and_appends_log(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """toggle_task flips status from NEEDS_ACTION → COMPLETED and appends log."""
+    _entry, store, _ = await _setup_with_member(hass, tmp_path)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "add_task",
+        {"member": "anna", "summary": "Brush teeth"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    tasks = await store.async_get_tasks_for_member("anna")
+    uid = tasks[0]["item_uid"]
+
+    await hass.services.async_call(
+        DOMAIN,
+        "toggle_task",
+        {"uid": uid},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    def _get_log() -> list[Any]:
+        with store._db_connect() as con:
+            return con.execute(
+                "SELECT action FROM completion_log WHERE item_uid = ?", (uid,)
+            ).fetchall()
+
+    rows = await hass.async_add_executor_job(_get_log)
+    assert len(rows) == 1
+    assert rows[0][0] == "completed"
+
+
+async def test_toggle_task_twice_uses_undone_action(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """Toggling twice produces 'completed' then 'undone' — matching schema CHECK."""
+    _entry, store, _ = await _setup_with_member(hass, tmp_path)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "add_task",
+        {"member": "anna", "summary": "Brush teeth"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    tasks = await store.async_get_tasks_for_member("anna")
+    uid = tasks[0]["item_uid"]
+
+    # First toggle: NEEDS_ACTION → COMPLETED
+    await hass.services.async_call(DOMAIN, "toggle_task", {"uid": uid}, blocking=True)
+    await hass.async_block_till_done()
+
+    # Second toggle: COMPLETED → NEEDS_ACTION
+    await hass.services.async_call(DOMAIN, "toggle_task", {"uid": uid}, blocking=True)
+    await hass.async_block_till_done()
+
+    def _get_actions() -> list[str]:
+        with store._db_connect() as con:
+            return [
+                row[0]
+                for row in con.execute(
+                    "SELECT action FROM completion_log WHERE item_uid = ? ORDER BY rowid",
+                    (uid,),
+                ).fetchall()
+            ]
+
+    actions = await hass.async_add_executor_job(_get_actions)
+    assert actions == ["completed", "undone"]
