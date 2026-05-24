@@ -45,30 +45,31 @@ export class LucarneCalendarEventPopover extends LitElement {
         z-index: 1;
       }
       .popover-header {
-        display: flex;
-        align-items: flex-start;
-        gap: var(--lucarne-spacing-md);
+        display: grid;
+        grid-template-columns: auto 1fr auto auto;
+        column-gap: var(--lucarne-spacing-md);
+        align-items: center;
         margin-bottom: var(--lucarne-spacing-md);
       }
       .color-dot {
-        width: 12px;
-        height: 12px;
+        width: 14px;
+        height: 14px;
         border-radius: 50%;
         flex-shrink: 0;
-        margin-top: 4px;
       }
       .event-title {
-        font-size: var(--lucarne-fs-lg);
+        font-size: var(--lucarne-fs-xl);
         font-weight: 700;
         color: var(--lucarne-on-surface);
-        line-height: 1.3;
+        line-height: 1.25;
+        min-width: 0;
+        overflow-wrap: anywhere;
       }
-      .close-btn {
-        margin-left: auto;
+      .icon-btn {
         background: none;
         border: none;
         cursor: pointer;
-        font-size: 1.25rem;
+        font-size: 1.5rem;
         color: var(--lucarne-on-surface-muted);
         padding: 4px;
         min-width: 44px;
@@ -77,78 +78,76 @@ export class LucarneCalendarEventPopover extends LitElement {
         align-items: center;
         justify-content: center;
         border-radius: var(--lucarne-radius-sm);
+        line-height: 1;
       }
-      .close-btn:hover {
+      .icon-btn:hover {
         background: rgba(0, 0, 0, 0.06);
+      }
+      .icon-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .icon-btn.armed {
+        background: rgba(198, 40, 40, 0.12);
+      }
+      .confirm-pill {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: var(--lucarne-spacing-sm);
+        background: rgba(198, 40, 40, 0.08);
+        color: #b71c1c;
+        border-radius: var(--lucarne-radius-sm);
+        padding: 8px 12px;
+        font-size: var(--lucarne-fs-md);
+        font-weight: 600;
+        margin-bottom: var(--lucarne-spacing-md);
+      }
+      .confirm-pill .cancel-link {
+        background: none;
+        border: none;
+        color: var(--lucarne-on-surface);
+        font-size: var(--lucarne-fs-md);
+        font-weight: 500;
+        cursor: pointer;
+        text-decoration: underline;
+        padding: 4px 6px;
+        margin-left: auto;
+        min-height: 32px;
+      }
+      .confirm-pill .cancel-link:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
       }
       .detail-row {
         display: flex;
         gap: var(--lucarne-spacing-sm);
-        align-items: flex-start;
+        align-items: center;
         margin-bottom: var(--lucarne-spacing-sm);
-        font-size: var(--lucarne-fs-sm);
+        font-size: var(--lucarne-fs-md);
         color: var(--lucarne-on-surface-muted);
         line-height: 1.4;
       }
       .detail-icon {
         flex-shrink: 0;
         font-style: normal;
-        width: 18px;
+        width: 22px;
         text-align: center;
+        font-size: 1.1em;
       }
       .detail-text {
         color: var(--lucarne-on-surface);
       }
       .calendar-label {
-        font-size: var(--lucarne-fs-sm);
+        font-size: var(--lucarne-fs-md);
         font-weight: 500;
         display: inline-flex;
         align-items: center;
-        gap: 5px;
-      }
-      .ext-link {
-        display: inline-flex;
-        align-items: center;
-        gap: 5px;
-        color: var(--primary-color, #03a9f4);
-        text-decoration: none;
-        font-size: var(--lucarne-fs-sm);
-        margin-top: var(--lucarne-spacing-md);
-        min-height: 44px;
-      }
-      .actions {
-        display: flex;
-        gap: var(--lucarne-spacing-sm);
-        justify-content: flex-start;
-        margin-top: var(--lucarne-spacing-md);
-      }
-      .btn {
-        border: none;
-        border-radius: var(--lucarne-radius-sm);
-        cursor: pointer;
-        font-size: var(--lucarne-fs-sm);
-        padding: 8px 14px;
-        min-height: 44px;
-      }
-      .btn-delete {
-        background: #c62828;
-        color: #fff;
-      }
-      .btn-delete:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-      }
-      .btn-cancel {
-        background: rgba(0, 0, 0, 0.08);
-        color: var(--lucarne-on-surface);
-      }
-      .btn-cancel:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
+        gap: 6px;
       }
       .error-msg {
-        color: #c62828;
-        font-size: var(--lucarne-fs-sm);
+        color: #b71c1c;
+        font-size: var(--lucarne-fs-md);
         margin-top: var(--lucarne-spacing-sm);
       }
     `,
@@ -174,9 +173,8 @@ export class LucarneCalendarEventPopover extends LitElement {
 
   /**
    * Returns true when the uid is a synthetic placeholder (no real upstream
-   * uid available). The HA `calendar/event/delete` WebSocket command and
-   * Google's eventedit URL both require a real uid, so we skip those
-   * affordances for synthetic ids.
+   * uid available). The HA `calendar/event/delete` WebSocket command needs
+   * a real upstream uid, so the trash button is hidden for synthetic ids.
    */
   private _hasSyntheticUid(uid: string | undefined): boolean {
     if (!uid) return true;
@@ -229,20 +227,10 @@ export class LucarneCalendarEventPopover extends LitElement {
       ? 'All day'
       : `${formatDateTime(e.start)} – ${new Date(e.end).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`;
 
-    // Google Calendar deep link. The card prefixes uid as "entity_id::original_uid"
-    // for internal color lookup; strip the prefix to recover the original Google ID.
-    // Skip the link entirely for synthetic / pending uids — those aren't real
-    // Google event ids and the URL would 404.
-    const rawUid = e.uid?.includes('::') ? e.uid.split('::').slice(1).join('::') : e.uid;
-    const synthetic = this._hasSyntheticUid(e.uid);
-    const googleLink =
-      rawUid && rawUid.length > 0 && !synthetic
-        ? `https://calendar.google.com/calendar/u/0/r/eventedit/${encodeURIComponent(rawUid)}`
-        : null;
-
     // Hide Delete when uid is synthetic: the `calendar/event/delete` WS
     // command needs a real upstream uid; calling it with `syn:...` or
     // `pending:...` would fail.
+    const synthetic = this._hasSyntheticUid(e.uid);
     const canDelete = Boolean(this.entityId)
       && Boolean(e.uid)
       && this.hass != null
@@ -250,14 +238,41 @@ export class LucarneCalendarEventPopover extends LitElement {
       && !this._isRecurring(e)
       && !synthetic;
 
+    const trashHandler = this._confirmingDelete ? this._confirmDelete : this._startDelete;
+    const trashLabel = this._confirmingDelete ? 'Confirm delete' : 'Delete event';
+
     return html`
       <div class="backdrop" @click=${this._close}></div>
       <div class="popover" role="dialog" aria-modal="true">
         <div class="popover-header">
           <span class="color-dot" style="background:${this.color}"></span>
           <span class="event-title">${e.summary}</span>
-          <button class="close-btn" @click=${this._close} aria-label="Close">✕</button>
+          ${canDelete
+            ? html`
+                <button
+                  class="icon-btn ${this._confirmingDelete ? 'armed' : ''}"
+                  @click=${trashHandler}
+                  ?disabled=${this._deleting}
+                  aria-label=${trashLabel}
+                  title=${trashLabel}
+                >🗑️</button>
+              `
+            : html`<span></span>`}
+          <button class="icon-btn" @click=${this._close} aria-label="Close">✕</button>
         </div>
+
+        ${this._confirmingDelete
+          ? html`
+              <div class="confirm-pill" role="alert">
+                <span>Tap 🗑️ again to delete this event.</span>
+                <button
+                  class="cancel-link"
+                  @click=${this._cancelDelete}
+                  ?disabled=${this._deleting}
+                >Cancel</button>
+              </div>
+            `
+          : ''}
 
         <div class="detail-row">
           <em class="detail-icon">⏰</em>
@@ -270,7 +285,7 @@ export class LucarneCalendarEventPopover extends LitElement {
                 <em class="detail-icon">📅</em>
                 <span class="calendar-label detail-text">
                   <span
-                    style="width:8px;height:8px;border-radius:50%;background:${this.color};display:inline-block;flex-shrink:0"
+                    style="width:10px;height:10px;border-radius:50%;background:${this.color};display:inline-block;flex-shrink:0"
                   ></span>
                   ${this.calendarLabel}
                 </span>
@@ -296,26 +311,7 @@ export class LucarneCalendarEventPopover extends LitElement {
             `
           : ''}
 
-        ${googleLink
-          ? html`
-              <a class="ext-link" href="${googleLink}" target="_blank" rel="noopener noreferrer">
-                Open in Google Calendar ↗
-              </a>
-            `
-          : ''}
-
         ${this._deleteError ? html`<div class="error-msg">${this._deleteError}</div>` : ''}
-
-        ${canDelete ? html`
-          <div class="actions">
-            ${this._confirmingDelete
-              ? html`
-                  <button class="btn btn-cancel" @click=${this._cancelDelete} ?disabled=${this._deleting}>Cancel</button>
-                  <button class="btn btn-delete" @click=${this._confirmDelete} ?disabled=${this._deleting}>Confirm delete?</button>
-                `
-              : html`<button class="btn btn-delete" @click=${this._startDelete}>Delete</button>`}
-          </div>
-        ` : ''}
       </div>
     `;
   }

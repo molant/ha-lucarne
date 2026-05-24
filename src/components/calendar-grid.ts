@@ -31,6 +31,30 @@ export class LucarneCalendarGrid extends LitElement {
         grid-template-rows: auto auto 1fr;
       }
       /*
+       * Wraps ONLY the row-2 all-day .day-cols-track in a column-2-scoped
+       * overflow:hidden box (issue #3). On iPad Safari the sticky gutter
+       * spacer wasn't reliably stacking above the all-day track's
+       * transform-induced stacking context, so all-day events bled across the
+       * hour column during pan. Clipping at the column boundary fixes it
+       * unconditionally and browser-agnostic.
+       *
+       * Why row 2 only:
+       *  - Row 1 (.day-header) uses position: sticky; top: 0 — an
+       *    overflow:hidden ancestor becomes its scrollport and breaks sticky.
+       *  - Row 3 contains <lucarne-out-of-band-stub> whose backdrop/popover are
+       *    position: fixed. Because .day-cols-track has a transform, it is the
+       *    containing block for those fixed children; clipping it would also
+       *    clip the stub's full-viewport overlay.
+       *  - Row 3's regular events already don't bleed past the gutter (the
+       *    .time-col sticky spacer plus the .day-col isolation: isolate keep
+       *    them stacked correctly).
+       */
+      .day-cols-clip {
+        grid-column: 2;
+        overflow: hidden;
+        min-width: 0;
+      }
+      /*
        * Three .day-cols-track elements — one per outer grid row — so that each
        * outer auto-row is sized by its day-column content (headers, allday cells,
        * time-band cols). All three receive the same translateX during pan.
@@ -46,6 +70,10 @@ export class LucarneCalendarGrid extends LitElement {
        * style during gestures; on snap completion it clears the inline style so
        * this CSS baseline reapplies (the new days then occupy the same screen
        * position as the OLD days at the snap target — visually invisible swap).
+       *
+       * Rows 1 and 3 place the track directly into grid-column 2; row 2 wraps
+       * the track in a .day-cols-clip first (see the .day-cols-clip rule above
+       * for why row 2 needs the wrapper and rows 1 and 3 don't).
        */
       .day-cols-track {
         grid-column: 2;
@@ -54,6 +82,14 @@ export class LucarneCalendarGrid extends LitElement {
         width: calc(var(--lucarne-day-render-count, 7) * var(--lucarne-day-width-px, 140px));
         transform: translateX(var(--lucarne-day-baseline-px, 0px));
         will-change: transform;
+      }
+      /*
+       * Reset grid-column on the inner track when it's inside a clip wrapper —
+       * the wrapper already owns grid-column 2; the track is now a normal block
+       * child of the wrapper, not a grid item.
+       */
+      .day-cols-clip > .day-cols-track {
+        grid-column: auto;
       }
       /* Header row: day names */
       .header-spacer {
@@ -434,11 +470,6 @@ export class LucarneCalendarGrid extends LitElement {
           )}
         </div>
 
-        <!--
-          Three .day-cols-track elements (one per outer grid row) so each outer auto-row
-          is sized by its day content. All three receive the same translateX during pan.
-        -->
-
         <!-- Row 1: day header track -->
         <div class="day-cols-track" style="grid-row:1">
           ${this.layout.days.map(
@@ -454,42 +485,44 @@ export class LucarneCalendarGrid extends LitElement {
           )}
         </div>
 
-        <!-- Row 2: all-day event track -->
-        <div class="day-cols-track" style="grid-row:2">
-          ${this.layout.days.map((day, idx) => {
-            const dayKey = isoDateKey(day);
-            const isCached = this.cachedDayKeys.has(dayKey);
-            const dayLayout = this.layout!.perDay.get(dayKey);
-            return html`
-              <div class="allday-cell" style="grid-column: ${idx + 1}">
-                ${!isCached
-                  ? html`<div class="allday-skeleton"><div class="shimmer-sweep"></div></div>`
-                  : (dayLayout?.allDay ?? []).map(
-                    (event) => {
-                      const clip = dayLayout?.allDayClipped?.get(eventKey(event));
-                      return html`
-                        <div
-                          class="allday-event"
-                          style="background: ${this._eventColor(event)}cc"
-                          @click=${(e: MouseEvent) => {
-                            e.stopPropagation();
-                            this.dispatchEvent(
-                              new CustomEvent('lucarne-event-tap', {
-                                detail: { event, color: this._eventColor(event) },
-                                bubbles: true,
-                                composed: true,
-                              }),
-                            );
-                          }}
-                        >
-                          ${clip?.left ? html`<span class="clip-chevron">‹</span>` : ''}${event.summary}${clip?.right ? html`<span class="clip-chevron">›</span>` : ''}
-                        </div>
-                      `;
-                    },
-                  )}
-              </div>
-            `;
-          })}
+        <!-- Row 2: all-day event track (wrapped in .day-cols-clip — see CSS) -->
+        <div class="day-cols-clip" style="grid-row:2">
+          <div class="day-cols-track">
+            ${this.layout.days.map((day, idx) => {
+              const dayKey = isoDateKey(day);
+              const isCached = this.cachedDayKeys.has(dayKey);
+              const dayLayout = this.layout!.perDay.get(dayKey);
+              return html`
+                <div class="allday-cell" style="grid-column: ${idx + 1}">
+                  ${!isCached
+                    ? html`<div class="allday-skeleton"><div class="shimmer-sweep"></div></div>`
+                    : (dayLayout?.allDay ?? []).map(
+                      (event) => {
+                        const clip = dayLayout?.allDayClipped?.get(eventKey(event));
+                        return html`
+                          <div
+                            class="allday-event"
+                            style="background: ${this._eventColor(event)}cc"
+                            @click=${(e: MouseEvent) => {
+                              e.stopPropagation();
+                              this.dispatchEvent(
+                                new CustomEvent('lucarne-event-tap', {
+                                  detail: { event, color: this._eventColor(event) },
+                                  bubbles: true,
+                                  composed: true,
+                                }),
+                              );
+                            }}
+                          >
+                            ${clip?.left ? html`<span class="clip-chevron">‹</span>` : ''}${event.summary}${clip?.right ? html`<span class="clip-chevron">›</span>` : ''}
+                          </div>
+                        `;
+                      },
+                    )}
+                </div>
+              `;
+            })}
+          </div>
         </div>
 
         <!-- Row 3: time-band columns track -->
