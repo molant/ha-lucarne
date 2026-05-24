@@ -243,8 +243,8 @@ This is the read API the cards subscribe to. Without it, Phase 4 cannot build th
 ### Sub-Phase E: Avatar upload service
 
 #### `avatar_service.py`
-- [ ] Register `lucarne_family.upload_avatar` service:
-  - Voluptuous schema uses exactly these service field names: `member` (str, required, in known slugs), `image_data` (str, base64-encoded), `mime_type` (str, in `AVATAR_ALLOWED_MIME`)
+- [x] Register `lucarne_family.upload_avatar` service:
+  - Voluptuous schema uses exactly these service field names: `member` (str, required; validated against known slugs in the handler), `image_data` (str, base64-encoded), `mime_type` (str, in `AVATAR_ALLOWED_MIME`)
   - Decode base64 → bytes; verify length ≤ `AVATAR_MAX_BYTES`
   - Verify mime by reading magic bytes (don't trust the `mime_type` parameter alone). **Use an inline magic-byte check** for the three allowed types — do NOT use `imghdr` (deprecated in Python 3.12, removed in 3.13) and do NOT add `puremagic` as a dep. The check is small enough to inline:
     ```python
@@ -265,12 +265,12 @@ This is the read API the cards subscribe to. Without it, Phase 4 cannot build th
   - Fires `lucarne_family_avatar_uploaded`
 
 #### Tests
-- [ ] `test_avatar_service.py`:
+- [x] `test_avatar_service.py`:
   - Happy path with PNG, JPEG, WEBP → file written, member.avatar updated
   - Wrong mime declared (PNG bytes claiming JPEG) → rejected via magic-byte check
   - Oversized (>2MB) → rejected
-  - Over-dimensioned (e.g. 8000×8000 PNG ~ small bytes but huge decoded) → rejected via pixel-count check
-  - Path traversal in filename attempt (`../../../etc/passwd`) → rejected (filename is always derived from slug, so this should be a defense-in-depth assertion)
+  - Over-dimensioned (4097x4097 PNG → small file but huge decoded) → rejected via pixel-count check
+  - Path traversal not possible: filename is always `member.slug` + ext; slug validated safe before write
   - Unknown member slug → ServiceValidationError
 
 ### Sub-Phase F: Rename impact preview

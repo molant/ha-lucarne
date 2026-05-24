@@ -43,11 +43,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as exc:
         _LOGGER.warning("Failed to ensure household entity during setup: %s", exc)
 
-    # Register task services and the WebSocket read command.
+    # Register task services, avatar service, and the WebSocket read command.
+    from .avatar_service import async_setup_avatar_service
     from .task_service import async_setup_services
     from .websocket_api import async_register_websocket_commands
 
     await async_setup_services(hass, entry.entry_id)
+    await async_setup_avatar_service(hass, entry.entry_id)
     async_register_websocket_commands(hass)
 
     return True
@@ -65,8 +67,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         k: v for k, v in domain_data.items() if isinstance(v, dict) and "store" in v
     }
     if not remaining_entries:
+        from .avatar_service import async_unload_avatar_service
         from .task_service import async_unload_services
+
         await async_unload_services(hass)
+        await async_unload_avatar_service(hass)
 
     return True
 
