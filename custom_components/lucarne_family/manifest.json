@@ -1,0 +1,11 @@
+{
+  "domain": "lucarne_family",
+  "name": "Lucarne Family",
+  "version": "0.0.0",
+  "config_flow": false,
+  "iot_class": "local_push",
+  "requirements": ["python-dateutil>=2.8"],
+  "codeowners": ["@molant"],
+  "documentation": "https://github.com/molant/ha-lucarne",
+  "issue_tracker": "https://github.com/molant/ha-lucarne/issues"
+}

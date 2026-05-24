@@ -47,32 +47,32 @@ ha-lucarne/
 
 ### Baseline verification (before starting)
 
-- [ ] Run `npm ci && npm run lint && npm run typecheck && npm run build` — all must pass on `main` branch baseline
-- [ ] Run `npm test` (the existing `node:test` suite) — all tests pass
+- [x] Run `npm ci && npm run lint && npm run typecheck && npm run build` — all must pass on `main` branch baseline
+- [x] Run `npm test` (the existing `node:test` suite) — all tests pass
 - [ ] If any baseline fails, fix and commit separately before starting Phase 0 work
 
 ### Sub-Phase A: Python project tooling
 
 #### `pyproject.toml`
-- [ ] Create `pyproject.toml` at repo root using `setuptools` (HA core uses setuptools, so stay consistent)
-- [ ] Project metadata: `name = "lucarne_family"`, `version = "0.0.0"`, `requires-python = ">=3.12"` (verify against the pinned HA version before committing; do not rely on the current calendar date)
-- [ ] Dev dependencies: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component`, `ruff`, `mypy`
-- [ ] Runtime dependencies declared but minimal: `python-dateutil>=2.8` (verify against the pinned HA version whether this is already provided by HA core; list it in `manifest.json` if the custom integration imports it directly)
-- [ ] Configure `ruff`: `target-version = "py312"`, enable `E`, `F`, `W`, `I`, `B`, `UP`, `RUF`. Line length 100.
-- [ ] Configure `mypy`: `strict = true`, ignore missing imports for `homeassistant.*` (typed stubs not always available)
-- [ ] Configure pytest in `[tool.pytest.ini_options]`: `testpaths = ["tests/python"]`, `asyncio_mode = "auto"`, `filterwarnings = ["error::DeprecationWarning:custom_components.lucarne_family"]`
+- [x] Create `pyproject.toml` at repo root using `setuptools` (HA core uses setuptools, so stay consistent)
+- [x] Project metadata: `name = "lucarne_family"`, `version = "0.0.0"`, `requires-python = ">=3.12"` (verify against the pinned HA version before committing; do not rely on the current calendar date)
+- [x] Dev dependencies: `pytest`, `pytest-asyncio`, `pytest-homeassistant-custom-component`, `ruff`, `mypy`
+- [x] Runtime dependencies declared but minimal: `python-dateutil>=2.8` (verify against the pinned HA version whether this is already provided by HA core; list it in `manifest.json` if the custom integration imports it directly)
+- [x] Configure `ruff`: `target-version = "py312"`, enable `E`, `F`, `W`, `I`, `B`, `UP`, `RUF`. Line length 100.
+- [x] Configure `mypy`: `strict = true`, ignore missing imports for `homeassistant.*` (typed stubs not always available)
+- [x] Configure pytest in `[tool.pytest.ini_options]`: `testpaths = ["tests/python"]`, `asyncio_mode = "auto"`, `filterwarnings = ["error::DeprecationWarning:custom_components.lucarne_family"]`
 
 #### Stub integration package
-- [ ] Create `custom_components/lucarne_family/__init__.py` with the minimum signature: `async def async_setup(hass, config): return True`
-- [ ] Create `custom_components/lucarne_family/manifest.json` with `{"domain": "lucarne_family", "name": "Lucarne Family", "version": "0.0.0", "config_flow": false, "iot_class": "local_push", "requirements": ["python-dateutil>=2.8"], "codeowners": ["@molant"], "documentation": "https://github.com/molant/ha-lucarne", "issue_tracker": "https://github.com/molant/ha-lucarne/issues"}`
-- [ ] Note: `config_flow: false` for now — flipped to `true` in Phase 1
+- [x] Create `custom_components/lucarne_family/__init__.py` with the minimum signature: `async def async_setup(hass, config): return True`
+- [x] Create `custom_components/lucarne_family/manifest.json` with `{"domain": "lucarne_family", "name": "Lucarne Family", "version": "0.0.0", "config_flow": false, "iot_class": "local_push", "requirements": ["python-dateutil>=2.8"], "codeowners": ["@molant"], "documentation": "https://github.com/molant/ha-lucarne", "issue_tracker": "https://github.com/molant/ha-lucarne/issues"}`
+- [x] Note: `config_flow: false` for now — flipped to `true` in Phase 1
 
 #### Stub test
-- [ ] Create `tests/python/__init__.py` (empty)
-- [ ] Create `tests/python/conftest.py` with a single autouse fixture that calls `enable_custom_integrations` from `pytest_homeassistant_custom_component.common`
-- [ ] Create `tests/python/test_smoke.py` with one test: `async def test_setup(hass): assert await async_setup_component(hass, "lucarne_family", {})`
-- [ ] Run `pip install -e ".[dev]"` to install dev deps (default to `pip`; see [How implementers should choose Python package manager](#how-implementers-should-choose-python-package-manager) below for the `uv` opt-in). If `pip` resolves no Python on macOS, prefer `python3 -m pip install -e ".[dev]"`.
-- [ ] Run `pytest tests/python` — must pass with one test green
+- [x] Create `tests/python/__init__.py` (empty)
+- [x] Create `tests/python/conftest.py` with a single autouse fixture that calls `enable_custom_integrations` from `pytest_homeassistant_custom_component.common`
+- [x] Create `tests/python/test_smoke.py` with one test: `async def test_setup(hass): assert await async_setup_component(hass, "lucarne_family", {})`
+- [x] Run `pip install -e ".[dev]"` to install dev deps (default to `pip`; see [How implementers should choose Python package manager](#how-implementers-should-choose-python-package-manager) below for the `uv` opt-in). If `pip` resolves no Python on macOS, prefer `python3 -m pip install -e ".[dev]"`.
+- [x] Run `pytest tests/python` — must pass with one test green
 
 ### Sub-Phase B: HACS dual-category + deploy script
 

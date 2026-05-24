@@ -3,3 +3,7 @@ node_modules
 *.log
 .env
 features/**/.implement-state.json
+*.egg-info/
+__pycache__/
+.venv/
+.pytest_cache/
