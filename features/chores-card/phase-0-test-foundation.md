@@ -77,21 +77,21 @@ ha-lucarne/
 ### Sub-Phase B: HACS dual-category + deploy script
 
 #### `hacs.json` update
-- [ ] Read current `hacs.json` first (do not overwrite blindly)
-- [ ] Verify against current HACS publishing docs whether a repo can be both Frontend (plugin) and Integration, and which `hacs.json` fields are required. The frontend category is declared in the existing `hacs.json`; integration distribution also depends on `custom_components/<domain>/manifest.json`. Confirm the exact schema by reading [HACS publishing docs](https://hacs.xyz/docs/publish/integration/) — do not guess.
-- [ ] Update `hacs.json` to declare both Frontend and Integration. The existing file already pins `homeassistant: "2024.1.0"` — keep it (do NOT lower the bar).
-- [ ] Run `npm run build` to confirm cards still bundle correctly
+- [x] Read current `hacs.json` first (do not overwrite blindly)
+- [x] Verify against current HACS publishing docs whether a repo can be both Frontend (plugin) and Integration, and which `hacs.json` fields are required. The frontend category is declared in the existing `hacs.json`; integration distribution also depends on `custom_components/<domain>/manifest.json`. Confirm the exact schema by reading [HACS publishing docs](https://hacs.xyz/docs/publish/integration/) — do not guess.
+- [x] No `hacs.json` change required: HACS has no "categories" field in hacs.json. Plugin validation uses the `filename` key; integration validation reads `custom_components/<domain>/manifest.json`. CI runs the HACS action twice (two jobs) to validate both categories. The existing `homeassistant: "2024.1.0"` pin is preserved.
+- [x] Run `npm run build` to confirm cards still bundle correctly
 
 #### `.github/workflows/hacs.yml` update
-- [ ] Read the current workflow first
-- [ ] HACS validation action takes a `category` input. To validate both: either run the action twice (once with `category: integration`, once with `category: plugin`), or use the multi-category mode if supported. Confirm via [HACS action README](https://github.com/hacs/action) — do not guess.
+- [x] Read the current workflow first
+- [x] HACS validation action takes a `category` input. To validate both: either run the action twice (once with `category: integration`, once with `category: plugin`), or use the multi-category mode if supported. Confirmed no multi-category mode; using two separate jobs.
 - [ ] Confirm both validations pass locally if possible (some HACS validations only run in CI)
 
 #### `scripts/deploy-integration.sh`
-- [ ] Read `scripts/deploy.sh` first to match style + env-var conventions
-- [ ] New script: rsync `custom_components/lucarne_family/` to `${HA_SSH_HOST}:/homeassistant/custom_components/lucarne_family/`
-- [ ] Mark executable (`chmod +x`)
-- [ ] After deploy: optionally call HA's `homeassistant.restart` service via the MCP `ha_restart` tool — but **DO NOT** invoke automatically in the script (destructive in HA terms); print the command for the user to run
+- [x] Read `scripts/deploy.sh` first to match style + env-var conventions
+- [x] New script: rsync `custom_components/lucarne_family/` to `${HA_SSH_HOST}:/homeassistant/custom_components/lucarne_family/`
+- [x] Mark executable (`chmod +x`)
+- [x] After deploy: optionally call HA's `homeassistant.restart` service via the MCP `ha_restart` tool — but **DO NOT** invoke automatically in the script (destructive in HA terms); print the command for the user to run
 
 ### Sub-Phase C: CI integration
 
