@@ -1,6 +1,7 @@
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import type { CalendarLayoutResult } from '../../src/shared/calendar-layout.js';
+import { isoDateKey } from '../../src/shared/calendar-layout.js';
 import type { LucarneCalendarGrid } from '../../src/components/calendar-grid.js';
 
 await import('../../src/components/calendar-grid.js');
@@ -9,11 +10,17 @@ function makeLayout(day: Date): CalendarLayoutResult {
   return {
     days: [day],
     perDay: new Map([
-      [
-        `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`,
-        { allDay: [], inBand: [], earlier: [], later: [] },
-      ],
+      [isoDateKey(day), { allDay: [], inBand: [], earlier: [], later: [] }],
     ]),
+  };
+}
+
+function makeLayoutMulti(days: Date[]): CalendarLayoutResult {
+  return {
+    days,
+    perDay: new Map(
+      days.map((d) => [isoDateKey(d), { allDay: [], inBand: [], earlier: [], later: [] }]),
+    ),
   };
 }
 
@@ -94,5 +101,97 @@ describe('LucarneCalendarGrid — column-2 clip wrapper (issue #3)', () => {
       }
     }
     assert.ok(found, '.day-cols-clip CSS rule must exist with overflow:hidden + grid-column:2');
+  });
+});
+
+describe('LucarneCalendarGrid — single-row day header (issue #5)', () => {
+  // Day header used to stack weekday name above the day number (two text
+  // lines), with the "today" pill only encircling the number. The header is
+  // now a single inline pill where weekday + number share the pill background
+  // when the day is today. When the column gets too narrow the weekday hides.
+  let grid: LucarneCalendarGrid;
+  afterEach(() => grid?.remove());
+
+  // We can't fake Date here without module-mocking calendar-grid's `new Date()`
+  // call, so tests pass today's real date through and rely on isSameDay(day,
+  // new Date()) inside the component.
+  function buildGridWith(days: Date[]): LucarneCalendarGrid {
+    const g = document.createElement('lucarne-calendar-grid') as LucarneCalendarGrid;
+    g.layout = makeLayoutMulti(days);
+    g.cachedDayKeys = new Set(days.map(isoDateKey));
+    g.calendars = [{ entity: 'calendar.family', color: '#a8d8b9' }];
+    document.body.appendChild(g);
+    return g;
+  }
+
+  it('renders weekday + day number as a single inline pill (no stacked rows)', async () => {
+    const today = new Date();
+    grid = buildGridWith([today]);
+    await grid.updateComplete;
+
+    const header = grid.shadowRoot?.querySelector('.day-header') as HTMLElement | null;
+    assert.ok(header, '.day-header should exist');
+    const pill = header.querySelector('.day-pill') as HTMLElement | null;
+    assert.ok(pill, '.day-pill should wrap weekday + number on one row');
+    const weekday = pill.querySelector('.day-weekday');
+    const num = pill.querySelector('.day-num');
+    assert.ok(weekday, '.day-weekday should be inside .day-pill');
+    assert.ok(num, '.day-num should be inside .day-pill');
+    assert.equal(num!.textContent?.trim(), String(today.getDate()));
+  });
+
+  it('today highlight applies to the whole pill, not just the number', async () => {
+    const today = new Date();
+    grid = buildGridWith([today]);
+    await grid.updateComplete;
+
+    // The rendered header for today must carry the `today` class — otherwise
+    // the CSS rule below could exist while runtime logic stopped applying it.
+    const header = grid.shadowRoot?.querySelector('.day-header') as HTMLElement | null;
+    assert.ok(header, '.day-header should exist');
+    assert.ok(
+      header.classList.contains('today'),
+      '.day-header for today\'s date must have the `today` class',
+    );
+
+    const sheets = grid.shadowRoot?.adoptedStyleSheets ?? [];
+    let pillRule: CSSStyleRule | null = null;
+    let numRule: CSSStyleRule | null = null;
+    for (const sheet of sheets) {
+      for (const rule of Array.from(sheet.cssRules) as CSSStyleRule[]) {
+        if (!rule.selectorText) continue;
+        const sels = rule.selectorText.split(',').map((s) => s.trim());
+        if (sels.includes('.day-header.today .day-pill')) pillRule = rule;
+        if (sels.includes('.day-header.today .day-num')) numRule = rule;
+      }
+    }
+    // Asserting the rule's selector exists is the structural guarantee that
+    // matters; happy-dom's CSSOM silently drops `var(..., fallback)` values so
+    // we can't reliably read the background back from .style.* — verified
+    // manually in-browser.
+    assert.ok(pillRule, '.day-header.today .day-pill rule must exist (carries the today pill background)');
+    assert.equal(
+      numRule,
+      null,
+      'today background must no longer be scoped to .day-num alone — it should cover the whole pill',
+    );
+  });
+
+  it('hides .day-weekday in narrow columns via a container query', async () => {
+    const today = new Date();
+    grid = buildGridWith([today]);
+    await grid.updateComplete;
+
+    const sheets = grid.shadowRoot?.adoptedStyleSheets ?? [];
+    let found = false;
+    for (const sheet of sheets) {
+      for (const rule of Array.from(sheet.cssRules)) {
+        const text = rule.cssText ?? '';
+        if (text.includes('@container') && text.includes('.day-weekday') && text.includes('display: none')) {
+          found = true;
+        }
+      }
+    }
+    assert.ok(found, 'a @container rule should hide .day-weekday in narrow columns');
   });
 });
