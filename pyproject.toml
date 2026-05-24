@@ -25,7 +25,7 @@ include = ["custom_components*"]
 exclude = ["src*", "tests*", "dist*", "node_modules*"]
 
 [tool.setuptools.package-data]
-"custom_components.lucarne_family" = ["manifest.json"]
+"custom_components.lucarne_family" = ["manifest.json", "schema.sql", "translations/*.json"]
 
 [tool.ruff]
 target-version = "py312"
