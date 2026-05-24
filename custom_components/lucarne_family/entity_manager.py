@@ -1,0 +1,255 @@
+"""Entity lifecycle manager for the Lucarne Family integration.
+
+Creates, renames, and deletes the managed todo + counter entities
+that back each family member and the shared household list.
+"""
+from __future__ import annotations
+
+import logging
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.entity_registry import async_get as er_get
+
+from .models import Member
+
+_LOGGER = logging.getLogger(__name__)
+
+_HOUSEHOLD_NAME = "Lucarne Household"
+_HOUSEHOLD_ENTITY_ID = "todo.lucarne_household"
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_counter_storage_collection(hass: HomeAssistant):  # type: ignore[return]
+    """Return the counter StorageCollection via the registered WS handler.
+
+    The counter component exposes no direct Python API for creating helpers;
+    we reach the storage collection through the `counter/create` WS handler
+    that HA registers when the counter component loads. The decorators
+    (@require_admin, @async_response) use @functools.wraps so __wrapped__
+    chains back to the bound ws_create_item method whose __self__ carries
+    the storage_collection reference.
+    """
+    ws_handlers: dict = hass.data.get("websocket_api", {})
+    entry = ws_handlers.get("counter/create")
+    if entry is None:
+        raise HomeAssistantError(
+            "counter/create WS handler not found. "
+            "Ensure the counter component is loaded before calling lucarne_family services. "
+            "This integration requires Home Assistant 2024.12 or newer."
+        )
+    handler, _ = entry
+    # Unwrap @require_admin(@async_response(ws_create_item))
+    inner = getattr(handler, "__wrapped__", handler)
+    inner = getattr(inner, "__wrapped__", inner)
+    sc = getattr(getattr(inner, "__self__", None), "storage_collection", None)
+    if sc is None:
+        raise HomeAssistantError(
+            "Cannot access counter storage collection. "
+            "The counter component may not be fully initialised."
+        )
+    return sc
+
+
+async def _create_local_todo(hass: HomeAssistant, name: str) -> ConfigEntry:
+    """Start the local_todo config flow and return the resulting ConfigEntry."""
+    result = await hass.config_entries.flow.async_init(
+        "local_todo",
+        context={"source": "user"},
+        data={"todo_list_name": name},
+    )
+    if result.get("type") != "create_entry":
+        raise HomeAssistantError(
+            f"Failed to create local_todo for {name!r}: flow returned {result.get('type')!r}"
+        )
+    await hass.async_block_till_done()
+    return result["result"]
+
+
+def _find_todo_entity_id(hass: HomeAssistant, config_entry_id: str) -> str | None:
+    """Return the entity_id of the todo entity created by a local_todo config entry."""
+    er = er_get(hass)
+    for entry in er.entities.values():
+        if entry.config_entry_id == config_entry_id and entry.domain == "todo":
+            return entry.entity_id
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+async def async_create_member_entities(
+    hass: HomeAssistant, member: Member
+) -> tuple[str, str]:
+    """Create todo + counter entities for *member*.
+
+    Returns ``(todo_entity_id, counter_entity_id)``.  Both ids use the member's
+    slug so downstream automations and the card config can reference them
+    predictably.  If the canonical entity_id is already taken, raises
+    HomeAssistantError and cleans up any partially-created entities.
+    """
+    canonical_todo_id = f"todo.{member.slug}"
+    canonical_counter_id = f"counter.{member.slug}_streak"
+
+    er = er_get(hass)
+
+    # Guard against collision before creating anything
+    if er.async_get(canonical_todo_id) is not None:
+        raise HomeAssistantError(
+            f"Cannot create {canonical_todo_id}: an entity with this id already exists. "
+            "Delete or rename the conflicting helper before adding this member."
+        )
+
+    # --- Create the todo via local_todo config flow ---
+    todo_entry = await _create_local_todo(hass, member.name)
+
+    actual_todo_id = _find_todo_entity_id(hass, todo_entry.entry_id)
+    if actual_todo_id is None:
+        await hass.config_entries.async_remove(todo_entry.entry_id)
+        raise HomeAssistantError(
+            f"No todo entity found after creating local_todo for {member.name!r}."
+        )
+
+    # Normalize entity_id to canonical slug form
+    if actual_todo_id != canonical_todo_id:
+        try:
+            er.async_update_entity(actual_todo_id, new_entity_id=canonical_todo_id)
+        except Exception as exc:
+            await hass.config_entries.async_remove(todo_entry.entry_id)
+            raise HomeAssistantError(
+                f"Cannot create {canonical_todo_id}: an entity with this id already exists. "
+                "Delete or rename the conflicting helper before adding this member."
+            ) from exc
+
+        # Verify the rename succeeded
+        er_entry = er.async_get(canonical_todo_id)
+        if er_entry is None:
+            await hass.config_entries.async_remove(todo_entry.entry_id)
+            raise HomeAssistantError(
+                f"Cannot create {canonical_todo_id}: rename did not produce the expected id."
+            )
+
+    # --- Create counter via the counter storage collection ---
+    try:
+        sc = _get_counter_storage_collection(hass)
+        item = await sc.async_create_item(
+            {
+                "name": f"{member.slug}_streak",
+                "initial": 0,
+                "step": 1,
+                "minimum": 0,
+                "restore": True,
+            }
+        )
+    except Exception as exc:
+        # Roll back the todo entry so no orphan is left
+        await hass.config_entries.async_remove(todo_entry.entry_id)
+        raise HomeAssistantError(
+            f"Failed to create counter entity for member {member.slug!r}: {exc}"
+        ) from exc
+
+    await hass.async_block_till_done()
+
+    # Verify entity registry assigned the canonical entity_id (not a _2 suffix from collision)
+    registry_counter_id = er.async_get_entity_id("counter", "counter", item["id"])
+    if registry_counter_id != canonical_counter_id:
+        await hass.config_entries.async_remove(todo_entry.entry_id)
+        await sc.async_delete_item(item["id"])
+        raise HomeAssistantError(
+            f"Cannot create {canonical_counter_id}: registry assigned {registry_counter_id!r}. "
+            "Delete or rename the conflicting helper before adding this member."
+        )
+
+    return (canonical_todo_id, canonical_counter_id)
+
+
+async def async_delete_member_entities(
+    hass: HomeAssistant,
+    todo_entity_id: str,
+    counter_entity_id: str,
+) -> None:
+    """Delete the todo config entry and counter helper for a member."""
+    er = er_get(hass)
+
+    # Delete local_todo via its config entry
+    er_todo = er.async_get(todo_entity_id)
+    if er_todo is not None and er_todo.config_entry_id:
+        await hass.config_entries.async_remove(er_todo.config_entry_id)
+    elif er_todo is not None:
+        _LOGGER.warning("todo entity %s has no config_entry_id; skipping config entry removal", todo_entity_id)
+
+    # Delete counter via storage collection — propagate on failure so the caller
+    # knows deletion did not complete and can preserve the member record.
+    er_counter = er.async_get(counter_entity_id)
+    if er_counter is not None:
+        counter_item_id = er_counter.unique_id
+        if counter_item_id:
+            sc = _get_counter_storage_collection(hass)
+            await sc.async_delete_item(counter_item_id)
+
+
+async def async_rename_member_entities(
+    hass: HomeAssistant,
+    old_todo_id: str,
+    new_slug: str,
+    old_counter_id: str,
+) -> tuple[str, str]:
+    """Rename todo + counter entities to reflect a member's new slug.
+
+    Returns ``(new_todo_entity_id, new_counter_entity_id)``.
+    """
+    er = er_get(hass)
+    new_todo_id = f"todo.{new_slug}"
+    new_counter_id = f"counter.{new_slug}_streak"
+
+    er.async_update_entity(old_todo_id, new_entity_id=new_todo_id)
+    er.async_update_entity(old_counter_id, new_entity_id=new_counter_id)
+
+    return (new_todo_id, new_counter_id)
+
+
+async def async_ensure_household_entity(hass: HomeAssistant) -> str:
+    """Ensure ``todo.lucarne_household`` exists, creating it if necessary.
+
+    Returns the entity_id (always ``todo.lucarne_household``).
+    """
+    er = er_get(hass)
+    if er.async_get(_HOUSEHOLD_ENTITY_ID) is not None:
+        return _HOUSEHOLD_ENTITY_ID
+
+    # Check if a local_todo entry for this name already exists (e.g. after a reload)
+    existing = [
+        e
+        for e in hass.config_entries.async_entries("local_todo")
+        if e.data.get("todo_list_name") == _HOUSEHOLD_NAME
+    ]
+    if existing:
+        # Entry exists but entity may not have been registered yet; wait and retry
+        await hass.async_block_till_done()
+        if er.async_get(_HOUSEHOLD_ENTITY_ID) is not None:
+            return _HOUSEHOLD_ENTITY_ID
+
+    todo_entry = await _create_local_todo(hass, _HOUSEHOLD_NAME)
+
+    actual_id = _find_todo_entity_id(hass, todo_entry.entry_id)
+    if actual_id is None:
+        await hass.config_entries.async_remove(todo_entry.entry_id)
+        raise HomeAssistantError("Failed to create todo.lucarne_household entity.")
+
+    if actual_id != _HOUSEHOLD_ENTITY_ID:
+        try:
+            er.async_update_entity(actual_id, new_entity_id=_HOUSEHOLD_ENTITY_ID)
+        except Exception as exc:
+            await hass.config_entries.async_remove(todo_entry.entry_id)
+            raise HomeAssistantError(
+                f"Cannot normalise household entity to {_HOUSEHOLD_ENTITY_ID}: {exc}"
+            ) from exc
+
+    return _HOUSEHOLD_ENTITY_ID

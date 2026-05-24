@@ -49,3 +49,8 @@ pythonpath = ["."]
 filterwarnings = [
     "error::DeprecationWarning:custom_components.lucarne_family",
 ]
+
+[dependency-groups]
+dev = [
+    "ical==8.2.0",
+]

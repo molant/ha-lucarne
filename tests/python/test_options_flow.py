@@ -9,6 +9,7 @@ import pytest
 from homeassistant import data_entry_flow
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from unittest.mock import AsyncMock, patch
 
 from custom_components.lucarne_family.const import (
     CONF_MEMBERS,
@@ -17,6 +18,30 @@ from custom_components.lucarne_family.const import (
     DOMAIN,
 )
 from custom_components.lucarne_family.models import Member
+
+
+@pytest.fixture(autouse=True)
+def _patch_entity_ops():
+    """Stub entity creation/deletion so options-flow tests focus on navigation only."""
+
+    async def _create(hass, member):
+        return (f"todo.{member.slug}", f"counter.{member.slug}_streak")
+
+    with (
+        patch(
+            "custom_components.lucarne_family.entity_manager.async_create_member_entities",
+            side_effect=_create,
+        ),
+        patch(
+            "custom_components.lucarne_family.entity_manager.async_delete_member_entities",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "custom_components.lucarne_family.seed_preset_routines",
+            new_callable=AsyncMock,
+        ),
+    ):
+        yield
 
 
 def _make_entry(
