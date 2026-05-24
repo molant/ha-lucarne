@@ -96,10 +96,10 @@ ha-lucarne/
 ### Sub-Phase C: CI integration
 
 #### Update `.github/workflows/build.yml`
-- [ ] Read the existing workflow first — note the current job runs `npm ci && npm run lint && npm run typecheck && npm run build` but **does not** run `npm test`
-- [ ] Extend the existing `build` job to also run `npm test` after `npm run typecheck` so the TS test suite runs in CI from Phase 0 onward
-- [ ] Add a `python` job: setup-python@v5 with `python-version: "3.12"`, install `pip install -e ".[dev]"`, run `ruff check`, `mypy custom_components/lucarne_family`, `pytest`
-- [ ] Both jobs must pass for the PR check to be green
+- [x] Read the existing workflow first — note the current job runs `npm ci && npm run lint && npm run typecheck && npm run build` but **does not** run `npm test`
+- [x] Extend the existing `build` job to also run `npm test` after `npm run typecheck` so the TS test suite runs in CI from Phase 0 onward
+- [x] Add a `python` job: setup-python@v5 with `python-version: "3.12"`, install `pip install -e ".[dev]"`, run `ruff check`, `mypy custom_components/lucarne_family`, `pytest`
+- [x] Both jobs must pass for the PR check to be green
 
 #### Verify CI runs locally
 - [ ] Push branch, open draft PR, observe both jobs succeed
