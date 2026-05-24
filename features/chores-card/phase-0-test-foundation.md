@@ -110,9 +110,9 @@ ha-lucarne/
 The existing TS test harness only covers helpers (`tests/shared/chore-helpers.test.ts`). Phase 4 will need component-level tests for the rewritten chores card. Add the infrastructure now so Phase 4 is unblocked.
 
 #### Component test harness
-- [ ] Read `tests/components/calendar-event-popover.test.ts` to understand the Lit component test pattern
-- [ ] Confirm `happy-dom` is the DOM impl (see `tests/setup/dom-globals.mjs`)
-- [ ] Create `tests/setup/ha-mock.mjs` exporting a `makeFakeHass()` helper. Re-read `src/shared/types.ts` for the canonical `HomeAssistant` interface shape before writing the mock — it must satisfy:
+- [x] Read `tests/components/calendar-event-popover.test.ts` to understand the Lit component test pattern
+- [x] Confirm `happy-dom` is the DOM impl (see `tests/setup/dom-globals.mjs`)
+- [x] Create `tests/setup/ha-mock.mjs` exporting a `makeFakeHass()` helper. Re-read `src/shared/types.ts` for the canonical `HomeAssistant` interface shape before writing the mock — it must satisfy:
   - `states: Record<string, HassEntity>` (mutable map keyed by entity_id)
   - `connection.subscribeMessage(callback, payload): Promise<() => void>` (returns unsub)
   - `connection.sendMessagePromise(payload): Promise<any>`
@@ -120,9 +120,9 @@ The existing TS test harness only covers helpers (`tests/shared/chore-helpers.te
   - `callApi<T>(method: string, path: string, body?: unknown): Promise<T>`
   - `callService(domain: string, service: string, payload?: object): Promise<unknown>`
   - `callWS<T>(payload: object): Promise<T>` (used by `lucarne_family/get_family` in Phase 4)
-  Each stub records the args it was called with on a public `calls` array per channel (e.g. `fakeHass.calls.callService`, `fakeHass.calls.callWS`) so tests can assert call ordering and payloads. This replaces the hand-rolled mocks in `tests/shared/ha-subscriptions.test.ts`.
-- [ ] Migrate `tests/shared/ha-subscriptions.test.ts` to use `makeFakeHass()` — should be a no-op behaviorally; confirm by running the test
-- [ ] Add `tests/components/lucarne-chores-card.test.ts` placeholder with one skipped test (`test.skip(...)`) that documents the future tests Phase 4 will add. This makes the new file discoverable but doesn't gate Phase 0.
+  Each stub records the args it was called with on a public `calls` array per channel (e.g. `fakeHass.calls.callService`, `fakeHass.calls.callWS`) so tests can assert call ordering and payloads. This replaces the hand-rolled mocks in `tests/shared/ha-subscriptions.test.ts`. TypeScript declarations in `ha-mock.d.mts`.
+- [x] Migrate `tests/shared/ha-subscriptions.test.ts` to use `makeFakeHass()` — should be a no-op behaviorally; confirm by running the test
+- [x] Add `tests/components/lucarne-chores-card.test.ts` placeholder with skipped tests (`test.skip(...)`) that document the future tests Phase 4 will add. This makes the new file discoverable but doesn't gate Phase 0.
 
 ### Documentation (end of phase)
 
