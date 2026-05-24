@@ -1,0 +1,330 @@
+"""Config flow and options flow for the Lucarne Family integration."""
+from __future__ import annotations
+
+import re
+from typing import Any
+
+import voluptuous as vol
+from homeassistant import config_entries
+from homeassistant.core import callback
+
+from .const import (
+    CONF_CUSTOM_PRESETS,
+    CONF_FAMILY_NAME,
+    CONF_MEMBERS,
+    CONF_RESET_TIME,
+    CONF_ROUND_TRIP,
+    CONF_ROUND_TRIP_DEVICE_NAME,
+    CONF_ROUND_TRIP_ENABLED,
+    CONF_ROUND_TRIP_SECRET,
+    CONF_ROUND_TRIP_WEBHOOK_URL,
+    CONF_STREAK_CHECK_TIME,
+    DEFAULT_RESET_TIME,
+    DEFAULT_STREAK_CHECK_TIME,
+    DOMAIN,
+    PRESET_SCHOOL_AGE,
+)
+from .models import Member
+from .presets import BUILTIN_PRESETS
+
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+_TIME_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+
+
+def _make_slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
+def _validate_name(name: str) -> str | None:
+    """Return error key or None."""
+    if not name or not name.strip():
+        return "name_empty"
+    if len(name) > 50:
+        return "name_too_long"
+    return None
+
+
+def _validate_color(color: str) -> str | None:
+    if not _HEX_COLOR_RE.match(color):
+        return "invalid_color"
+    return None
+
+
+def _validate_time(t: str) -> str | None:
+    if not _TIME_RE.match(t):
+        return "invalid_time"
+    return None
+
+
+def _default_entry_data(family_name: str) -> dict[str, Any]:
+    return {
+        CONF_FAMILY_NAME: family_name,
+        CONF_MEMBERS: [],
+        CONF_RESET_TIME: DEFAULT_RESET_TIME,
+        CONF_STREAK_CHECK_TIME: DEFAULT_STREAK_CHECK_TIME,
+        CONF_ROUND_TRIP: {
+            CONF_ROUND_TRIP_ENABLED: False,
+            CONF_ROUND_TRIP_WEBHOOK_URL: "",
+            CONF_ROUND_TRIP_SECRET: "",
+            CONF_ROUND_TRIP_DEVICE_NAME: "Sync device",
+        },
+        CONF_CUSTOM_PRESETS: [],
+    }
+
+
+class LucarneFamilyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle the initial config flow (runs once at install)."""
+
+    VERSION = 1
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            family_name = user_input.get(CONF_FAMILY_NAME, "").strip()
+            err = _validate_name(family_name)
+            if err:
+                errors[CONF_FAMILY_NAME] = err
+            elif self._async_current_entries():
+                errors["base"] = "single_family_only"
+            else:
+                return self.async_create_entry(
+                    title=family_name,
+                    data=_default_entry_data(family_name),
+                )
+
+        schema = vol.Schema(
+            {vol.Required(CONF_FAMILY_NAME, default="Family"): str}
+        )
+        return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> LucarneFamilyOptionsFlow:
+        return LucarneFamilyOptionsFlow(config_entry)
+
+
+class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
+    """Handle ongoing configuration via the Configure button."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self._entry = config_entry
+        self._selected_member_slug: str | None = None
+
+    def _get_members(self) -> list[Member]:
+        raw: list[dict[str, Any]] = self._entry.data.get(CONF_MEMBERS, [])
+        return [Member.from_dict(m) for m in raw]
+
+    async def _save_members(self, members: list[Member]) -> None:
+        new_data = {**self._entry.data, CONF_MEMBERS: [m.to_dict() for m in members]}
+        self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        return self.async_show_menu(
+            step_id="init",
+            menu_options=["manage_members", "edit_schedule"],
+        )
+
+    async def async_step_manage_members(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        members = self._get_members()
+        menu: list[str] = ["add_member"]
+        if members:
+            menu += ["edit_member", "remove_member"]
+        return self.async_show_menu(step_id="manage_members", menu_options=menu)
+
+    async def async_step_add_member(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            name = user_input.get("name", "").strip()
+            color = user_input.get("color", "").strip()
+            avatar = user_input.get("avatar", "").strip() or None
+            preset = user_input.get("preset", PRESET_SCHOOL_AGE)
+
+            err = _validate_name(name)
+            if err:
+                errors["name"] = err
+            color_err = _validate_color(color)
+            if color_err:
+                errors["color"] = color_err
+
+            if not errors:
+                slug = _make_slug(name)
+                if not slug:
+                    errors["name"] = "empty_slug"
+                else:
+                    existing = self._get_members()
+                    if any(m.slug == slug for m in existing):
+                        errors["name"] = "slug_conflict"
+                    else:
+                        from datetime import UTC, datetime
+
+                        new_member = Member(
+                            slug=slug,
+                            name=name,
+                            color=color,
+                            avatar=avatar,
+                            created_at=datetime.now(UTC),
+                            preset=preset,
+                        )
+                        await self._save_members([*existing, new_member])
+                        return await self.async_step_manage_members()
+
+        preset_options = {k: v.display_name for k, v in BUILTIN_PRESETS.items()}
+        schema = vol.Schema(
+            {
+                vol.Required("name"): str,
+                vol.Required("color", default="#4a90e2"): str,
+                vol.Optional("avatar", default=""): str,
+                vol.Required("preset", default=PRESET_SCHOOL_AGE): vol.In(preset_options),
+            }
+        )
+        return self.async_show_form(step_id="add_member", data_schema=schema, errors=errors)
+
+    async def async_step_edit_member(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        errors: dict[str, str] = {}
+        members = self._get_members()
+
+        if user_input is not None:
+            if self._selected_member_slug is None:
+                # First submit: pick the member
+                self._selected_member_slug = user_input.get("member_slug", "")
+                return await self.async_step_edit_member()
+
+            name = user_input.get("name", "").strip()
+            color = user_input.get("color", "").strip()
+            avatar = user_input.get("avatar", "").strip() or None
+            preset = user_input.get("preset", PRESET_SCHOOL_AGE)
+
+            err = _validate_name(name)
+            if err:
+                errors["name"] = err
+            color_err = _validate_color(color)
+            if color_err:
+                errors["color"] = color_err
+
+            if not errors:
+                updated = [
+                    Member(
+                        slug=m.slug,
+                        name=name if m.slug == self._selected_member_slug else m.name,
+                        color=color if m.slug == self._selected_member_slug else m.color,
+                        avatar=avatar if m.slug == self._selected_member_slug else m.avatar,
+                        created_at=m.created_at,
+                        preset=preset if m.slug == self._selected_member_slug else m.preset,
+                        todo_entity_id=m.todo_entity_id,
+                        streak_counter_id=m.streak_counter_id,
+                    )
+                    for m in members
+                ]
+                await self._save_members(updated)
+                self._selected_member_slug = None
+                return await self.async_step_manage_members()
+
+        if self._selected_member_slug is None:
+            # Show member picker
+            member_options = {m.slug: m.name for m in members}
+            schema = vol.Schema({vol.Required("member_slug"): vol.In(member_options)})
+            return self.async_show_form(
+                step_id="edit_member", data_schema=schema, errors=errors
+            )
+
+        target = next((m for m in members if m.slug == self._selected_member_slug), None)
+        if target is None:
+            self._selected_member_slug = None
+            return await self.async_step_manage_members()
+
+        preset_options = {k: v.display_name for k, v in BUILTIN_PRESETS.items()}
+        schema = vol.Schema(
+            {
+                vol.Required("name", default=target.name): str,
+                vol.Required("color", default=target.color): str,
+                vol.Optional("avatar", default=target.avatar or ""): str,
+                vol.Required("preset", default=target.preset): vol.In(preset_options),
+            }
+        )
+        return self.async_show_form(step_id="edit_member", data_schema=schema, errors=errors)
+
+    async def async_step_remove_member(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        errors: dict[str, str] = {}
+        members = self._get_members()
+
+        if user_input is not None:
+            if self._selected_member_slug is None:
+                self._selected_member_slug = user_input.get("member_slug", "")
+                return await self.async_step_remove_member()
+
+            target = next(
+                (m for m in members if m.slug == self._selected_member_slug), None
+            )
+            confirm = user_input.get("confirm_name", "").strip()
+            if target is None or confirm != target.name:
+                errors["confirm_name"] = "confirm_mismatch"
+            else:
+                remaining = [m for m in members if m.slug != self._selected_member_slug]
+                await self._save_members(remaining)
+                self._selected_member_slug = None
+                return await self.async_step_manage_members()
+
+        if self._selected_member_slug is None:
+            member_options = {m.slug: m.name for m in members}
+            schema = vol.Schema({vol.Required("member_slug"): vol.In(member_options)})
+            return self.async_show_form(
+                step_id="remove_member", data_schema=schema, errors=errors
+            )
+
+        schema = vol.Schema({vol.Required("confirm_name"): str})
+        return self.async_show_form(
+            step_id="remove_member", data_schema=schema, errors=errors
+        )
+
+    async def async_step_edit_schedule(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            reset_time = user_input.get(CONF_RESET_TIME, "").strip()
+            streak_time = user_input.get(CONF_STREAK_CHECK_TIME, "").strip()
+
+            err_r = _validate_time(reset_time)
+            if err_r:
+                errors[CONF_RESET_TIME] = err_r
+            err_s = _validate_time(streak_time)
+            if err_s:
+                errors[CONF_STREAK_CHECK_TIME] = err_s
+
+            if not errors:
+                new_data = {
+                    **self._entry.data,
+                    CONF_RESET_TIME: reset_time,
+                    CONF_STREAK_CHECK_TIME: streak_time,
+                }
+                self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+                return self.async_create_entry(title="", data={})
+
+        current_reset = self._entry.data.get(CONF_RESET_TIME, DEFAULT_RESET_TIME)
+        current_streak = self._entry.data.get(CONF_STREAK_CHECK_TIME, DEFAULT_STREAK_CHECK_TIME)
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_RESET_TIME, default=current_reset): str,
+                vol.Required(CONF_STREAK_CHECK_TIME, default=current_streak): str,
+            }
+        )
+        return self.async_show_form(
+            step_id="edit_schedule", data_schema=schema, errors=errors
+        )

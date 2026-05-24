@@ -17,6 +17,7 @@ CONF_ROUND_TRIP_ENABLED = "enabled"
 CONF_ROUND_TRIP_WEBHOOK_URL = "webhook_url"
 CONF_ROUND_TRIP_SECRET = "secret"
 CONF_ROUND_TRIP_DEVICE_NAME = "device_name"
+CONF_CUSTOM_PRESETS = "custom_presets"
 
 # Preset slugs
 PRESET_SCHOOL_AGE = "school-age"
