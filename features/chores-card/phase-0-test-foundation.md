@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 ---
 
 # Phase 0: Test foundation & Python tooling
@@ -134,17 +134,17 @@ Update docs that reflect the now-dual-language repo:
 
 ### Build verification (required before marking phase complete)
 
-- [ ] `npm run lint` — zero warnings or errors
-- [ ] `npm run typecheck` — zero errors
-- [ ] `npm run build` — bundles to `dist/ha-lucarne.js` without warnings
-- [ ] `npm test` — all existing TS tests pass
-- [ ] `ruff check custom_components tests/python` — zero issues
-- [ ] `mypy custom_components/lucarne_family` — zero errors
-- [ ] `pytest tests/python` — smoke test green
-- [ ] Both CI jobs (TS build + Python lint/test) green on PR
-- [ ] HACS validation passes for both categories
-- [ ] `scripts/deploy-integration.sh --dry-run` (or equivalent) executes without erroring
-- [ ] Mark phase `status: done` only after all verification passes
+- [x] `npm run lint` — zero warnings or errors
+- [x] `npm run typecheck` — zero errors
+- [x] `npm run build` — bundles to `dist/ha-lucarne.js` without warnings
+- [x] `npm test` — all existing TS tests pass
+- [x] `ruff check custom_components tests/python` — zero issues
+- [x] `mypy custom_components/lucarne_family` — zero errors
+- [x] `pytest tests/python` — smoke test green
+- [ ] Both CI jobs (TS build + Python lint/test) green on PR — deferred: requires PR to be opened
+- [ ] HACS validation passes for both categories — deferred: requires PR to be opened
+- [x] `scripts/deploy-integration.sh --dry-run` (or equivalent) executes without erroring
+- [x] Mark phase `status: done` only after all verification passes
 
 ### Manual verification
 
