@@ -1,0 +1,352 @@
+"""Tests for the options flow (ongoing member management and schedule edits)."""
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Any
+from unittest.mock import patch
+
+from homeassistant import data_entry_flow
+from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+from custom_components.lucarne_family.const import (
+    CONF_MEMBERS,
+    DEFAULT_RESET_TIME,
+    DEFAULT_STREAK_CHECK_TIME,
+    DOMAIN,
+)
+from custom_components.lucarne_family.models import Member
+
+
+def _make_entry(
+    hass: HomeAssistant, members: list[dict[str, Any]] | None = None
+) -> MockConfigEntry:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Family",
+        data={
+            "family_name": "Family",
+            CONF_MEMBERS: members or [],
+            "reset_time": DEFAULT_RESET_TIME,
+            "streak_check_time": DEFAULT_STREAK_CHECK_TIME,
+            "round_trip": {
+                "enabled": False,
+                "webhook_url": "",
+                "secret": "",
+                "device_name": "Sync device",
+            },
+            "custom_presets": [],
+        },
+    )
+    entry.add_to_hass(hass)
+    return entry
+
+
+async def _setup_entry(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    with patch(
+        "custom_components.lucarne_family.store.LucarneFamilyStore.async_init",
+        return_value=None,
+    ):
+        await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+
+async def _init_options_flow(
+    hass: HomeAssistant, entry: MockConfigEntry
+) -> dict[str, Any]:
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.async_block_till_done()
+    return result  # type: ignore[return-value]
+
+
+async def _configure(
+    hass: HomeAssistant, flow_id: str, user_input: dict[str, Any]
+) -> dict[str, Any]:
+    result = await hass.config_entries.options.async_configure(flow_id, user_input)
+    await hass.async_block_till_done()
+    return result  # type: ignore[return-value]
+
+
+# ---------------------------------------------------------------------------
+# Add member
+# ---------------------------------------------------------------------------
+
+
+async def test_add_member_happy_path(hass: HomeAssistant) -> None:
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "add_member"
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {"name": "Anna", "color": "#f5c89c", "avatar": "🧒", "preset": "school-age"},
+    )
+    # Should return to manage_members menu after success
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "manage_members"
+
+    members = entry.data[CONF_MEMBERS]
+    assert len(members) == 1
+    assert members[0]["slug"] == "anna"
+    assert members[0]["name"] == "Anna"
+    assert members[0]["color"] == "#f5c89c"
+
+
+async def test_add_member_slug_generated_correctly(hass: HomeAssistant) -> None:
+    """Slug is derived from name: lowercase, non-alphanum replaced by underscore."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+
+    await _configure(
+        hass,
+        result["flow_id"],
+        {"name": "Mary Jane", "color": "#aabbcc", "avatar": "", "preset": "toddler"},
+    )
+
+    slug = entry.data[CONF_MEMBERS][0]["slug"]
+    assert slug == "mary_jane"
+
+
+async def test_add_member_slug_conflict(hass: HomeAssistant) -> None:
+    """Two members with names that produce the same slug → error."""
+    anna = Member(
+        slug="anna",
+        name="Anna",
+        color="#f5c89c",
+        avatar=None,
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
+        preset="school-age",
+    )
+    entry = _make_entry(hass, members=[anna.to_dict()])
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {"name": "Anna", "color": "#123456", "avatar": "", "preset": "toddler"},
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert "name" in result["errors"]
+    assert result["errors"]["name"] == "slug_conflict"
+
+    # Original member unchanged
+    assert len(entry.data[CONF_MEMBERS]) == 1
+
+
+async def test_add_member_empty_name_rejected(hass: HomeAssistant) -> None:
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {"name": "", "color": "#f5c89c", "avatar": "", "preset": "school-age"},
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert "name" in result["errors"]
+
+
+async def test_add_member_invalid_color_rejected(hass: HomeAssistant) -> None:
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {"name": "Bob", "color": "notacolor", "avatar": "", "preset": "toddler"},
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert "color" in result["errors"]
+
+
+async def test_add_member_emoji_only_name_produces_empty_slug(hass: HomeAssistant) -> None:
+    """All-emoji name after slug generation → empty_slug error."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {"name": "🎉🎊🥳", "color": "#123456", "avatar": "", "preset": "school-age"},
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["errors"].get("name") == "empty_slug"
+
+
+# ---------------------------------------------------------------------------
+# Edit member
+# ---------------------------------------------------------------------------
+
+
+async def _add_anna(hass: HomeAssistant, entry: MockConfigEntry) -> None:
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+    await _configure(
+        hass,
+        result["flow_id"],
+        {"name": "Anna", "color": "#f5c89c", "avatar": "🧒", "preset": "school-age"},
+    )
+
+
+async def test_edit_member_name_change_preserved(hass: HomeAssistant) -> None:
+    """Editing name is persisted; slug stays the same."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+    await _add_anna(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_member"})
+
+    # Step 1: pick the member
+    result = await _configure(hass, result["flow_id"], {"member_slug": "anna"})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+
+    # Step 2: submit new values
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {"name": "Anna-Maria", "color": "#f5c89c", "avatar": "🧒", "preset": "school-age"},
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+
+    member = entry.data[CONF_MEMBERS][0]
+    assert member["name"] == "Anna-Maria"
+    assert member["slug"] == "anna"  # slug unchanged
+
+
+async def test_edit_member_slug_unchanged_after_rename(hass: HomeAssistant) -> None:
+    """Slug is frozen at creation; editing name must not touch it."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+    await _add_anna(hass, entry)
+
+    original_slug = entry.data[CONF_MEMBERS][0]["slug"]
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_member"})
+    result = await _configure(hass, result["flow_id"], {"member_slug": "anna"})
+    await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "name": "Completely Different Name",
+            "color": "#000000",
+            "avatar": "",
+            "preset": "adult-none",
+        },
+    )
+
+    assert entry.data[CONF_MEMBERS][0]["slug"] == original_slug
+
+
+# ---------------------------------------------------------------------------
+# Remove member
+# ---------------------------------------------------------------------------
+
+
+async def test_remove_member_confirmation_works(hass: HomeAssistant) -> None:
+    """Typing the member's name confirms removal."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+    await _add_anna(hass, entry)
+
+    assert len(entry.data[CONF_MEMBERS]) == 1
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "remove_member"})
+
+    result = await _configure(hass, result["flow_id"], {"member_slug": "anna"})
+    result = await _configure(hass, result["flow_id"], {"confirm_name": "Anna"})
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+
+    assert len(entry.data[CONF_MEMBERS]) == 0
+
+
+async def test_remove_member_wrong_confirmation_rejected(hass: HomeAssistant) -> None:
+    """Wrong confirmation name shows error and does not remove."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+    await _add_anna(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "remove_member"})
+
+    result = await _configure(hass, result["flow_id"], {"member_slug": "anna"})
+    result = await _configure(hass, result["flow_id"], {"confirm_name": "wrong"})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["errors"].get("confirm_name") == "confirm_mismatch"
+
+    assert len(entry.data[CONF_MEMBERS]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Edit schedule
+# ---------------------------------------------------------------------------
+
+
+async def test_edit_schedule_times_saved(hass: HomeAssistant) -> None:
+    """Valid times are persisted to entry.data."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_schedule"})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+
+    result = await _configure(
+        hass, result["flow_id"], {"reset_time": "03:00", "streak_check_time": "20:30"}
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+
+    assert entry.data["reset_time"] == "03:00"
+    assert entry.data["streak_check_time"] == "20:30"
+
+
+async def test_edit_schedule_invalid_time_rejected(hass: HomeAssistant) -> None:
+    """Invalid time format shows an error."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_schedule"})
+
+    result = await _configure(
+        hass, result["flow_id"], {"reset_time": "25:00", "streak_check_time": "21:00"}
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert "reset_time" in result["errors"]
