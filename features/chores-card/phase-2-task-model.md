@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # Phase 2: Managed entities + task model + services
@@ -80,13 +80,13 @@ Anything else (`COUNT=`, `UNTIL=`, `BYSETPOS` other than the monthly-Nth case, `
 ### Sub-Phase B: Store extensions for tasks
 
 #### `store.py` updates
-- [ ] `async def async_add_task_metadata(member_slug, item_uid, type, recurrence, icon, source, apple_uid, assignee_slug="")` — INSERT into task_metadata; executor-wrapped. For tasks stored in `todo.lucarne_household`, `member_slug` MUST be `"household"` and `assignee_slug` MAY be a known member slug or empty.
-- [ ] `async def async_update_task_metadata(item_uid, **fields)` — UPDATE; only allowed fields (`type`, `recurrence`, `icon`, `source`, `apple_uid`, `assignee_slug`)
-- [ ] `async def async_delete_task_metadata(item_uid)` — DELETE from task_metadata (leaves completion_log intact)
-- [ ] `async def async_get_task_metadata(item_uid)` → dict | None
-- [ ] `async def async_get_tasks_for_member(member_slug) -> list[dict]`
-- [ ] `async def async_append_completion(member_slug, item_uid, summary, action, recurrence_at_time)` — INSERT into completion_log
-- [ ] `async def async_get_streak(member_slug, today, recurrence_evaluator) -> int` — compute streak from `completion_log`; this is the authoritative streak calculation. `counter.<slug>_streak` is only a derived mirror written later by the Phase 3 streak-check automation for external automations to query.
+- [x] `async def async_add_task_metadata(member_slug, item_uid, type, recurrence, icon, source, apple_uid, assignee_slug="")` — INSERT into task_metadata; executor-wrapped. For tasks stored in `todo.lucarne_household`, `member_slug` MUST be `"household"` and `assignee_slug` MAY be a known member slug or empty.
+- [x] `async def async_update_task_metadata(item_uid, **fields)` — UPDATE; only allowed fields (`type`, `recurrence`, `icon`, `source`, `apple_uid`, `assignee_slug`)
+- [x] `async def async_delete_task_metadata(item_uid)` — DELETE from task_metadata (leaves completion_log intact)
+- [x] `async def async_get_task_metadata(item_uid)` → dict | None
+- [x] `async def async_get_tasks_for_member(member_slug) -> list[dict]`
+- [x] `async def async_append_completion(member_slug, item_uid, summary, action, recurrence_at_time)` — INSERT into completion_log
+- [x] `async def async_get_streak(member_slug, today, recurrence_evaluator) -> int` — compute streak from `completion_log`; this is the authoritative streak calculation. `counter.<slug>_streak` is only a derived mirror written later by the Phase 3 streak-check automation for external automations to query.
   - **Algorithm contract** (locked — Phase 3 must respect this signature):
     - Walk backward from `today` one day at a time.
     - For each day D, call `recurrence_evaluator(D) -> list[str]` (callable injected by Phase 3 / Phase 2 callers) that returns the list of task UIDs whose `[type:routine]` metadata's RRULE is due on D. The walker has no recurrence knowledge itself — recurrence math lives in `recurrence.py`.
@@ -97,7 +97,7 @@ Anything else (`COUNT=`, `UNTIL=`, `BYSETPOS` other than the monthly-Nth case, `
   - **Limitation acknowledged**: if a member's routine set changed historically (e.g. routine added 30 days ago), the walker uses current metadata to evaluate ALL historical days. This means changing routines can momentarily change historical streak computation. Document this in `docs/integration.md`. Future work could snapshot routine set in `completion_log` at reset time; out of scope for v0.2.
 
 #### Tests
-- [ ] `test_store_tasks.py`:
+- [x] `test_store_tasks.py`:
   - Add task metadata → retrievable
   - Update metadata — only allowed fields change
   - Delete metadata — leaves log rows
@@ -115,41 +115,41 @@ Concrete HA-core files to read first. These paths and APIs must be verified agai
 - `homeassistant/helpers/entity_registry.py` — the rename API is `entity_registry.async_update_entity(entity_id, new_entity_id=...)`. The WS message `config/entity_registry/update` is its public wire form, defined in `homeassistant/components/config/entity_registry.py`.
 
 #### `entity_manager.py`
-- [ ] `async def async_create_member_entities(hass, member: Member) -> tuple[str, str]`:
+- [x] `async def async_create_member_entities(hass, member: Member) -> tuple[str, str]`:
   - Create the member todo by initiating the `local_todo` config flow programmatically: `await hass.config_entries.flow.async_init("local_todo", context={"source": "user"}, data={"name": member.name})`. Wait for the flow to finish (`type == "create_entry"`); read back the actual entity_id from the resulting config entry's `entity_registry` rows. **Do NOT** invent a `local_todo/create` WS message — it does not exist.
   - Immediately normalize the todo entity_id to the canonical slug-derived id. If the actual entity_id is not `todo.<slug>`, call `entity_registry.async_get(hass).async_update_entity(actual_todo_entity_id, new_entity_id=f"todo.{member.slug}")`, then read the registry row back and verify the final entity_id is exactly `todo.<slug>`. This handles display names that diverge from slugs while keeping `member.name` user-facing.
   - Create `counter.<slug>_streak` via the counter component's in-process helper API (`async_create_helper` on the loaded counter component). Initial value 0, step 1, minimum 0. If the helper API is missing, fail with a clear `HomeAssistantError` explaining the HA minimum version mismatch; do not use `counter/create`.
   - **Collision handling**: HA's entity registry will append a numeric suffix (`_2`) if the canonical entity_id is taken, and `async_update_entity(..., new_entity_id=...)` can also fail or suffix on collision. After creation/rename, read the entity_registry to get the final assigned entity_id. If it does NOT equal the expected `todo.<slug>` / `counter.<slug>_streak`: raise a `HomeAssistantError` with a message like `"Cannot create todo.<slug>: an entity with this id already exists. Delete or rename the conflicting helper before adding this member."`, then **clean up the partially-created entity** (call the delete path below before raising) so a retry isn't blocked by orphans. Do NOT silently use the suffixed id — downstream automations and the card config assume the canonical name.
   - Returns `(todo_entity_id, counter_entity_id)`
-- [ ] `async def async_delete_member_entities(hass, todo_entity_id, counter_entity_id)`:
+- [x] `async def async_delete_member_entities(hass, todo_entity_id, counter_entity_id)`:
   - For `todo_entity_id`: look up the owning `local_todo` config entry via `entity_registry.async_get(hass).async_get(todo_entity_id).config_entry_id`, then call `hass.config_entries.async_remove(config_entry_id)`.
   - For `counter_entity_id`: first verify whether the pinned HA counter helper creates a config-entry-backed entity. If it does, remove it through `hass.config_entries.async_remove(config_entry_id)`. If it does not, delete it through the same in-process counter helper storage API family used for creation (for example the paired delete helper on the loaded counter component). Do not invent or call a `counter/delete` WebSocket command.
   - Add a pinned-version compatibility test that proves both deletion paths remove their registry rows and helper storage rows.
-- [ ] `async def async_rename_member_entities(hass, old_todo_id, new_slug, old_counter_id) -> tuple[str, str]`:
+- [x] `async def async_rename_member_entities(hass, old_todo_id, new_slug, old_counter_id) -> tuple[str, str]`:
   - Use `entity_registry.async_get(hass).async_update_entity(old_id, new_entity_id=new_id)` (the public WS form is `config/entity_registry/update` — both routes are acceptable, prefer the in-process call from Python code).
   - Returns the new `(todo_id, counter_id)`.
-- [ ] `async def async_ensure_household_entity(hass) -> str`:
+- [x] `async def async_ensure_household_entity(hass) -> str`:
   - Check the entity registry for `todo.lucarne_household`; if absent, create via the same `local_todo` config-flow init pattern with `name="Lucarne Household"`. Return the entity_id.
 
 #### Wire into `__init__.py` / options flow
-- [ ] After options flow adds a member: call `async_create_member_entities`, store returned entity_ids back into the member's data
-- [ ] After the entities are created for a newly-added member, seed that member's preset routines exactly once:
+- [x] After options flow adds a member: call `async_create_member_entities`, store returned entity_ids back into the member's data
+- [x] After the entities are created for a newly-added member, seed that member's preset routines exactly once:
   - Look up `member.preset` in `BUILTIN_PRESETS` (Phase 1) plus any `entry.data["custom_presets"]` entries added later in Phase 6.
   - For each `RoutineTemplate`, add an item to the member's `todo_entity_id` and insert `task_metadata` with `type="routine"`, `source="template"`, the template `summary`, `icon`, and `recurrence`.
   - If `member.preset == "adult-none"` or `"custom"` with no routines, create no tasks.
   - Do not seed during generic setup reconciliation for existing members; otherwise a reload would duplicate routines. Only seed on the confirmed add-member path after canonical entities have been created.
-- [ ] After options flow removes a member: confirm shows entity deletion impact, then call `async_delete_member_entities`
+- [x] After options flow removes a member: confirm shows entity deletion impact, then call `async_delete_member_entities`
 - [ ] On `async_setup_entry`: after Phase 1's store initialization and `hass.data` stash, ensure household entity exists; reconcile per-member entities (if a member exists in data but their todo entity is missing — recreate; vice versa, orphaned entities → warn but don't auto-delete); then register Phase 2 services and the WebSocket command. Phase 3 replaces this abbreviated setup list with its explicit seven-step order.
 
 #### Tests
-- [ ] `test_entity_manager.py` with `hass` fixture:
+- [x] `test_entity_manager.py` with `hass` fixture:
   - Create → todo and counter entities appear in entity registry
   - Create with display name that would derive a different entity_id than `member.slug` → local_todo is renamed and verified as canonical `todo.<slug>`
   - Delete → entities gone
   - Rename → entity_id changes, history (state via recorder) preserved
   - Household entity creation idempotent
   - Collision: pre-seed a `todo.anna` helper, then try to add member with slug `anna` → raises `HomeAssistantError`, no orphan counter created
-- [ ] `test_task_service.py` or `test_options_flow.py`: adding a member with the `school-age` preset creates one todo item and one `source="template"` metadata row per preset routine; reloading the integration does not duplicate those seeded routines.
+- [x] `test_task_service.py` or `test_options_flow.py`: adding a member with the `school-age` preset creates one todo item and one `source="template"` metadata row per preset routine; reloading the integration does not duplicate those seeded routines.
 
 ### Sub-Phase D: Task services
 

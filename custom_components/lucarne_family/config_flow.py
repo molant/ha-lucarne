@@ -1,8 +1,11 @@
 """Config flow and options flow for the Lucarne Family integration."""
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
+
+_LOGGER = logging.getLogger(__name__)
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -173,6 +176,9 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                     else:
                         from datetime import UTC, datetime
 
+                        from .entity_manager import async_create_member_entities
+                        from .store import LucarneFamilyStore
+
                         new_member = Member(
                             slug=slug,
                             name=name,
@@ -181,8 +187,55 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                             created_at=datetime.now(UTC),
                             preset=preset,
                         )
-                        await self._save_members([*existing, new_member])
-                        return await self.async_step_manage_members()
+
+                        # Create managed entities and record their ids
+                        from homeassistant.exceptions import HomeAssistantError
+
+                        todo_id: str = ""
+                        counter_id: str = ""
+                        try:
+                            todo_id, counter_id = await async_create_member_entities(
+                                self.hass, new_member
+                            )
+                        except HomeAssistantError as exc:
+                            _LOGGER.warning(
+                                "Failed to create entities for member %r: %s", slug, exc
+                            )
+                            errors["base"] = "entity_create_failed"
+                        except Exception as exc:
+                            _LOGGER.exception(
+                                "Unexpected error creating entities for member %r", slug
+                            )
+                            errors["base"] = "entity_create_failed"
+
+                        if not errors:
+                            new_member = Member(
+                                slug=slug,
+                                name=name,
+                                color=color,
+                                avatar=avatar,
+                                created_at=new_member.created_at,
+                                preset=preset,
+                                todo_entity_id=todo_id,
+                                streak_counter_id=counter_id,
+                            )
+                            await self._save_members([*existing, new_member])
+
+                            # Seed preset routines exactly once after entity creation
+                            store: LucarneFamilyStore = self.hass.data[DOMAIN][
+                                self._entry.entry_id
+                            ]["store"]
+                            from . import seed_preset_routines
+
+                            try:
+                                await seed_preset_routines(self.hass, store, new_member)
+                            except Exception as exc:
+                                _LOGGER.warning(
+                                    "Preset seeding failed for member %r: %s; member is still added",
+                                    slug, exc,
+                                )
+
+                            return await self.async_step_manage_members()
 
         preset_options = {k: v.display_name for k, v in BUILTIN_PRESETS.items()}
         schema = vol.Schema(
@@ -279,10 +332,28 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             if target is None or confirm != target.name:
                 errors["confirm_name"] = "confirm_mismatch"
             else:
-                remaining = [m for m in members if m.slug != self._selected_member_slug]
-                await self._save_members(remaining)
-                self._selected_member_slug = None
-                return await self.async_step_manage_members()
+                # Delete entities first; only remove member record when deletion succeeds
+                # so the user can retry via "remove member" if deletion fails.
+                if target.todo_entity_id or target.streak_counter_id:
+                    from .entity_manager import async_delete_member_entities
+
+                    try:
+                        await async_delete_member_entities(
+                            self.hass,
+                            target.todo_entity_id,
+                            target.streak_counter_id,
+                        )
+                    except Exception as exc:
+                        _LOGGER.warning(
+                            "Failed to delete entities for member %r: %s", target.slug, exc
+                        )
+                        errors["base"] = "entity_delete_failed"
+
+                if not errors:
+                    remaining = [m for m in members if m.slug != self._selected_member_slug]
+                    await self._save_members(remaining)
+                    self._selected_member_slug = None
+                    return await self.async_step_manage_members()
 
         if self._selected_member_slug is None:
             member_options = {m.slug: m.name for m in members}

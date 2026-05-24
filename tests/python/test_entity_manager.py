@@ -1,0 +1,256 @@
+"""Tests for entity_manager.py — todo + counter entity lifecycle."""
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.entity_registry import async_get as er_get
+from homeassistant.setup import async_setup_component
+
+from custom_components.lucarne_family.entity_manager import (
+    async_create_member_entities,
+    async_delete_member_entities,
+    async_ensure_household_entity,
+    async_rename_member_entities,
+)
+from custom_components.lucarne_family.models import Member
+
+
+def _make_member(slug: str = "anna", name: str = "Anna") -> Member:
+    return Member(
+        slug=slug,
+        name=name,
+        color="#ff0000",
+        avatar=None,
+        created_at=datetime.now(UTC),
+        preset="school-age",
+    )
+
+
+
+def _mock_counter_storage_collection(hass: HomeAssistant, item_id: str = "anna_streak") -> MagicMock:
+    """Return a mock storage collection that simulates counter creation.
+
+    Registers a fake entry in the entity registry (mirroring what the real counter
+    component does) so that er.async_get_entity_id() can find the new entity.
+    """
+    sc = MagicMock()
+
+    async def _create_item(data: dict):
+        obj_id = data["name"]
+        er_get(hass).async_get_or_create(
+            "counter", "counter", obj_id, suggested_object_id=obj_id
+        )
+        return {"id": obj_id}
+
+    sc.async_create_item = AsyncMock(side_effect=_create_item)
+    sc.async_delete_item = AsyncMock()
+    return sc
+
+
+def _patch_counter_sc(storage_collection: MagicMock):
+    """Patch the entity_manager's _get_counter_storage_collection helper."""
+    return patch(
+        "custom_components.lucarne_family.entity_manager._get_counter_storage_collection",
+        return_value=storage_collection,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Happy-path: create
+# ---------------------------------------------------------------------------
+
+
+async def test_create_member_entities_registers_todo_and_counter(
+    hass: HomeAssistant,
+) -> None:
+    """Creating entities for a member registers todo and counter in entity registry."""
+    await async_setup_component(hass, "local_todo", {})
+    await hass.async_block_till_done()
+
+    member = _make_member()
+    sc = _mock_counter_storage_collection(hass)
+
+    with _patch_counter_sc(sc):
+        todo_id, counter_id = await async_create_member_entities(hass, member)
+
+    assert todo_id == "todo.anna"
+    assert counter_id == "counter.anna_streak"
+
+    er = er_get(hass)
+    assert er.async_get("todo.anna") is not None
+
+    sc.async_create_item.assert_called_once()
+    call_kwargs = sc.async_create_item.call_args[0][0]
+    assert call_kwargs["name"] == "anna_streak"
+    assert call_kwargs["initial"] == 0
+    assert call_kwargs["minimum"] == 0
+
+
+async def test_create_normalizes_entity_id_to_canonical_slug(
+    hass: HomeAssistant,
+) -> None:
+    """If HA assigns a different entity_id, rename it to the canonical slug form."""
+    await async_setup_component(hass, "local_todo", {})
+    await hass.async_block_till_done()
+
+    # Member whose display name would HA-slugify to a different id than member.slug
+    # e.g. "Anna Marie" → HA would create "todo.anna_marie" but we want "todo.anna_marie"
+    # More importantly: slug "anna" but name "ANNA" → local_todo slugifies "ANNA" to "anna"
+    # Use a contrived example: name "Anna-Test" → HA slugify → "anna_test" but slug "anna_test"
+    # Actually we'll use a name that produces a different slug than our member.slug
+    member = Member(
+        slug="annatest",
+        name="Anna-Test",  # HA would create todo.anna_test (with _), slug="annatest" (no _)
+        color="#ff0000",
+        avatar=None,
+        created_at=datetime.now(UTC),
+        preset="school-age",
+    )
+
+    sc = _mock_counter_storage_collection(hass, item_id="annatest_streak")
+
+    with _patch_counter_sc(sc):
+        todo_id, _ = await async_create_member_entities(hass, member)
+
+    assert todo_id == "todo.annatest"
+    er = er_get(hass)
+    assert er.async_get("todo.annatest") is not None
+
+
+# ---------------------------------------------------------------------------
+# Collision handling
+# ---------------------------------------------------------------------------
+
+
+async def test_create_raises_on_todo_collision(
+    hass: HomeAssistant,
+) -> None:
+    """If canonical todo entity_id already exists, raise HomeAssistantError and clean up."""
+    await async_setup_component(hass, "local_todo", {})
+    await hass.async_block_till_done()
+
+    # Pre-seed a todo.anna entry by creating a local_todo with name "anna"
+    first_result = await hass.config_entries.flow.async_init(
+        "local_todo",
+        context={"source": "user"},
+        data={"todo_list_name": "anna"},
+    )
+    await hass.async_block_till_done()
+    assert first_result.get("type") == "create_entry"
+
+    member = _make_member()  # slug="anna"
+    sc = _mock_counter_storage_collection(hass)
+
+    with _patch_counter_sc(sc):
+        with pytest.raises(HomeAssistantError, match="todo.anna"):
+            await async_create_member_entities(hass, member)
+
+    # No orphan counter should have been created
+    sc.async_create_item.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Delete
+# ---------------------------------------------------------------------------
+
+
+async def test_delete_member_entities_removes_todo_and_counter(
+    hass: HomeAssistant,
+) -> None:
+    """Deleting removes both the todo config entry and counter entity."""
+    await async_setup_component(hass, "local_todo", {})
+    await hass.async_block_till_done()
+
+    member = _make_member()
+    sc = _mock_counter_storage_collection(hass)
+
+    with _patch_counter_sc(sc):
+        todo_id, counter_id = await async_create_member_entities(hass, member)
+
+    er = er_get(hass)
+    assert er.async_get(todo_id) is not None
+
+    with _patch_counter_sc(sc):
+        await async_delete_member_entities(hass, todo_id, counter_id)
+
+    await hass.async_block_till_done()
+    assert er.async_get(todo_id) is None
+
+
+# ---------------------------------------------------------------------------
+# Rename
+# ---------------------------------------------------------------------------
+
+
+async def test_rename_member_entities_changes_entity_ids(
+    hass: HomeAssistant,
+) -> None:
+    """Renaming entities updates entity_ids in the entity registry."""
+    await async_setup_component(hass, "local_todo", {})
+    await async_setup_component(hass, "counter", {})
+    await hass.async_block_till_done()
+
+    member = _make_member()
+    sc = _mock_counter_storage_collection(hass)
+
+    with _patch_counter_sc(sc):
+        todo_id, _ = await async_create_member_entities(hass, member)
+
+    er = er_get(hass)
+    assert er.async_get("todo.anna") is not None
+    counter_id = "counter.anna_streak"
+    # The mock already registered the counter entity via _create_item side_effect
+    assert er.async_get(counter_id) is not None
+
+    new_todo_id, new_counter_id = await async_rename_member_entities(
+        hass, todo_id, "anna2", counter_id
+    )
+
+    assert new_todo_id == "todo.anna2"
+    assert new_counter_id == "counter.anna2_streak"
+    assert er.async_get("todo.anna2") is not None
+    assert er.async_get("todo.anna") is None
+
+
+# ---------------------------------------------------------------------------
+# Household entity
+# ---------------------------------------------------------------------------
+
+
+async def test_ensure_household_entity_creates_if_absent(
+    hass: HomeAssistant,
+) -> None:
+    """async_ensure_household_entity creates todo.lucarne_household if not present."""
+    await async_setup_component(hass, "local_todo", {})
+    await hass.async_block_till_done()
+
+    er = er_get(hass)
+    assert er.async_get("todo.lucarne_household") is None
+
+    entity_id = await async_ensure_household_entity(hass)
+
+    assert entity_id == "todo.lucarne_household"
+    assert er.async_get("todo.lucarne_household") is not None
+
+
+async def test_ensure_household_entity_is_idempotent(
+    hass: HomeAssistant,
+) -> None:
+    """Calling async_ensure_household_entity twice doesn't create a second entry."""
+    await async_setup_component(hass, "local_todo", {})
+    await hass.async_block_till_done()
+
+    entity_id1 = await async_ensure_household_entity(hass)
+    entity_id2 = await async_ensure_household_entity(hass)
+
+    assert entity_id1 == entity_id2 == "todo.lucarne_household"
+    # Only one local_todo config entry for lucarne_household should exist
+    entries = hass.config_entries.async_entries("local_todo")
+    household_entries = [
+        e for e in entries if e.data.get("todo_list_name") == "Lucarne Household"
+    ]
+    assert len(household_entries) == 1

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from datetime import UTC, datetime
+from collections.abc import Callable
+from datetime import UTC, date, datetime, timedelta, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -70,3 +71,191 @@ class LucarneFamilyStore:
         entry = self._entry()
         new_data = {**entry.data, CONF_MEMBERS: [m.to_dict() for m in members]}
         self._hass.config_entries.async_update_entry(entry, data=new_data)
+
+    # ------------------------------------------------------------------
+    # Task metadata CRUD (executor-wrapped; touches SQLite only)
+    # ------------------------------------------------------------------
+
+    def _db_connect(self) -> sqlite3.Connection:
+        con = sqlite3.connect(self._db_path)
+        con.row_factory = sqlite3.Row
+        return con
+
+    async def async_add_task_metadata(
+        self,
+        member_slug: str,
+        item_uid: str,
+        type: str,
+        recurrence: str = "",
+        icon: str = "",
+        source: str = "manual",
+        apple_uid: str = "",
+        assignee_slug: str = "",
+    ) -> None:
+        """INSERT a new task_metadata row."""
+
+        def _insert() -> None:
+            with self._db_connect() as con:
+                con.execute(
+                    """
+                    INSERT INTO task_metadata
+                      (item_uid, member_slug, assignee_slug, type, recurrence,
+                       icon, source, apple_uid, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        item_uid, member_slug, assignee_slug, type, recurrence,
+                        icon, source, apple_uid, datetime.now(UTC).isoformat(),
+                    ),
+                )
+
+        await self._hass.async_add_executor_job(_insert)
+
+    async def async_update_task_metadata(self, item_uid: str, **fields: Any) -> None:
+        """UPDATE allowed fields on a task_metadata row."""
+        allowed = {"type", "recurrence", "icon", "source", "apple_uid", "assignee_slug"}
+        updates = {k: v for k, v in fields.items() if k in allowed}
+        if not updates:
+            return
+
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = [*list(updates.values()), item_uid]
+
+        def _update() -> None:
+            with self._db_connect() as con:
+                con.execute(
+                    f"UPDATE task_metadata SET {set_clause} WHERE item_uid = ?",
+                    values,
+                )
+
+        await self._hass.async_add_executor_job(_update)
+
+    async def async_delete_task_metadata(self, item_uid: str) -> None:
+        """DELETE task_metadata row (leaves completion_log intact)."""
+
+        def _delete() -> None:
+            with self._db_connect() as con:
+                con.execute("DELETE FROM task_metadata WHERE item_uid = ?", (item_uid,))
+
+        await self._hass.async_add_executor_job(_delete)
+
+    async def async_get_task_metadata(self, item_uid: str) -> dict[str, Any] | None:
+        """Return task_metadata row as dict, or None if not found."""
+
+        def _get() -> dict[str, Any] | None:
+            with self._db_connect() as con:
+                row = con.execute(
+                    "SELECT * FROM task_metadata WHERE item_uid = ?", (item_uid,)
+                ).fetchone()
+                return dict(row) if row else None
+
+        return await self._hass.async_add_executor_job(_get)
+
+    async def async_get_tasks_for_member(self, member_slug: str) -> list[dict[str, Any]]:
+        """Return all task_metadata rows for `member_slug`."""
+
+        def _get() -> list[dict[str, Any]]:
+            with self._db_connect() as con:
+                rows = con.execute(
+                    "SELECT * FROM task_metadata WHERE member_slug = ?", (member_slug,)
+                ).fetchall()
+                return [dict(r) for r in rows]
+
+        return await self._hass.async_add_executor_job(_get)
+
+    async def async_get_all_task_metadata(self) -> list[dict[str, Any]]:
+        """Return all task_metadata rows (used by the WebSocket get_family command)."""
+
+        def _get() -> list[dict[str, Any]]:
+            with self._db_connect() as con:
+                rows = con.execute("SELECT * FROM task_metadata").fetchall()
+                return [dict(r) for r in rows]
+
+        return await self._hass.async_add_executor_job(_get)
+
+    def get_task_metadata_sync(self, member_slug: str) -> list[dict[str, Any]]:
+        """Sync helper used by make_recurrence_evaluator (called from executor context)."""
+        with self._db_connect() as con:
+            rows = con.execute(
+                "SELECT * FROM task_metadata WHERE member_slug = ?", (member_slug,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Completion log
+    # ------------------------------------------------------------------
+
+    async def async_append_completion(
+        self,
+        member_slug: str,
+        item_uid: str,
+        summary: str,
+        action: str,
+        recurrence_at_time: str = "",
+    ) -> None:
+        """INSERT a completion_log row."""
+
+        def _insert() -> None:
+            with self._db_connect() as con:
+                con.execute(
+                    """
+                    INSERT INTO completion_log
+                      (timestamp, member_slug, item_uid, summary, action, recurrence_at_time)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        datetime.now(UTC).isoformat(),
+                        member_slug, item_uid, summary, action, recurrence_at_time,
+                    ),
+                )
+
+        await self._hass.async_add_executor_job(_insert)
+
+    async def async_get_streak(
+        self,
+        member_slug: str,
+        today: date,
+        recurrence_evaluator: Callable[[date], list[str]],
+        tz: tzinfo | None = None,
+    ) -> int:
+        """Compute the current streak for `member_slug`.
+
+        Walks from `today` backward one day at a time (hard cap: 365 days).
+        `recurrence_evaluator(day)` returns the UIDs of routines expected on
+        that day. Days with no expected routines are skipped. The streak
+        increments for each day where ALL expected routines were completed.
+        `tz` determines the local-day boundaries when querying completion_log
+        (defaults to UTC).
+        """
+        effective_tz = tz if tz is not None else UTC
+
+        def _get_completions(member: str, day: date) -> set[str]:
+            day_start = datetime(day.year, day.month, day.day, tzinfo=effective_tz).astimezone(UTC)
+            next_day = day + timedelta(days=1)
+            day_end = datetime(next_day.year, next_day.month, next_day.day, tzinfo=effective_tz).astimezone(UTC)
+            with self._db_connect() as con:
+                rows = con.execute(
+                    """
+                    SELECT item_uid FROM completion_log
+                    WHERE member_slug = ? AND action = 'completed'
+                      AND timestamp >= ? AND timestamp < ?
+                    """,
+                    (member, day_start.isoformat(), day_end.isoformat()),
+                ).fetchall()
+                return {r[0] for r in rows}
+
+        def _compute() -> int:
+            streak = 0
+            for offset in range(365):
+                current = today - timedelta(days=offset)
+                expected = recurrence_evaluator(current)
+                if not expected:
+                    continue
+                completed = _get_completions(member_slug, current)
+                if all(uid in completed for uid in expected):
+                    streak += 1
+                else:
+                    break
+            return streak
+
+        return await self._hass.async_add_executor_job(_compute)

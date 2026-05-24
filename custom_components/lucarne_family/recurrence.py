@@ -15,13 +15,19 @@ Phasing note for INTERVAL>1 rules (e.g. every 6 months, every other week):
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
+from collections.abc import Callable
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
 from dateutil.rrule import rrule, rrulestr
 
 if TYPE_CHECKING:
+
     from datetime import tzinfo
+
+    from homeassistant.core import HomeAssistant
+
+    from .store import LucarneFamilyStore
 
 # Allowed RRULE patterns (see phase-2-task-model.md Supported RRULE pattern contract).
 # Anything outside this set is rejected by the add_task service.
@@ -190,3 +196,38 @@ def _ordinal_suffix(n: int) -> str:
         return f"{n}th"
     suffixes = {1: "1st", 2: "2nd", 3: "3rd"}
     return suffixes.get(n % 10, f"{n}th")
+
+
+def make_recurrence_evaluator(
+    hass: HomeAssistant,
+    store: LucarneFamilyStore,
+    member_slug: str,
+) -> Callable[[date], list[str]]:
+    """Return a callable that lists routine task UIDs due on a given date.
+
+    The returned function is synchronous (called from executor context by
+    async_get_streak). Metadata and timezone are resolved once at first call
+    and cached for the lifetime of the evaluator (one streak walk).
+    """
+    import zoneinfo as _zoneinfo
+
+    try:
+        local_tz: tzinfo = _zoneinfo.ZoneInfo(str(hass.config.time_zone))
+    except Exception:
+        local_tz = UTC
+
+    _cache: list = []
+    _loaded = False
+
+    def evaluator(day: date) -> list[str]:
+        nonlocal _cache, _loaded
+        if not _loaded:
+            _cache = store.get_task_metadata_sync(member_slug)
+            _loaded = True
+        return [
+            t["item_uid"]
+            for t in _cache
+            if t.get("type") == "routine" and is_due_today(t.get("recurrence", ""), day, local_tz)
+        ]
+
+    return evaluator

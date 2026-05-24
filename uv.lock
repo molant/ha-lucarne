@@ -3154,6 +3154,24 @@ wheels = [
 ]
 
 [[package]]
+name = "ical"
+version = "8.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic", version = "1.10.19", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "pydantic", version = "2.10.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13' and python_full_version < '3.13.2'" },
+    { name = "pydantic", version = "2.12.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13.2' and python_full_version < '3.14.2'" },
+    { name = "pydantic", version = "2.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
+    { name = "pyparsing" },
+    { name = "python-dateutil" },
+    { name = "tzdata" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1a/81/1863ef2e43de9aeee7d57eaef1c3f7c0d188ed9f466a0062ce47757952d3/ical-8.2.0.tar.gz", hash = "sha256:fb65ab62a0dc38fb8fb1a1fce3912ea505873c352b51d5206e3e1253b8416cb8", size = 114331, upload-time = "2024-09-12T05:00:01.954Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/21/f6/f70bf5be07f25fc9b10f25aef772586b3cf1449ce94900c097995a50fcba/ical-8.2.0-py3-none-any.whl", hash = "sha256:f35d7b80dc88f437dca94d19ae3f7cd99b3cc1118a44779a58481697240aa11d", size = 115336, upload-time = "2024-09-12T05:00:00.312Z" },
+]
+
+[[package]]
 name = "icmplib"
 version = "3.0.4"
 source = { registry = "https://pypi.org/simple" }
@@ -3494,6 +3512,11 @@ dev = [
     { name = "ruff" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "ical" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
@@ -3504,6 +3527,9 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "ical", specifier = "==8.2.0" }]
 
 [[package]]
 name = "markupsafe"
@@ -5262,6 +5288,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyparsing"
+version = "3.3.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/91/9c6ee907786a473bf81c5f53cf703ba0957b23ab84c264080fb5a450416f/pyparsing-3.3.2.tar.gz", hash = "sha256:c777f4d763f140633dcb6d8a3eda953bf7a214dc4eff598413c070bcdc117cbc", size = 6851574, upload-time = "2026-01-21T03:57:59.36Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/bd/c038d7cc38edc1aa5bf91ab8068b63d4308c66c4c8bb3cbba7dfbc049f9c/pyparsing-3.3.2-py3-none-any.whl", hash = "sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d", size = 122781, upload-time = "2026-01-21T03:57:55.912Z" },
+]
+
+[[package]]
 name = "pyrfc3339"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -5444,7 +5479,6 @@ resolution-markers = [
 dependencies = [
     { name = "pytest", version = "9.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13.2' and python_full_version < '3.14.2'" },
     { name = "pytest", version = "9.0.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14.2'" },
-    { name = "typing-extensions", marker = "python_version < '0'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/90/2c/8af215c0f776415f3590cac4f9086ccefd6fd463befeae41cd4d3f193e5a/pytest_asyncio-1.3.0.tar.gz", hash = "sha256:d7f52f36d231b80ee124cd216ffb19369aa168fc10095013c6b014a34d3ee9e5", size = 50087, upload-time = "2025-11-10T16:07:47.256Z" }
 wheels = [

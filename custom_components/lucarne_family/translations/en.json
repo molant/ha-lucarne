@@ -74,6 +74,8 @@
       "slug_conflict": "A member with an equivalent name already exists.",
       "empty_slug": "The name produces an empty identifier. Use letters or numbers.",
       "confirm_mismatch": "Name does not match. Removal cancelled.",
+      "entity_create_failed": "Failed to create entities for this member. Check the Home Assistant logs for details.",
+      "entity_delete_failed": "Failed to delete entities for this member. Check the Home Assistant logs, then try again.",
       "invalid_time": "Time must be in HH:MM format (e.g. 04:00)."
     }
   }
