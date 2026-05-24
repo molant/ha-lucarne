@@ -2,6 +2,8 @@ import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { fetchCalendarEvents, deleteCalendarEvent, entitySupportsDelete } from '../../src/shared/ha-subscriptions.js';
 import type { HomeAssistant } from '../../src/shared/types.js';
+import { makeFakeHass } from '../setup/ha-mock.mjs';
+import type { FakeHass } from '../setup/ha-mock.mjs';
 
 // Raw event shape returned by HA's REST endpoint /api/calendars/<entity_id>.
 // Matches Google-Calendar-v3-style nesting for start/end.
@@ -23,16 +25,15 @@ function makeHass(handler: (path: string) => Promise<ApiResult>): {
   hass: HomeAssistant;
   calls: ApiCallRecord[];
 } {
+  const base: FakeHass = makeFakeHass();
   const calls: ApiCallRecord[] = [];
-  const hass = {
-    callApi: async <T,>(method: string, path: string): Promise<T> => {
-      calls.push({ method, path });
-      const result = await handler(path);
-      if (result instanceof Error) throw result;
-      return result as T;
-    },
-  } as unknown as HomeAssistant;
-  return { hass, calls };
+  base.callApi = async (method: string, path: string) => {
+    calls.push({ method, path });
+    const result = await handler(path);
+    if (result instanceof Error) throw result;
+    return result;
+  };
+  return { hass: base as unknown as HomeAssistant, calls };
 }
 
 const START = new Date('2026-05-18T00:00:00Z');
@@ -163,15 +164,14 @@ describe('fetchCalendarEvents', () => {
   // `fetchCalendarEvents`. This test fails if someone reverts the fetcher
   // to either the call_service WS path or the `callService` helper.
   it('regression: uses hass.callApi (REST), NOT callService or sendMessagePromise', async () => {
+    let callApiCalls = 0;
     let sendMessageCalls = 0;
     let callServiceCalls = 0;
-    let callApiCalls = 0;
-    const hass = {
-      callApi: async () => { callApiCalls++; return []; },
-      callService: async () => { callServiceCalls++; },
-      connection: { sendMessagePromise: async () => { sendMessageCalls++; return undefined; } },
-    } as unknown as HomeAssistant;
-    await fetchCalendarEvents(hass, ['calendar.family'], START, END);
+    const base: FakeHass = makeFakeHass();
+    base.callApi = async () => { callApiCalls++; return []; };
+    base.callService = async () => { callServiceCalls++; };
+    base.connection.sendMessagePromise = async () => { sendMessageCalls++; return undefined; };
+    await fetchCalendarEvents(base as unknown as HomeAssistant, ['calendar.family'], START, END);
     assert.equal(callApiCalls, 1, 'callApi must be the fetch path (REST endpoint returns uid)');
     assert.equal(sendMessageCalls, 0, 'sendMessagePromise must NOT be used — HA call_service strips uid');
     assert.equal(callServiceCalls, 0, 'callService must NOT be used for the same reason');
@@ -184,17 +184,19 @@ describe('deleteCalendarEvent', () => {
     msgs: Array<Record<string, unknown>>;
     rejectNext: boolean;
   } {
+    const base: FakeHass = makeFakeHass();
     const msgs: Array<Record<string, unknown>> = [];
     let rejectNext = false;
-    const hass = {
-      connection: {
-        sendMessagePromise: async (msg: Record<string, unknown>) => {
-          msgs.push(msg);
-          if (rejectNext) throw new Error('ws command failed');
-        },
-      },
-    } as unknown as HomeAssistant;
-    return { hass, msgs, get rejectNext() { return rejectNext; }, set rejectNext(v) { rejectNext = v; } };
+    base.connection.sendMessagePromise = async (msg: unknown) => {
+      msgs.push(msg as Record<string, unknown>);
+      if (rejectNext) throw new Error('ws command failed');
+    };
+    return {
+      hass: base as unknown as HomeAssistant,
+      msgs,
+      get rejectNext() { return rejectNext; },
+      set rejectNext(v) { rejectNext = v; },
+    };
   }
 
   it('sends calendar/event/delete WebSocket command with uid and entity_id', async () => {
@@ -235,24 +237,22 @@ describe('deleteCalendarEvent', () => {
   // re-introduces the service-call path.
   it('regression: does NOT call hass.callService (HA has no calendar.delete_event service)', async () => {
     let callServiceCalls = 0;
-    const hass = {
-      callService: async () => { callServiceCalls++; },
-      connection: { sendMessagePromise: async () => undefined },
-    } as unknown as HomeAssistant;
-    await deleteCalendarEvent(hass, 'calendar.family', 'abc-123');
+    const base: FakeHass = makeFakeHass();
+    base.callService = async () => { callServiceCalls++; };
+    base.connection.sendMessagePromise = async () => undefined;
+    await deleteCalendarEvent(base as unknown as HomeAssistant, 'calendar.family', 'abc-123');
     assert.equal(callServiceCalls, 0, 'callService must not be called — delete is a WS command');
   });
 });
 
 describe('entitySupportsDelete', () => {
   function makeStateHass(entityId: string, supportedFeatures: unknown): HomeAssistant {
-    return {
-      states: {
-        [entityId]: {
-          attributes: { supported_features: supportedFeatures },
-        },
-      },
-    } as unknown as HomeAssistant;
+    const base: FakeHass = makeFakeHass();
+    // Cast through unknown to allow non-number values (e.g. 'yes') in negative test cases.
+    base.states[entityId] = {
+      attributes: { supported_features: supportedFeatures },
+    } as unknown as import('home-assistant-js-websocket').HassEntity;
+    return base as unknown as HomeAssistant;
   }
 
   it('returns true when supported_features includes bit 2 (DELETE)', () => {
@@ -281,7 +281,7 @@ describe('entitySupportsDelete', () => {
   });
 
   it('returns false when entity does not exist in hass.states', () => {
-    const hass = { states: {} } as unknown as HomeAssistant;
-    assert.equal(entitySupportsDelete(hass, 'calendar.missing'), false);
+    const base: FakeHass = makeFakeHass();
+    assert.equal(entitySupportsDelete(base as unknown as HomeAssistant, 'calendar.missing'), false);
   });
 });
