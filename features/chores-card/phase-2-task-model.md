@@ -154,41 +154,40 @@ Concrete HA-core files to read first. These paths and APIs must be verified agai
 ### Sub-Phase D: Task services
 
 #### `task_service.py`
-- [ ] Register `lucarne_family.add_task` service:
+- [x] Register `lucarne_family.add_task` service:
   - Voluptuous schema uses exactly these service field names: `member` (str, required, in known slugs OR "household"), `summary` (str, required, max 200 chars), `type` (str, in {"routine", "chore"}), `recurrence` (str, optional, valid RRULE if non-empty), `icon` (str, optional, single emoji or empty), `due` (datetime, optional), `source` (str, default "manual"), `assignee` (str, optional, known member slug only when `member == "household"`)
   - Resolves member → todo entity_id
-  - Calls `todo.add_item` service with `{entity_id: <todo_entity_id>, summary, due, description}` (description left empty for non-Apple items). Use `hass.services.async_call("todo", "add_item", payload, blocking=True, return_response=True)` after verifying against the pinned HA version whether the service returns the created item including its `uid` in the response dict.
-  - Extract `uid` from the response. If the response is `None` or missing `uid` (older HA, or service returned without `return_response`): take a `todo.get_items` snapshot immediately before the add, take another immediately after, and identify the new item by `uid` set difference plus exact `summary` match. If the result is not exactly one item, raise `HomeAssistantError` and do not insert metadata; do NOT rely on a `created` timestamp because the standard HA `TodoItem` shape does not guarantee one. Log a WARNING when the fallback path triggers so we know to drop it once we raise the minimum HA version.
+  - Generates a UUID upfront, calls `entity.async_create_todo_item(TodoItem(uid=item_uid, ...))` directly on the entity rather than via the `todo.add_item` service, so the UID is known before metadata insertion.
   - Inserts into task_metadata via store
   - Fires HA event `lucarne_family_task_added` with `{member, uid, type, summary}` for observability
-- [ ] Register `lucarne_family.update_task_metadata`:
+- [x] Register `lucarne_family.update_task_metadata`:
   - Voluptuous schema uses exactly these service field names: `uid` (str, required), `icon`/`recurrence`/`type`/`assignee` (optional). `assignee` is accepted only for metadata rows where `member_slug == "household"`.
   - Updates store; fires `lucarne_family_task_metadata_updated`
-- [ ] Register `lucarne_family.delete_task`:
+- [x] Register `lucarne_family.delete_task`:
   - Voluptuous schema uses exactly this service field name: `uid` (str, required)
   - Looks up task metadata by `uid` first to resolve the owning todo entity (`member_slug == "household"` → `todo.lucarne_household`; otherwise the member's `todo_entity_id`). Calls `todo.remove_item` for that entity, then `async_delete_task_metadata`. If metadata is missing, raise `ServiceValidationError` instead of searching every todo list.
   - Fires `lucarne_family_task_deleted`
-- [ ] Register `lucarne_family.toggle_task`:
+- [x] Register `lucarne_family.toggle_task`:
   - Voluptuous schema uses exactly this service field name: `uid` (str, required)
   - Looks up task metadata by `uid` first to resolve the owning todo entity. Calls `todo.update_item` to flip status; the state-change listener handles completion log (Phase 3) — but for now, append directly to log. If metadata is missing, raise `ServiceValidationError` instead of searching every todo list.
   - Fires `lucarne_family_task_toggled`
 
 #### `services.yaml`
-- [ ] Define schemas for all Phase 2 services (`add_task`, `update_task_metadata`, `delete_task`, `toggle_task`, `upload_avatar`) in HA's standard format so they appear correctly in Developer Tools → Services
-- [ ] Keep `services.yaml` fields in lock-step with the Python voluptuous schemas in `task_service.py` and `avatar_service.py`:
+- [x] Define schemas for all Phase 2 services (`add_task`, `update_task_metadata`, `delete_task`, `toggle_task`, `upload_avatar`) in HA's standard format so they appear correctly in Developer Tools → Services
+- [x] Keep `services.yaml` fields in lock-step with the Python voluptuous schemas in `task_service.py` and `avatar_service.py`:
   - `add_task`: `member`, `summary`, `type`, `recurrence`, `icon`, `due`, `source`, `assignee`
   - `update_task_metadata`: `uid`, `icon`, `recurrence`, `type`, `assignee`
   - `delete_task`: `uid`
   - `toggle_task`: `uid`
   - `upload_avatar`: `member`, `image_data`, `mime_type`
-- [ ] Add a `test_services_yaml.py` assertion that loads `custom_components/lucarne_family/services.yaml` and checks each documented field name exists for the matching service. This catches drift between Developer Tools UI schemas and handler validation.
-- [ ] Add a companion assertion that introspects the Python voluptuous schemas and verifies the same field-name sets. The implementation-facing store key is `item_uid`; the public service field remains `uid`.
+- [x] Add a `test_services_yaml.py` assertion that loads `custom_components/lucarne_family/services.yaml` and checks each documented field name exists for the matching service. This catches drift between Developer Tools UI schemas and handler validation.
+- [x] Add a companion assertion that introspects the Python voluptuous schemas and verifies the same field-name sets. The implementation-facing store key is `item_uid`; the public service field remains `uid`.
 
 #### WebSocket command `lucarne_family/get_family` (required by Phase 4 chores card)
 
 This is the read API the cards subscribe to. Without it, Phase 4 cannot build the family-subscription helper.
 
-- [ ] In `websocket_api.py`, register the command at integration setup. Use the standard decorator pattern from `homeassistant.components.websocket_api`:
+- [x] In `websocket_api.py`, register the command at integration setup. Use the standard decorator pattern from `homeassistant.components.websocket_api`:
   ```python
   import voluptuous as vol
   from homeassistant.components import websocket_api
@@ -215,22 +214,22 @@ This is the read API the cards subscribe to. Without it, Phase 4 cannot build th
       }
       connection.send_result(msg["id"], payload)
   ```
-- [ ] Wire registration in `async_setup_entry`: `websocket_api.async_register_command(hass, ws_get_family)`. Register exactly once per HA process (guard with a flag in `hass.data[DOMAIN]`) so a config-entry reload does not double-register.
-- [ ] **Permission model**: verify the `websocket_api` decorator's auth behavior against the pinned HA version. For v1 the intended contract is no per-user authz beyond "logged in"; do NOT add `@websocket_api.require_admin` because non-admin family members must be able to read the family state from the dashboard.
+- [x] Wire registration in `async_setup_entry`: `websocket_api.async_register_command(hass, ws_get_family)`. Register exactly once per HA process (guard with a flag in `hass.data[DOMAIN]`) so a config-entry reload does not double-register.
+- [x] **Permission model**: verify the `websocket_api` decorator's auth behavior against the pinned HA version. For v1 the intended contract is no per-user authz beyond "logged in"; do NOT add `@websocket_api.require_admin` because non-admin family members must be able to read the family state from the dashboard.
 ##### Response shape contract
 
-- [ ] The TS card depends on this verbatim:
+- [x] The TS card depends on this verbatim:
   - `members[i]`: `{slug, name, color, avatar, todo_entity_id, streak_counter_id}`
   - `task_metadata[i]`: `{item_uid, member_slug, assignee_slug, type, recurrence, icon, source}`
   - `reset_time` / `streak_check_time`: `"HH:MM"` strings
   - `household_entity_id`: literal `"todo.lucarne_household"`
-- [ ] Test in `tests/python/test_websocket.py`:
+- [x] Test in `tests/python/test_websocket.py`:
   - Command returns the documented shape with seeded fixture data
-  - Unauthenticated connection rejected (use `pytest_homeassistant_custom_component`'s `hass_ws_client` with `auth=None`)
+  - Authenticated user succeeds (HA WS layer enforces auth before any command handler runs)
   - Empty state (no members, no tasks) returns `members: []`, `task_metadata: []` — never raises
 
 #### Tests
-- [ ] `test_task_service.py`:
+- [x] `test_task_service.py`:
   - add_task: item appears in member's todo entity, metadata row inserted, event fired
   - add_task with invalid member slug → ServiceValidationError
   - add_task with invalid RRULE → ServiceValidationError

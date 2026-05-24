@@ -35,6 +35,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
 
+    # Ensure the shared household todo entity exists.
+    from .entity_manager import async_ensure_household_entity
+
+    try:
+        await async_ensure_household_entity(hass)
+    except Exception as exc:
+        _LOGGER.warning("Failed to ensure household entity during setup: %s", exc)
+
+    # Register task services and the WebSocket read command.
+    from .task_service import async_setup_services
+    from .websocket_api import async_register_websocket_commands
+
+    await async_setup_services(hass, entry.entry_id)
+    async_register_websocket_commands(hass)
+
     return True
 
 
@@ -44,6 +59,15 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry_data = domain_data.pop(entry.entry_id, None)
     if entry_data:
         await entry_data["store"].async_close()
+
+    # Unload services when the last entry is removed.
+    remaining_entries = {
+        k: v for k, v in domain_data.items() if isinstance(v, dict) and "store" in v
+    }
+    if not remaining_entries:
+        from .task_service import async_unload_services
+        await async_unload_services(hass)
+
     return True
 
 

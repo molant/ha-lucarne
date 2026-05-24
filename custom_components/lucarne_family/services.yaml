@@ -1,0 +1,143 @@
+add_task:
+  name: Add Task
+  description: Add a task to a family member's or household todo list.
+  fields:
+    member:
+      name: Member
+      description: Family member slug, or "household" for the shared list.
+      required: true
+      selector:
+        text:
+    summary:
+      name: Summary
+      description: Task title (max 200 characters).
+      required: true
+      selector:
+        text:
+    type:
+      name: Type
+      description: Task type.
+      default: chore
+      selector:
+        select:
+          options:
+            - value: routine
+              label: Routine
+            - value: chore
+              label: Chore
+    recurrence:
+      name: Recurrence
+      description: >-
+        RRULE string (e.g. FREQ=WEEKLY;BYDAY=MO,WE,FR).
+        Leave empty for a one-off task.
+      selector:
+        text:
+    icon:
+      name: Icon
+      description: Single emoji icon.
+      selector:
+        text:
+    due:
+      name: Due
+      description: Optional due date/time.
+      selector:
+        datetime:
+    source:
+      name: Source
+      description: Creation source (default "manual").
+      default: manual
+      selector:
+        text:
+    assignee:
+      name: Assignee
+      description: Member slug to assign (household tasks only).
+      selector:
+        text:
+
+update_task_metadata:
+  name: Update Task Metadata
+  description: Update metadata fields on an existing task.
+  fields:
+    uid:
+      name: UID
+      description: The task's unique identifier.
+      required: true
+      selector:
+        text:
+    icon:
+      name: Icon
+      description: New emoji icon.
+      selector:
+        text:
+    recurrence:
+      name: Recurrence
+      description: New RRULE string.
+      selector:
+        text:
+    type:
+      name: Type
+      description: New task type.
+      selector:
+        select:
+          options:
+            - value: routine
+              label: Routine
+            - value: chore
+              label: Chore
+    assignee:
+      name: Assignee
+      description: New assignee member slug (household tasks only).
+      selector:
+        text:
+
+delete_task:
+  name: Delete Task
+  description: Delete a task and its metadata. Completion log rows are preserved.
+  fields:
+    uid:
+      name: UID
+      description: The task's unique identifier.
+      required: true
+      selector:
+        text:
+
+toggle_task:
+  name: Toggle Task
+  description: Toggle a task's completion status and append a completion log entry.
+  fields:
+    uid:
+      name: UID
+      description: The task's unique identifier.
+      required: true
+      selector:
+        text:
+
+upload_avatar:
+  name: Upload Avatar
+  description: Upload a member's avatar image.
+  fields:
+    member:
+      name: Member
+      description: Family member slug.
+      required: true
+      selector:
+        text:
+    image_data:
+      name: Image Data
+      description: Base64-encoded image bytes.
+      required: true
+      selector:
+        text:
+    mime_type:
+      name: MIME Type
+      description: Image MIME type.
+      required: true
+      selector:
+        select:
+          options:
+            - value: image/png
+              label: PNG
+            - value: image/jpeg
+              label: JPEG
+            - value: image/webp
+              label: WebP
