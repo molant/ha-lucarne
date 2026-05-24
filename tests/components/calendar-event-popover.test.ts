@@ -62,58 +62,66 @@ function shadowQueryAll(el: LucarneCalendarEventPopover, selector: string): Elem
 // Tests
 // ---------------------------------------------------------------------------
 
+// Selector helpers. The delete affordance is an icon button in the header with
+// aria-label "Delete event" (initial) or "Confirm delete" (armed). The Cancel
+// affordance is a `.cancel-link` inside the `.confirm-pill` that appears once
+// the trash is armed.
+const DELETE_BTN = 'button[aria-label="Delete event"]';
+const CONFIRM_BTN = 'button[aria-label="Confirm delete"]';
+const CANCEL_LINK = '.confirm-pill .cancel-link';
+
 describe('LucarneCalendarEventPopover — Delete button visibility', () => {
   let el: LucarneCalendarEventPopover;
 
   afterEach(() => el?.remove());
 
-  it('renders Delete button when entity supports delete and event is non-recurring', async () => {
+  it('renders trash button when entity supports delete and event is non-recurring', async () => {
     el = makeEl({ hass: makeHass(3) }); // bits 1+2 set: CREATE+DELETE
     await el.updateComplete;
-    const btn = shadowQuery(el, '.btn-delete');
-    assert.ok(btn, 'Delete button should be rendered');
-    assert.equal(btn!.textContent?.trim(), 'Delete');
+    const btn = shadowQuery(el, DELETE_BTN);
+    assert.ok(btn, 'Trash button should be rendered');
+    assert.match(btn!.textContent ?? '', /🗑/);
   });
 
-  it('does NOT render Delete button when entity does not support delete', async () => {
+  it('does NOT render trash button when entity does not support delete', async () => {
     el = makeEl({ hass: makeHass(5) }); // bits 1+4: CREATE+UPDATE, no DELETE
     await el.updateComplete;
-    assert.equal(shadowQuery(el, '.btn-delete'), null);
+    assert.equal(shadowQuery(el, DELETE_BTN), null);
   });
 
-  it('does NOT render Delete button when supported_features is missing', async () => {
+  it('does NOT render trash button when supported_features is missing', async () => {
     el = makeEl({ hass: makeHass(undefined) });
     await el.updateComplete;
-    assert.equal(shadowQuery(el, '.btn-delete'), null);
+    assert.equal(shadowQuery(el, DELETE_BTN), null);
   });
 
   // For the sad-path tests below, supported_features is set to 3 (CREATE+DELETE)
-  // so the only thing blocking the Delete button is the named guard
-  // (entityId / uid / rrule / recurrence_id). The Delete-button render gate is
-  // a logical AND: any one of these guards is enough to hide the button.
+  // so the only thing blocking the trash button is the named guard
+  // (entityId / uid / rrule / recurrence_id). The render gate is a logical AND:
+  // any one of these guards is enough to hide the button.
 
-  it('does NOT render Delete button when entityId is empty', async () => {
+  it('does NOT render trash button when entityId is empty', async () => {
     el = makeEl({ entityId: '', hass: makeHass(3) });
     await el.updateComplete;
-    assert.equal(shadowQuery(el, '.btn-delete'), null);
+    assert.equal(shadowQuery(el, DELETE_BTN), null);
   });
 
-  it('does NOT render Delete button when event has no uid', async () => {
+  it('does NOT render trash button when event has no uid', async () => {
     el = makeEl({ event: makeEvent({ uid: undefined }), hass: makeHass(3) });
     await el.updateComplete;
-    assert.equal(shadowQuery(el, '.btn-delete'), null);
+    assert.equal(shadowQuery(el, DELETE_BTN), null);
   });
 
-  it('does NOT render Delete button when event has rrule (recurring)', async () => {
+  it('does NOT render trash button when event has rrule (recurring)', async () => {
     el = makeEl({ event: makeEvent({ rrule: 'FREQ=WEEKLY' }), hass: makeHass(3) });
     await el.updateComplete;
-    assert.equal(shadowQuery(el, '.btn-delete'), null);
+    assert.equal(shadowQuery(el, DELETE_BTN), null);
   });
 
-  it('does NOT render Delete button when event has recurrence_id (recurring instance)', async () => {
+  it('does NOT render trash button when event has recurrence_id (recurring instance)', async () => {
     el = makeEl({ event: makeEvent({ recurrence_id: '2026-05-25T14:00:00' }), hass: makeHass(3) });
     await el.updateComplete;
-    assert.equal(shadowQuery(el, '.btn-delete'), null);
+    assert.equal(shadowQuery(el, DELETE_BTN), null);
   });
 });
 
@@ -122,47 +130,47 @@ describe('LucarneCalendarEventPopover — Delete confirm flow', () => {
 
   afterEach(() => el?.remove());
 
-  it('first Delete tap shows confirm state: "Confirm delete?" button + Cancel button', async () => {
+  it('first trash tap arms confirm: trash relabels + Cancel pill appears', async () => {
     el = makeEl({ hass: makeHass(3) });
     await el.updateComplete;
 
-    const deleteBtn = shadowQuery(el, '.btn-delete') as HTMLButtonElement;
-    deleteBtn.click();
+    (shadowQuery(el, DELETE_BTN) as HTMLButtonElement).click();
     await el.updateComplete;
 
-    const confirmBtn = shadowQuery(el, '.btn-delete') as HTMLButtonElement;
-    const cancelBtn = shadowQuery(el, '.btn-cancel') as HTMLButtonElement;
-    assert.ok(confirmBtn, 'Confirm delete button should be present');
-    assert.equal(confirmBtn.textContent?.trim(), 'Confirm delete?');
-    assert.ok(cancelBtn, 'Cancel button should be present');
+    const confirmBtn = shadowQuery(el, CONFIRM_BTN) as HTMLButtonElement;
+    const cancelBtn = shadowQuery(el, CANCEL_LINK) as HTMLButtonElement;
+    assert.ok(confirmBtn, 'trash should relabel to "Confirm delete"');
+    assert.ok(cancelBtn, 'Cancel link should be present in confirm pill');
     assert.equal(cancelBtn.textContent?.trim(), 'Cancel');
+    // Trash button should pick up the `armed` class for visual feedback.
+    assert.ok(confirmBtn.classList.contains('armed'), 'trash should have .armed class');
   });
 
   it('Cancel tap returns to non-confirm state', async () => {
     el = makeEl({ hass: makeHass(3) });
     await el.updateComplete;
 
-    (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
+    (shadowQuery(el, DELETE_BTN) as HTMLButtonElement).click();
     await el.updateComplete;
 
-    (shadowQuery(el, '.btn-cancel') as HTMLButtonElement).click();
+    (shadowQuery(el, CANCEL_LINK) as HTMLButtonElement).click();
     await el.updateComplete;
 
-    const deleteBtn = shadowQuery(el, '.btn-delete') as HTMLButtonElement;
+    const deleteBtn = shadowQuery(el, DELETE_BTN) as HTMLButtonElement;
     assert.ok(deleteBtn, 'Delete button should be back');
-    assert.equal(deleteBtn.textContent?.trim(), 'Delete');
-    assert.equal(shadowQuery(el, '.btn-cancel'), null);
+    assert.equal(shadowQuery(el, CANCEL_LINK), null);
+    assert.equal(shadowQuery(el, '.confirm-pill'), null);
   });
 
-  it('second Delete tap (Confirm delete?) dispatches lucarne-event-deleted with entityId and uid', async () => {
+  it('second trash tap (Confirm delete) dispatches lucarne-event-deleted with entityId and uid', async () => {
     const events: CustomEvent[] = [];
     el = makeEl({ hass: makeHass(3) });
     el.addEventListener('lucarne-event-deleted', (e) => events.push(e as CustomEvent));
     await el.updateComplete;
 
-    (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
+    (shadowQuery(el, DELETE_BTN) as HTMLButtonElement).click();
     await el.updateComplete;
-    (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
+    (shadowQuery(el, CONFIRM_BTN) as HTMLButtonElement).click();
     await el.updateComplete;
     // Wait for async _confirmDelete to complete
     await new Promise((r) => setTimeout(r, 10));
@@ -181,9 +189,9 @@ describe('LucarneCalendarEventPopover — Delete confirm flow', () => {
     el = makeEl({ hass });
     await el.updateComplete;
 
-    (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
+    (shadowQuery(el, DELETE_BTN) as HTMLButtonElement).click();
     await el.updateComplete;
-    (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
+    (shadowQuery(el, CONFIRM_BTN) as HTMLButtonElement).click();
     await new Promise((r) => setTimeout(r, 10));
 
     assert.equal(msgs.length, 1);
@@ -207,9 +215,9 @@ describe('LucarneCalendarEventPopover — Delete error path', () => {
     el.addEventListener('lucarne-event-deleted', (e) => events.push(e as CustomEvent));
     await el.updateComplete;
 
-    (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
+    (shadowQuery(el, DELETE_BTN) as HTMLButtonElement).click();
     await el.updateComplete;
-    (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
+    (shadowQuery(el, CONFIRM_BTN) as HTMLButtonElement).click();
     await new Promise((r) => setTimeout(r, 10));
     await el.updateComplete;
 
@@ -221,7 +229,7 @@ describe('LucarneCalendarEventPopover — Delete error path', () => {
     assert.ok(shadowQuery(el, '.popover'), 'popover should still be open');
   });
 
-  it('error is cleared when Delete is tapped again after an error', async () => {
+  it('error is cleared when trash is tapped again after an error', async () => {
     let fail = true;
     const hass = makeHass(3);
     (hass as unknown as { connection: { sendMessagePromise: () => Promise<unknown> } })
@@ -233,18 +241,53 @@ describe('LucarneCalendarEventPopover — Delete error path', () => {
     await el.updateComplete;
 
     // First attempt — fails
-    (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
+    (shadowQuery(el, DELETE_BTN) as HTMLButtonElement).click();
     await el.updateComplete;
-    (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
+    (shadowQuery(el, CONFIRM_BTN) as HTMLButtonElement).click();
     await new Promise((r) => setTimeout(r, 10));
     await el.updateComplete;
     assert.ok(shadowQuery(el, '.error-msg'), 'error should appear');
 
-    // Tap Delete again to start a new attempt
+    // Tap trash again to start a new attempt
     fail = false;
-    (shadowQuery(el, '.btn-delete') as HTMLButtonElement).click();
+    (shadowQuery(el, DELETE_BTN) as HTMLButtonElement).click();
     await el.updateComplete;
     assert.equal(shadowQuery(el, '.error-msg'), null, 'error should be cleared on new attempt');
+  });
+});
+
+describe('LucarneCalendarEventPopover — header layout', () => {
+  let el: LucarneCalendarEventPopover;
+
+  afterEach(() => el?.remove());
+
+  it('header places title between color dot and the icon buttons', async () => {
+    el = makeEl({ hass: makeHass(3) });
+    await el.updateComplete;
+
+    const header = shadowQuery(el, '.popover-header') as HTMLElement;
+    assert.ok(header, 'popover-header should be present');
+    const children = Array.from(header.children) as HTMLElement[];
+    // Expect: [color-dot, event-title, trash icon-btn, close icon-btn]
+    assert.equal(children.length, 4, 'header should have 4 grid cells');
+    assert.ok(children[0].classList.contains('color-dot'));
+    assert.ok(children[1].classList.contains('event-title'));
+    assert.equal(children[2].getAttribute('aria-label'), 'Delete event');
+    assert.equal(children[3].getAttribute('aria-label'), 'Close');
+  });
+
+  it('keeps Close button as rightmost cell even when trash is hidden (no delete support)', async () => {
+    el = makeEl({ hass: makeHass(undefined) });
+    await el.updateComplete;
+
+    const header = shadowQuery(el, '.popover-header') as HTMLElement;
+    const children = Array.from(header.children) as HTMLElement[];
+    // Header still has 4 cells; the trash slot is an empty placeholder span
+    // so the grid keeps its `auto 1fr auto auto` shape and the Close button
+    // stays anchored to the right edge.
+    assert.equal(children.length, 4);
+    const close = children[3] as HTMLButtonElement;
+    assert.equal(close.getAttribute('aria-label'), 'Close');
   });
 });
 

@@ -32,6 +32,11 @@
 
 - `lucarne-calendar-card` — `week_starts_on` config option is silently ignored — the rolling window has no week start. The field is still accepted in YAML so old configs load without errors.
 
+### Fixed
+
+- `lucarne-calendar-card` — event-detail modal: header is now a 4-cell grid (dot · title · 🗑️ · ✕) so the title and close button sit on the same baseline; the bottom "Delete" button moves into the header as a 🗑️ icon with an inline "Tap 🗑️ again to delete" confirm pill; detail rows use a larger font. The non-functional "Open in Google Calendar" link was removed — it 404'd in practice and added no value in the wall-iPad context (issue #2).
+- `lucarne-calendar-card` — all-day events no longer paint over the hour-column gutter while the user swipes between days on iPad Safari. The row-2 (all-day) day-columns track is now wrapped in a column-2-scoped `overflow: hidden` clip so the transformed track cannot bleed across the gutter regardless of sticky/transform stacking quirks. Rows 1 (day headers, `position: sticky`) and 3 (which hosts `<lucarne-out-of-band-stub>` with `position: fixed` overlays) are intentionally not wrapped, since clipping them would re-parent the sticky scrollport or cut off the fixed overlay (issue #3).
+
 ## v0.1.0 — Initial release
 
 Three custom Lovelace cards, an Apple Reminders sync bridge, and three automation blueprints — all

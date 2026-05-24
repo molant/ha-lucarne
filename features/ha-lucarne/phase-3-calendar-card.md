@@ -171,9 +171,9 @@ Goal: card renders the week view, with visibility pills + tap-to-detail. No crea
 
 #### B.6 Event popover
 
-- [x] Create `src/components/calendar-event-popover.ts`. Shows event summary, time range, calendar (with color dot), description, location, "Open in Google Calendar" link (deep link `https://calendar.google.com/calendar/u/0/r/eventedit/<uid>` — only shown when the original HA event uid is non-empty).
+- [x] Create `src/components/calendar-event-popover.ts`. Shows event summary, time range, calendar (with color dot), description, location. (The earlier "Open in Google Calendar" deep link was removed post-v1 — the `eventedit/<uid>` URL 404'd for HA-surfaced uids in practice, see issue #2.)
 - [x] Tap outside → close.
-- [x] Edit + delete actions: out of v1 scope. `ha_list_services` confirmed: `calendar.create_event` is the only write action; `update_event`/`delete_event` not available. For v1, popover is read-only with the external link.
+- [x] Edit + delete actions: out of v1 scope. `ha_list_services` confirmed: `calendar.create_event` is the only write action; `update_event`/`delete_event` not available. (The Delete affordance arrived later via the `calendar/event/delete` WS command — see Unreleased section of CHANGELOG.)
 
 #### B.7 Out-of-band stub popover
 
@@ -306,13 +306,14 @@ function assignLanes(events: TimedEvent[]): TimedEvent[] {
 ```
 Note: `laneCount` is set to `lanes.length` AT THE TIME of assignment but the final laneCount needs to be the max across all events. A second pass fixes this: take `Math.max(...events.map(e => e.lane)) + 1` and apply to all.
 
-### Calendar event deep-link to Google
+### Calendar event deep-link to Google (removed)
 
-Google Calendar events have a base64-encoded `id` field. The deep link format:
-```
-https://calendar.google.com/calendar/u/0/r/eventedit/<id>
-```
-Verify HA's `calendar/list_events` response includes the Google `id` (it may be in `uid` field instead). If not present, skip the deep link.
+The original v1 plan included an "Open in Google Calendar" deep link
+(`https://calendar.google.com/calendar/u/0/r/eventedit/<id>`). In practice the
+URL 404'd for HA-surfaced uids (the uid the HA Google Calendar integration
+exposes isn't the same base64 `id` Google's eventedit endpoint expects), so the
+affordance was removed in the issue-#2 follow-up. The popover no longer renders
+an external link.
 
 ## Constraints
 
