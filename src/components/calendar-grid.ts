@@ -105,7 +105,7 @@ export class LucarneCalendarGrid extends LitElement {
       }
       .day-header {
         text-align: center;
-        padding: var(--lucarne-spacing-sm) 2px;
+        padding: var(--lucarne-spacing-xs) 2px;
         font-size: var(--lucarne-fs-sm);
         font-weight: 700;
         color: var(--lucarne-on-surface-muted);
@@ -115,21 +115,40 @@ export class LucarneCalendarGrid extends LitElement {
         top: 0;
         z-index: 3;
         background: var(--lucarne-surface);
+        /* Container query target: lets the @container rule below hide the
+           weekday when the column itself becomes too narrow. inline-size
+           queries the header's inline width, which equals --lucarne-day-width-px. */
+        container-type: inline-size;
+      }
+      .day-header .day-pill {
+        display: inline-flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        line-height: 1.1;
+        max-width: 100%;
+      }
+      .day-header .day-weekday {
+        font-size: var(--lucarne-fs-sm);
+        font-weight: 600;
       }
       .day-header .day-num {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
         font-size: var(--lucarne-fs-md);
         font-weight: 700;
-        margin-top: 2px;
       }
-      .day-header.today .day-num {
+      .day-header.today .day-pill {
         background: var(--primary-color, #03a9f4);
         color: #fff;
+      }
+      /* Narrow column: drop the weekday name so the day number still fits
+         comfortably inside the pill. 70px ≈ enough for "30" with padding;
+         below that "Sun 30" wraps or overflows. */
+      @container (max-width: 70px) {
+        .day-header .day-weekday {
+          display: none;
+        }
       }
       /* All-day row */
       .allday-spacer {
@@ -478,8 +497,10 @@ export class LucarneCalendarGrid extends LitElement {
                 class="day-header ${isSameDay(day, now) ? 'today' : ''}"
                 style="grid-column: ${idx + 1}"
               >
-                <div>${weekdayFmt.format(day)}</div>
-                <div class="day-num">${day.getDate()}</div>
+                <div class="day-pill">
+                  <span class="day-weekday">${weekdayFmt.format(day)}</span>
+                  <span class="day-num">${day.getDate()}</span>
+                </div>
               </div>
             `,
           )}
