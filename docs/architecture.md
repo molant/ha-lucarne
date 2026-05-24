@@ -75,6 +75,12 @@ src/shared/design-tokens.ts   ← single source of truth
 See [visible-days.md](visible-days.md) for the `computeVisibleDays` formula, worked examples,
 and the `RollingWindowController` state machine.
 
+## Custom integration (Phase 1+)
+
+This repo now ships both a **Frontend** (Lovelace card pack, `dist/ha-lucarne.js`) and an **Integration** (`custom_components/lucarne_family/`). The integration will own family members, task metadata, managed entities (`todo.<slug>`, `counter.<slug>_streak`), and managed automations. Cards will become thin views that call integration services. Phase 0 establishes the Python toolchain and stub; full implementation begins in Phase 1.
+
+See [features/chores-card/README.md](../features/chores-card/README.md) for the full design.
+
 ## Blueprints
 
 Three automations ship as blueprints under `blueprints/automation/`:
