@@ -1,0 +1,80 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Lucarne Family",
+        "data": {
+          "family_name": "Family name"
+        }
+      }
+    },
+    "error": {
+      "single_family_only": "Only one Lucarne Family integration can be installed.",
+      "name_empty": "Family name must not be empty.",
+      "name_too_long": "Family name must be 50 characters or fewer."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Lucarne Family options",
+        "menu_options": {
+          "manage_members": "Manage members",
+          "edit_schedule": "Edit schedule",
+          "edit_round_trip": "Edit round-trip (reserved)"
+        }
+      },
+      "manage_members": {
+        "title": "Manage members",
+        "menu_options": {
+          "add_member": "Add member",
+          "edit_member": "Edit member",
+          "remove_member": "Remove member"
+        }
+      },
+      "add_member": {
+        "title": "Add member",
+        "data": {
+          "name": "Name",
+          "color": "Color (hex, e.g. #f5c89c)",
+          "avatar": "Avatar (emoji or path)",
+          "preset": "Routine preset"
+        }
+      },
+      "edit_member": {
+        "title": "Edit member",
+        "data": {
+          "member_slug": "Member to edit",
+          "name": "Name",
+          "color": "Color (hex, e.g. #f5c89c)",
+          "avatar": "Avatar (emoji or path)",
+          "preset": "Routine preset"
+        }
+      },
+      "remove_member": {
+        "title": "Remove member",
+        "description": "Type the member's name to confirm removal.",
+        "data": {
+          "member_slug": "Member to remove",
+          "confirm_name": "Member name"
+        }
+      },
+      "edit_schedule": {
+        "title": "Edit schedule",
+        "data": {
+          "reset_time": "Daily reset time (HH:MM)",
+          "streak_check_time": "Streak check time (HH:MM)"
+        }
+      }
+    },
+    "error": {
+      "name_empty": "Name must not be empty.",
+      "name_too_long": "Name must be 50 characters or fewer.",
+      "invalid_color": "Color must be a valid hex color (e.g. #f5c89c).",
+      "slug_conflict": "A member with an equivalent name already exists.",
+      "empty_slug": "The name produces an empty identifier. Use letters or numbers.",
+      "confirm_mismatch": "Name does not match. Removal cancelled.",
+      "invalid_time": "Time must be in HH:MM format (e.g. 04:00)."
+    }
+  }
+}
