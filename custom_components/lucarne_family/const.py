@@ -1,0 +1,30 @@
+"""Constants for the Lucarne Family integration."""
+from __future__ import annotations
+
+DOMAIN = "lucarne_family"
+STORAGE_VERSION = 1
+
+DEFAULT_RESET_TIME = "04:00"
+DEFAULT_STREAK_CHECK_TIME = "21:00"
+
+# Config entry keys
+CONF_FAMILY_NAME = "family_name"
+CONF_MEMBERS = "members"
+CONF_RESET_TIME = "reset_time"
+CONF_STREAK_CHECK_TIME = "streak_check_time"
+CONF_ROUND_TRIP = "round_trip"
+CONF_ROUND_TRIP_ENABLED = "enabled"
+CONF_ROUND_TRIP_WEBHOOK_URL = "webhook_url"
+CONF_ROUND_TRIP_SECRET = "secret"
+CONF_ROUND_TRIP_DEVICE_NAME = "device_name"
+
+# Preset slugs
+PRESET_SCHOOL_AGE = "school-age"
+PRESET_TODDLER = "toddler"
+PRESET_ADULT_NONE = "adult-none"
+PRESET_CUSTOM = "custom"
+
+# Avatar constraints
+AVATAR_MAX_BYTES = 2 * 1024 * 1024
+AVATAR_MAX_PIXELS = 4096 * 4096
+AVATAR_ALLOWED_MIME: frozenset[str] = frozenset({"image/png", "image/jpeg", "image/webp"})

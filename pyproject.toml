@@ -38,7 +38,7 @@ select = ["E", "F", "W", "I", "B", "UP", "RUF"]
 strict = true
 
 [[tool.mypy.overrides]]
-module = ["homeassistant.*", "pytest_homeassistant_custom_component.*"]
+module = ["homeassistant.*", "pytest_homeassistant_custom_component.*", "dateutil.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
