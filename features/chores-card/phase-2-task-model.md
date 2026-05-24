@@ -51,11 +51,11 @@ tests/python/
 ### Sub-Phase A: Recurrence engine
 
 #### `recurrence.py`
-- [ ] `def parse(rrule_str: str) -> rrule | None` — `dateutil.rrule.rrulestr` wrapper, returns None for empty string
-- [ ] `def next_due(rrule_str: str, after: datetime) -> datetime | None` — first occurrence strictly after `after`
-- [ ] `def is_due_today(rrule_str: str, today: date, tz: tzinfo) -> bool` — true if any occurrence falls on `today` in `tz`
-- [ ] `def friendly_summary(rrule_str: str) -> str` — human-readable ("Every Monday", "Every 6 months", "Daily")
-- [ ] **Use `dateutil.rrule` exclusively for date math.** Do NOT roll your own day-of-week or interval calculations.
+- [x] `def parse(rrule_str: str) -> rrule | None` — `dateutil.rrule.rrulestr` wrapper, returns None for empty string
+- [x] `def next_due(rrule_str: str, after: datetime) -> datetime | None` — first occurrence strictly after `after`
+- [x] `def is_due_today(rrule_str: str, today: date, tz: tzinfo) -> bool` — true if any occurrence falls on `today` in `tz`
+- [x] `def friendly_summary(rrule_str: str) -> str` — human-readable ("Every Monday", "Every 6 months", "Daily")
+- [x] **Use `dateutil.rrule` exclusively for date math.** Do NOT roll your own day-of-week or interval calculations.
 
 ##### Supported RRULE pattern contract (shared with Phase 4 TS side)
 
@@ -73,9 +73,9 @@ The integration accepts ONLY these six table rows: one-off plus five recurring m
 Anything else (`COUNT=`, `UNTIL=`, `BYSETPOS` other than the monthly-Nth case, `BYHOUR`, `BYMINUTE`, multiple BYxxx beyond the table) is out of scope for v1 and must be rejected with a clear error pointing the user back at the picker.
 
 #### Tests
-- [ ] `test_recurrence.py`: daily, weekly Mon/Wed/Fri, every other week, monthly first Saturday, every 6 months, yearly on March 15, empty string → None
-- [ ] Edge cases: DST boundaries, leap years. For Feb 29 yearly rules, verify `dateutil` behavior against the pinned dependency version and encode that behavior in tests (do not state Feb 28 fallback unless the pinned library actually does that).
-- [ ] `friendly_summary` round-trips known RRULEs to expected English
+- [x] `test_recurrence.py`: daily, weekly Mon/Wed/Fri, every other week, monthly first Saturday, every 6 months, yearly on March 15, empty string → None
+- [x] Edge cases: DST boundaries, leap years. For Feb 29 yearly rules, verify `dateutil` behavior against the pinned dependency version and encode that behavior in tests (do not state Feb 28 fallback unless the pinned library actually does that).
+- [x] `friendly_summary` round-trips known RRULEs to expected English
 
 ### Sub-Phase B: Store extensions for tasks
 
