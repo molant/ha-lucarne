@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 ---
 
 # Phase 1: Integration scaffold + config flow + people
@@ -46,35 +46,35 @@ tests/python/
 
 ### Baseline verification (before starting)
 
-- [ ] Run `pytest tests/python` — Phase 0 smoke test passes
-- [ ] Run `npm test && npm run lint && npm run typecheck && npm run build` — TS side green
-- [ ] If any baseline fails, fix and commit separately before proceeding
+- [x] Run `pytest tests/python` — Phase 0 smoke test passes
+- [x] Run `npm test && npm run lint && npm run typecheck && npm run build` — TS side green
+- [x] If any baseline fails, fix and commit separately before proceeding
 
 ### Sub-Phase A: Constants, models, presets
 
 #### `const.py`
-- [ ] Define: `DOMAIN = "lucarne_family"`, `STORAGE_VERSION = 1`, `DEFAULT_RESET_TIME = "04:00"`, `DEFAULT_STREAK_CHECK_TIME = "21:00"`
-- [ ] Define: `CONF_FAMILY_NAME`, `CONF_MEMBERS`, `CONF_RESET_TIME`, `CONF_STREAK_CHECK_TIME`, `CONF_ROUND_TRIP`, `CONF_ROUND_TRIP_ENABLED`, `CONF_ROUND_TRIP_WEBHOOK_URL`, `CONF_ROUND_TRIP_SECRET`, `CONF_ROUND_TRIP_DEVICE_NAME` (round-trip keys reserved for Phase 6; declared now so the config-entry shape is stable)
-- [ ] Define preset slugs: `PRESET_SCHOOL_AGE`, `PRESET_TODDLER`, `PRESET_ADULT_NONE`, `PRESET_CUSTOM`
-- [ ] Define avatar constraints: `AVATAR_MAX_BYTES = 2 * 1024 * 1024`, `AVATAR_MAX_PIXELS = 4096 * 4096`, `AVATAR_ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}`
+- [x] Define: `DOMAIN = "lucarne_family"`, `STORAGE_VERSION = 1`, `DEFAULT_RESET_TIME = "04:00"`, `DEFAULT_STREAK_CHECK_TIME = "21:00"`
+- [x] Define: `CONF_FAMILY_NAME`, `CONF_MEMBERS`, `CONF_RESET_TIME`, `CONF_STREAK_CHECK_TIME`, `CONF_ROUND_TRIP`, `CONF_ROUND_TRIP_ENABLED`, `CONF_ROUND_TRIP_WEBHOOK_URL`, `CONF_ROUND_TRIP_SECRET`, `CONF_ROUND_TRIP_DEVICE_NAME` (round-trip keys reserved for Phase 6; declared now so the config-entry shape is stable)
+- [x] Define preset slugs: `PRESET_SCHOOL_AGE`, `PRESET_TODDLER`, `PRESET_ADULT_NONE`, `PRESET_CUSTOM`
+- [x] Define avatar constraints: `AVATAR_MAX_BYTES = 2 * 1024 * 1024`, `AVATAR_MAX_PIXELS = 4096 * 4096`, `AVATAR_ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}`
 
 #### `models.py`
-- [ ] `@dataclass(frozen=True, slots=True) class Member` with fields: `slug: str`, `name: str`, `color: str`, `avatar: str | None`, `created_at: datetime`, `preset: str`, `todo_entity_id: str = ""`, `streak_counter_id: str = ""` (the latter two stay empty in Phase 1; populated in Phase 2 when entity_manager creates the entities)
-- [ ] `@dataclass(frozen=True, slots=True) class RoutinePreset` with fields: `slug: str`, `display_name: str`, `routines: list[RoutineTemplate]`
-- [ ] `@dataclass(frozen=True, slots=True) class RoutineTemplate` with fields: `summary: str`, `icon: str`, `recurrence: str` (RRULE)
-- [ ] `to_dict()` / `from_dict()` for each — serialization is what gets stored in `config_entry.data`
+- [x] `@dataclass(frozen=True, slots=True) class Member` with fields: `slug: str`, `name: str`, `color: str`, `avatar: str | None`, `created_at: datetime`, `preset: str`, `todo_entity_id: str = ""`, `streak_counter_id: str = ""` (the latter two stay empty in Phase 1; populated in Phase 2 when entity_manager creates the entities)
+- [x] `@dataclass(frozen=True, slots=True) class RoutinePreset` with fields: `slug: str`, `display_name: str`, `routines: list[RoutineTemplate]`
+- [x] `@dataclass(frozen=True, slots=True) class RoutineTemplate` with fields: `summary: str`, `icon: str`, `recurrence: str` (RRULE)
+- [x] `to_dict()` / `from_dict()` for each — serialization is what gets stored in `config_entry.data`
 
 #### `presets.py`
-- [ ] Define `BUILTIN_PRESETS: dict[str, RoutinePreset]` with at least the 3 named presets:
+- [x] Define `BUILTIN_PRESETS: dict[str, RoutinePreset]` with at least the 3 named presets:
   - `school-age`: brush teeth (`🪥`, daily), make bed (`🛏️`, daily), pack school bag (`🎒`, daily on school days `MO,TU,WE,TH,FR`), kindness act (`💗`, daily), screen time off (`📵`, daily)
   - `toddler`: brush teeth (`🪥`, daily), get dressed (`👕`, daily), put toys away (`🧸`, daily)
   - `adult-none`: empty list (adults often only need household chores)
-- [ ] Test in `tests/python/test_presets.py`: each preset's RRULE parses with `dateutil.rrule.rrulestr`
+- [x] Test in `tests/python/test_presets.py`: each preset's RRULE parses with `dateutil.rrule.rrulestr`
 
 ### Sub-Phase B: SQLite schema + store
 
 #### `schema.sql`
-- [ ] Define tables (Phase 1 only creates the empty tables — Phases 2+ populate):
+- [x] Define tables (Phase 1 only creates the empty tables — Phases 2+ populate):
   ```sql
   CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY NOT NULL,
@@ -105,117 +105,117 @@ tests/python/
   ```
 
 #### `store.py`
-- [ ] Class `LucarneFamilyStore` initialized with `(hass, entry_id, db_path)`
-- [ ] `async def async_init()` — opens SQLite and applies `schema.sql` by wrapping all stdlib `sqlite3` and file-read work in `hass.async_add_executor_job`. **No direct `sqlite3.connect`, cursor execution, or `Path.read_text()` on the event loop.** Do not add `aiosqlite` in Phase 1; keeping stdlib SQLite avoids a new runtime dependency.
-- [ ] `async def async_migrate(from_version, to_version)` — stub for Phase 2+ migrations. In Phase 1, only version 1 exists.
-- [ ] `def get_members() -> list[Member]` — returns from `config_entry.data["members"]` (NOT from SQLite — config_entry is the source of truth for member metadata)
-- [ ] `async def async_save_members(members: list[Member])` — updates `config_entry.data["members"]` via `hass.config_entries.async_update_entry`
-- [ ] **Member storage location is `config_entry.data`, NOT SQLite.** SQLite is for task_metadata + completion_log only.
+- [x] Class `LucarneFamilyStore` initialized with `(hass, entry_id, db_path)`
+- [x] `async def async_init()` — opens SQLite and applies `schema.sql` by wrapping all stdlib `sqlite3` and file-read work in `hass.async_add_executor_job`. **No direct `sqlite3.connect`, cursor execution, or `Path.read_text()` on the event loop.** Do not add `aiosqlite` in Phase 1; keeping stdlib SQLite avoids a new runtime dependency.
+- [x] `async def async_migrate(from_version, to_version)` — stub for Phase 2+ migrations. In Phase 1, only version 1 exists.
+- [x] `def get_members() -> list[Member]` — returns from `config_entry.data["members"]` (NOT from SQLite — config_entry is the source of truth for member metadata)
+- [x] `async def async_save_members(members: list[Member])` — updates `config_entry.data["members"]` via `hass.config_entries.async_update_entry`
+- [x] **Member storage location is `config_entry.data`, NOT SQLite.** SQLite is for task_metadata + completion_log only.
 
 #### Tests
-- [ ] `test_const.py`: required constants exist and default times / avatar limits match the spec
-- [ ] `test_models.py`: dataclass `to_dict()` / `from_dict()` round-trip for `Member`, `RoutinePreset`, and `RoutineTemplate`
-- [ ] `test_store.py`: init creates schema, schema_version row present, idempotent on re-init
-- [ ] `test_store.py`: get_members returns empty list initially, save_members → get_members round-trip preserves all fields
-- [ ] Use `pytest_homeassistant_custom_component.common.MockConfigEntry` for the config_entry fixture
+- [x] `test_const.py`: required constants exist and default times / avatar limits match the spec
+- [x] `test_models.py`: dataclass `to_dict()` / `from_dict()` round-trip for `Member`, `RoutinePreset`, and `RoutineTemplate`
+- [x] `test_store.py`: init creates schema, schema_version row present, idempotent on re-init
+- [x] `test_store.py`: get_members returns empty list initially, save_members → get_members round-trip preserves all fields
+- [x] Use `pytest_homeassistant_custom_component.common.MockConfigEntry` for the config_entry fixture
 
 ### Sub-Phase C: Config flow (first-time setup)
 
 #### `config_flow.py` — ConfigFlow
-- [ ] Class `LucarneFamilyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN)`, `VERSION = 1`
-- [ ] `async def async_step_user(user_input)`:
+- [x] Class `LucarneFamilyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN)`, `VERSION = 1`
+- [x] `async def async_step_user(user_input)`:
   - First step: prompt for `family_name` (text, default "Family"). Validation: non-empty, < 50 chars.
   - On submit, check `_async_current_entries()` — reject if any entry exists (single-family v1 constraint). Show error `single_family_only`.
   - Create entry with `title=family_name`, `data={"family_name": ..., "members": [], "reset_time": DEFAULT_RESET_TIME, "streak_check_time": DEFAULT_STREAK_CHECK_TIME, "round_trip": {"enabled": false, "webhook_url": "", "secret": "", "device_name": "Sync device"}, "custom_presets": []}`.
-- [ ] Test in `test_config_flow.py`: happy path creates entry; duplicate install blocked with error.
+- [x] Test in `test_config_flow.py`: happy path creates entry; duplicate install blocked with error.
 
 #### `__init__.py` — async_setup_entry
-- [ ] `async def async_setup_entry(hass, entry) -> bool`:
+- [x] `async def async_setup_entry(hass, entry) -> bool`:
   - Initialize `LucarneFamilyStore`, call `async_init()`
   - Stash in `hass.data[DOMAIN][entry.entry_id] = {"store": store}`
   - Register options-flow update listener: `entry.async_on_unload(entry.add_update_listener(async_options_updated))`
   - Return True
-- [ ] Preserve this Phase 1 order when later phases extend setup: store first, then `hass.data`, then the current phase's registrations/listeners. Phase 2 appends entity reconciliation + service/WS registration; Phase 3 replaces the short list with its explicit seven-step order.
-- [ ] `async def async_unload_entry(hass, entry) -> bool`:
+- [x] Preserve this Phase 1 order when later phases extend setup: store first, then `hass.data`, then the current phase's registrations/listeners. Phase 2 appends entity reconciliation + service/WS registration; Phase 3 replaces the short list with its explicit seven-step order.
+- [x] `async def async_unload_entry(hass, entry) -> bool`:
   - Close store
   - Remove from `hass.data[DOMAIN]`
   - Return True
-- [ ] `async def async_options_updated(hass, entry)` — stub for now; just `_LOGGER.debug("Options updated: %s", entry.entry_id)`. Phase 3 wires this to re-write managed automations (see `phase-3-managed-automations.md` Sub-Phase B → "Wire into setup + options-flow listener"). Keep the function signature `(hass, entry) -> None` exactly so Phase 3 only has to fill the body.
+- [x] `async def async_options_updated(hass, entry)` — stub for now; just `_LOGGER.debug("Options updated: %s", entry.entry_id)`. Phase 3 wires this to re-write managed automations (see `phase-3-managed-automations.md` Sub-Phase B → "Wire into setup + options-flow listener"). Keep the function signature `(hass, entry) -> None` exactly so Phase 3 only has to fill the body.
 
 #### Translations
-- [ ] `strings.json` — keys for `config.step.user.title`, `config.step.user.data.family_name`, `config.error.single_family_only`
-- [ ] `translations/en.json` — English copies of the above
+- [x] `strings.json` — keys for `config.step.user.title`, `config.step.user.data.family_name`, `config.error.single_family_only`
+- [x] `translations/en.json` — English copies of the above
 
 #### Tests
-- [ ] `test_config_flow.py`: full user flow with `pytest_homeassistant_custom_component` — assert entry created, store initialized, hass.data populated
+- [x] `test_config_flow.py`: full user flow with `pytest_homeassistant_custom_component` — assert entry created, store initialized, hass.data populated
 
 ### Sub-Phase D: Options flow (ongoing edits)
 
 #### `config_flow.py` — OptionsFlow
-- [ ] Class `LucarneFamilyOptionsFlow(config_entries.OptionsFlow)`
-- [ ] `async def async_step_init(user_input)` — menu step: choose `manage_members`, `edit_schedule`, `edit_round_trip` (last shown but reserved for Phase 6)
-- [ ] `async def async_step_manage_members(user_input)` — list current members, options: add / edit / remove
-- [ ] `async def async_step_add_member(user_input)`:
+- [x] Class `LucarneFamilyOptionsFlow(config_entries.OptionsFlow)`
+- [x] `async def async_step_init(user_input)` — menu step: choose `manage_members`, `edit_schedule`, `edit_round_trip` (last shown but reserved for Phase 6)
+- [x] `async def async_step_manage_members(user_input)` — list current members, options: add / edit / remove
+- [x] `async def async_step_add_member(user_input)`:
   - Fields: `name` (text, required), `color` (text, hex validated), `avatar` (text — emoji OR path; Phase 2 wires upload), `preset` (select from BUILTIN_PRESETS keys)
   - On submit: derive slug from name (`re.sub(r'[^a-z0-9]+', '_', name.lower()).strip('_')`); check uniqueness against existing members; show error `slug_conflict` if dup
   - Save via `store.async_save_members([...existing, new])`; return to `manage_members`
   - **Member entities are NOT created here.** That's Phase 2. Phase 1 just stores metadata.
-- [ ] `async def async_step_edit_member(user_input)`:
+- [x] `async def async_step_edit_member(user_input)`:
   - Pre-populated form with current values
   - On rename: **DO NOT** rename slug. Slug is frozen at creation. Phase 2 wires the entity-rename-on-display-name-change flow with downstream-impact preview.
   - Validation as in add_member
-- [ ] `async def async_step_remove_member(user_input)`:
+- [x] `async def async_step_remove_member(user_input)`:
   - Confirmation step (text: "Type the member's name to confirm removal")
   - On confirm: remove from members list; **DO NOT** delete entities (Phase 2 manages entity lifecycle)
-- [ ] `async def async_step_edit_schedule(user_input)`:
+- [x] `async def async_step_edit_schedule(user_input)`:
   - Fields: `reset_time` (time selector), `streak_check_time` (time selector)
   - Save to entry.data
 
 #### Translations
-- [ ] Add all step titles, labels, descriptions, errors to `strings.json` + `translations/en.json`
+- [x] Add all step titles, labels, descriptions, errors to `strings.json` + `translations/en.json`
 
 #### Tests
-- [ ] `test_options_flow.py`:
+- [x] `test_options_flow.py`:
   - Add member: assert members list grows, slug generated correctly
   - Slug conflict: two members with names that produce the same slug → error
   - Edit member: name change preserved, slug unchanged
   - Remove member: confirmation works, member removed from data
   - Edit schedule: times saved to entry.data
-- [ ] Edge cases: empty name, invalid color, name producing empty slug (e.g. all-emoji name → fallback)
+- [x] Edge cases: empty name, invalid color, name producing empty slug (e.g. all-emoji name → fallback)
 
 ### Sub-Phase E: Manifest flip + integration discoverability
 
 #### `manifest.json` update
-- [ ] Flip `config_flow: false` → `config_flow: true`
-- [ ] Verify against the pinned HA manifest schema that `iot_class: "local_push"` is correct for this integration (it pushes state changes to HA and does no polling)
-- [ ] Verify against the pinned HA manifest schema that `integration_type: "service"` is valid and appropriate for a domain-level service integration
+- [x] Flip `config_flow: false` → `config_flow: true`
+- [x] Verify against the pinned HA manifest schema that `iot_class: "local_push"` is correct for this integration (it pushes state changes to HA and does no polling)
+- [x] Verify against the pinned HA manifest schema that `integration_type: "service"` is valid and appropriate for a domain-level service integration
 
 #### Logo / icon
-- [ ] No logo work in Phase 1. Track Home Assistant Brands submission separately after the integration name and icon are final; Phase 5 documentation may mention the missing brand icon if it remains absent.
+- [x] No logo work in Phase 1. Track Home Assistant Brands submission separately after the integration name and icon are final; Phase 5 documentation may mention the missing brand icon if it remains absent.
 
 ### Documentation (end of phase)
 
-- [ ] Add `docs/integration.md` skeleton: install, first-run, member management. Phase 2+ fills task management.
-- [ ] Update `docs/architecture.md` — fill the "Custom integration" section header from Phase 0 with: config flow shape, storage split (config_entry vs SQLite), members are first-class, no entities yet
-- [ ] `CLAUDE.md` deferred to Phase 5
+- [x] Add `docs/integration.md` skeleton: install, first-run, member management. Phase 2+ fills task management.
+- [x] Update `docs/architecture.md` — fill the "Custom integration" section header from Phase 0 with: config flow shape, storage split (config_entry vs SQLite), members are first-class, no entities yet
+- [x] `CLAUDE.md` deferred to Phase 5
 
 ### Build verification (required before marking phase complete)
 
-- [ ] `ruff check custom_components tests/python` — zero issues
-- [ ] `mypy custom_components/lucarne_family` — zero errors
-- [ ] `pytest tests/python -v` — all tests pass (smoke + store + config_flow + options_flow + presets)
-- [ ] `npm test && npm run lint && npm run typecheck && npm run build` — TS side unchanged, still green
-- [ ] CI both jobs green
-- [ ] HACS validation passes
-- [ ] On a real HA instance: deploy via `scripts/deploy-integration.sh`, restart HA, install via Add Integration → Lucarne Family, add 2 members with different presets, edit one, remove one
-- [ ] Use `mcp__home-assistant__ha_get_logs` to verify no warnings/errors during the above
-- [ ] Mark phase `status: done` only after all verification passes
+- [x] `ruff check custom_components tests/python` — zero issues
+- [x] `mypy custom_components/lucarne_family` — zero errors
+- [x] `pytest tests/python -v` — all tests pass (smoke + store + config_flow + options_flow + presets)
+- [x] `npm test && npm run lint && npm run typecheck && npm run build` — TS side unchanged, still green
+- [x] CI both jobs green
+- [x] HACS validation passes
+- [x] On a real HA instance: deploy via `scripts/deploy-integration.sh`, restart HA, install via Add Integration → Lucarne Family, add 2 members with different presets, edit one, remove one
+- [x] Use `mcp__home-assistant__ha_get_logs` to verify no warnings/errors during the above
+- [x] Mark phase `status: done` only after all verification passes
 
 ### Manual verification with MCP tools
 
-- [ ] `mcp__home-assistant__ha_get_logs` → filter `lucarne_family` → confirm setup logs at INFO, no WARNING/ERROR
-- [ ] `mcp__home-assistant__ha_search_entities` → confirm NO `todo.<slug>` or `counter.<slug>_streak` entities exist yet (that's Phase 2)
-- [ ] Browser MCP: navigate to Settings → Devices & Services → Lucarne Family card visible. Open Configure → menu shows manage_members + edit_schedule. Walk through add member flow, screenshot each step for review.
+- [x] `mcp__home-assistant__ha_get_logs` → filter `lucarne_family` → confirm setup logs at INFO, no WARNING/ERROR
+- [x] `mcp__home-assistant__ha_search_entities` → confirm NO `todo.<slug>` or `counter.<slug>_streak` entities exist yet (that's Phase 2)
+- [x] Browser MCP: navigate to Settings → Devices & Services → Lucarne Family card visible. Open Configure → menu shows manage_members + edit_schedule + edit_round_trip (reserved). Walk through add member flow, screenshot each step for review.
 
 ## Technical Details
 

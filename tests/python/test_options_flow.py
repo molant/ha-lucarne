@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import patch
 
+import pytest
 from homeassistant import data_entry_flow
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -338,15 +339,15 @@ async def test_edit_schedule_times_saved(hass: HomeAssistant) -> None:
 
 
 async def test_edit_schedule_invalid_time_rejected(hass: HomeAssistant) -> None:
-    """Invalid time format shows an error."""
+    """Invalid time format is rejected by the TimeSelector schema."""
     entry = _make_entry(hass)
     await _setup_entry(hass, entry)
 
     result = await _init_options_flow(hass, entry)
     result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_schedule"})
 
-    result = await _configure(
-        hass, result["flow_id"], {"reset_time": "25:00", "streak_check_time": "21:00"}
-    )
-    assert result["type"] == data_entry_flow.FlowResultType.FORM
-    assert "reset_time" in result["errors"]
+    # TimeSelector validates at the schema level; invalid data raises InvalidData
+    with pytest.raises(data_entry_flow.InvalidData):
+        await _configure(
+            hass, result["flow_id"], {"reset_time": "25:00", "streak_check_time": "21:00"}
+        )

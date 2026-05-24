@@ -75,11 +75,45 @@ src/shared/design-tokens.ts   ← single source of truth
 See [visible-days.md](visible-days.md) for the `computeVisibleDays` formula, worked examples,
 and the `RollingWindowController` state machine.
 
-## Custom integration (Phase 1+)
+## Custom integration (lucarne_family)
 
-This repo now ships both a **Frontend** (Lovelace card pack, `dist/ha-lucarne.js`) and an **Integration** (`custom_components/lucarne_family/`). The integration will own family members, task metadata, managed entities (`todo.<slug>`, `counter.<slug>_streak`), and managed automations. Cards will become thin views that call integration services. Phase 0 establishes the Python toolchain and stub; full implementation begins in Phase 1.
+This repo ships both a **Frontend** (Lovelace card pack, `dist/ha-lucarne.js`) and an **Integration** (`custom_components/lucarne_family/`). The integration will own family members, task metadata, managed entities (`todo.<slug>`, `counter.<slug>_streak`), and managed automations (Phase 2 creates managed entities; Phase 3 creates managed automations). Cards will become thin views that call integration services.
 
-See [features/chores-card/README.md](../features/chores-card/README.md) for the full design.
+### Config flow shape
+
+The integration uses a single config entry per family. The config flow runs once at install (collects `family_name`). Ongoing edits go through the Options flow ("Configure" button in Settings → Devices & Services).
+
+The config entry `data` dict has this shape (Phase 1):
+```json
+{
+  "family_name": "Family",
+  "members": [],
+  "reset_time": "04:00",
+  "streak_check_time": "21:00",
+  "round_trip": { "enabled": false, "webhook_url": "", "secret": "", "device_name": "Sync device" },
+  "custom_presets": []
+}
+```
+
+### Storage split
+
+| What | Where | Why |
+|------|-------|-----|
+| Members | `config_entry.data["members"]` | Bounded (~5), visible in HA backups, easily debuggable via `.storage/core.config_entries` |
+| Task metadata | SQLite (`lucarne_family_<entry_id>.db`, table `task_metadata`) | Unbounded — could be thousands; SQLite handles this cleanly |
+| Completion history | SQLite (`completion_log` table) | Append-only audit log; foundation for streak computation and future rewards |
+
+### Members are first-class
+
+Each member has: `slug` (stable ID, used in entity IDs), `name` (display, freely editable), `color` (hex), `avatar` (emoji or path), `preset` (routine template set). Members are stored in `config_entry.data` so HA's Configure dialog can render and edit them.
+
+In Phase 1, **no entities are created**. Entity lifecycle (`todo.<slug>`, `counter.<slug>_streak`) starts in Phase 2.
+
+### SQLite schema versioning
+
+`schema_version` table tracks the applied DDL version. Phase 1 initialises version 1. Future phases add migration logic in `store.async_migrate`.
+
+See [features/chores-card/README.md](../features/chores-card/README.md) for the full design and phase roadmap.
 
 ## Blueprints
 
