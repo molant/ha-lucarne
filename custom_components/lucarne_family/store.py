@@ -53,6 +53,9 @@ class LucarneFamilyStore:
     async def async_migrate(self, from_version: int, to_version: int) -> None:
         """Stub for future schema migrations. Phase 1 only supports version 1."""
 
+    async def async_close(self) -> None:
+        """Release resources. Phase 1 uses per-call connections; this is a no-op."""
+
     def _entry(self) -> ConfigEntry:
         return self._hass.config_entries.async_get_entry(self._entry_id)  # type: ignore[return-value]
 

@@ -7,6 +7,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_CUSTOM_PRESETS,
@@ -28,7 +29,6 @@ from .models import Member
 from .presets import BUILTIN_PRESETS
 
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-_TIME_RE = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
 def _make_slug(name: str) -> str:
@@ -49,11 +49,6 @@ def _validate_color(color: str) -> str | None:
         return "invalid_color"
     return None
 
-
-def _validate_time(t: str) -> str | None:
-    if not _TIME_RE.match(t):
-        return "invalid_time"
-    return None
 
 
 def _default_entry_data(family_name: str) -> dict[str, Any]:
@@ -120,16 +115,25 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         return [Member.from_dict(m) for m in raw]
 
     async def _save_members(self, members: list[Member]) -> None:
-        new_data = {**self._entry.data, CONF_MEMBERS: [m.to_dict() for m in members]}
-        self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+        from .const import DOMAIN
+        from .store import LucarneFamilyStore
+
+        store: LucarneFamilyStore = self.hass.data[DOMAIN][self._entry.entry_id]["store"]
+        await store.async_save_members(members)
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["manage_members", "edit_schedule"],
+            menu_options=["manage_members", "edit_schedule", "edit_round_trip"],
         )
+
+    async def async_step_edit_round_trip(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        # Reserved for Phase 6. Returns immediately to avoid a dead end.
+        return await self.async_step_init()
 
     async def async_step_manage_members(
         self, user_input: dict[str, Any] | None = None
@@ -298,31 +302,32 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            reset_time = user_input.get(CONF_RESET_TIME, "").strip()
-            streak_time = user_input.get(CONF_STREAK_CHECK_TIME, "").strip()
+            from datetime import time as time_type
 
-            err_r = _validate_time(reset_time)
-            if err_r:
-                errors[CONF_RESET_TIME] = err_r
-            err_s = _validate_time(streak_time)
-            if err_s:
-                errors[CONF_STREAK_CHECK_TIME] = err_s
+            from homeassistant.util.dt import parse_time
 
-            if not errors:
-                new_data = {
-                    **self._entry.data,
-                    CONF_RESET_TIME: reset_time,
-                    CONF_STREAK_CHECK_TIME: streak_time,
-                }
-                self.hass.config_entries.async_update_entry(self._entry, data=new_data)
-                return self.async_create_entry(title="", data={})
+            def _normalize(t: str) -> str:
+                parsed = parse_time(t)
+                if isinstance(parsed, time_type):
+                    return parsed.strftime("%H:%M")
+                return t
+
+            new_data = {
+                **self._entry.data,
+                CONF_RESET_TIME: _normalize(user_input[CONF_RESET_TIME]),
+                CONF_STREAK_CHECK_TIME: _normalize(user_input[CONF_STREAK_CHECK_TIME]),
+            }
+            self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+            return self.async_create_entry(title="", data={})
 
         current_reset = self._entry.data.get(CONF_RESET_TIME, DEFAULT_RESET_TIME)
         current_streak = self._entry.data.get(CONF_STREAK_CHECK_TIME, DEFAULT_STREAK_CHECK_TIME)
         schema = vol.Schema(
             {
-                vol.Required(CONF_RESET_TIME, default=current_reset): str,
-                vol.Required(CONF_STREAK_CHECK_TIME, default=current_streak): str,
+                vol.Required(CONF_RESET_TIME, default=current_reset): selector.TimeSelector(),
+                vol.Required(
+                    CONF_STREAK_CHECK_TIME, default=current_streak
+                ): selector.TimeSelector(),
             }
         )
         return self.async_show_form(

@@ -35,7 +35,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
-    hass.data[DOMAIN].pop(entry.entry_id, None)
+    domain_data = hass.data.get(DOMAIN, {})
+    entry_data = domain_data.pop(entry.entry_id, None)
+    if entry_data:
+        await entry_data["store"].async_close()
     return True
 
 
