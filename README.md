@@ -89,7 +89,11 @@ Type: JavaScript Module
 Open your dashboard in edit mode and add the cards via YAML (see [Configuration](#configuration)).
 Each card has a visual editor — click **Visual editor** after adding.
 
-### 5. (Optional) Install the Lucarne theme
+### 5. (Optional) Install the Lucarne Family integration
+
+A companion `lucarne_family` custom integration is in development (see `docs/integration.md` once Phase 1 ships). It will manage family members, tasks, and automations so the chores card requires no manual helper setup.
+
+### 6. (Optional) Install the Lucarne theme
 
 A Skylight-inspired pastel theme ships with the repo at `themes/lucarne.yaml`. It pairs the
 cards with the calm cream/pastel palette they were designed against, and — critically —
@@ -112,7 +116,7 @@ iPad width.
 You can skip this step and use any other light theme — but the sections-view widening
 won't apply unless you set the `ha-view-sections-column-*` variables yourself.
 
-### 6. (Optional) Set up the Mac mini Reminders bridge
+### 7. (Optional) Set up the Mac mini Reminders bridge
 
 Follow [bridge/README.md](bridge/README.md) to install the launchd sync job on a Mac mini.
 Skip this step if you prefer to manage todo items directly in HA.

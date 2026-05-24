@@ -128,8 +128,8 @@ The existing TS test harness only covers helpers (`tests/shared/chore-helpers.te
 
 Update docs that reflect the now-dual-language repo:
 
-- [ ] `docs/architecture.md` — add a "Custom integration (Phase 1+)" section header even if empty, plus a note that the repo now ships both a Frontend (cards) and an Integration (lucarne_family). Phase 5 fills the content.
-- [ ] `README.md` — add a one-line "Custom integration" mention under Install (linking to a future docs/integration.md). The Install section gets a full rewrite in Phase 5.
+- [x] `docs/architecture.md` — add a "Custom integration (Phase 1+)" section header even if empty, plus a note that the repo now ships both a Frontend (cards) and an Integration (lucarne_family). Phase 5 fills the content.
+- [x] `README.md` — add a one-line "Custom integration" mention under Install (linking to a future docs/integration.md). The Install section gets a full rewrite in Phase 5.
 - [ ] `CLAUDE.md` — **deferred to Phase 5**. Not in this phase.
 
 ### Build verification (required before marking phase complete)
