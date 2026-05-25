@@ -250,9 +250,14 @@ class LucarneFamilyStore:
         effective_tz = tz if tz is not None else UTC
 
         def _get_completions(member: str, day: date) -> set[str]:
-            day_start = datetime(day.year, day.month, day.day, tzinfo=effective_tz).astimezone(UTC)
+            day_start = (
+                datetime(day.year, day.month, day.day, tzinfo=effective_tz).astimezone(UTC)
+            )
             next_day = day + timedelta(days=1)
-            day_end = datetime(next_day.year, next_day.month, next_day.day, tzinfo=effective_tz).astimezone(UTC)
+            day_end = (
+                datetime(next_day.year, next_day.month, next_day.day, tzinfo=effective_tz)
+                .astimezone(UTC)
+            )
             with self._db_connect() as con:
                 rows = con.execute(
                     """

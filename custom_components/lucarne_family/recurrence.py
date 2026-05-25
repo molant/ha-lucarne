@@ -97,7 +97,7 @@ def parse(rrule_str: str) -> rrule | None:
     """
     if not rrule_str:
         return None
-    return rrulestr(rrule_str, ignoretz=True, dtstart=_EPOCH)  # type: ignore[return-value]
+    return rrulestr(rrule_str, ignoretz=True, dtstart=_EPOCH)
 
 
 def next_due(rrule_str: str, after: datetime) -> datetime | None:
@@ -110,8 +110,8 @@ def next_due(rrule_str: str, after: datetime) -> datetime | None:
     if rule is None:
         return None
     naive_after = after.replace(tzinfo=None) if after.tzinfo is not None else after
-    result = rule.after(naive_after, inc=False)
-    return result  # type: ignore[return-value]
+    result: datetime | None = rule.after(naive_after, inc=False)
+    return result
 
 
 def is_due_today(rrule_str: str, today: date, _tz: tzinfo) -> bool:
@@ -216,7 +216,7 @@ def make_recurrence_evaluator(
     except Exception:
         local_tz = UTC
 
-    _cache: list = []
+    _cache: list[dict[str, str]] = []
     _loaded = False
 
     def evaluator(day: date) -> list[str]:

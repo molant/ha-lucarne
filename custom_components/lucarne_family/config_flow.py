@@ -5,8 +5,6 @@ import logging
 import re
 from typing import Any
 
-_LOGGER = logging.getLogger(__name__)
-
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -31,6 +29,7 @@ from .const import (
 from .models import Member
 from .presets import BUILTIN_PRESETS
 
+_LOGGER = logging.getLogger(__name__)
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
@@ -203,7 +202,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                                 "Failed to create entities for member %r: %s", slug, exc
                             )
                             errors["base"] = "entity_create_failed"
-                        except Exception as exc:
+                        except Exception:
                             _LOGGER.exception(
                                 "Unexpected error creating entities for member %r", slug
                             )
@@ -232,7 +231,8 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                                 await seed_preset_routines(self.hass, store, new_member)
                             except Exception as exc:
                                 _LOGGER.warning(
-                                    "Preset seeding failed for member %r: %s; member is still added",
+                                    "Preset seeding failed for member %r: %s; "
+                                    "member is still added",
                                     slug, exc,
                                 )
 
@@ -390,7 +390,8 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                             await store.async_rename_member_slug(new_slug, target.slug)
                         except Exception as rollback_exc:
                             _LOGGER.error(
-                                "SQLite rollback failed for member %r after entity rename failure: %s",
+                                "SQLite rollback failed for member %r after entity "
+                                "rename failure: %s",
                                 target.slug,
                                 rollback_exc,
                             )

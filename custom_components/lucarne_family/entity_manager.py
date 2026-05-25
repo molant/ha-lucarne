@@ -6,6 +6,7 @@ that back each family member and the shared household list.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -25,7 +26,7 @@ _HOUSEHOLD_ENTITY_ID = "todo.lucarne_household"
 # ---------------------------------------------------------------------------
 
 
-def _get_counter_storage_collection(hass: HomeAssistant):  # type: ignore[return]
+def _get_counter_storage_collection(hass: HomeAssistant) -> Any:
     """Return the counter StorageCollection via the registered WS handler.
 
     The counter component exposes no direct Python API for creating helpers;
@@ -35,7 +36,7 @@ def _get_counter_storage_collection(hass: HomeAssistant):  # type: ignore[return
     chains back to the bound ws_create_item method whose __self__ carries
     the storage_collection reference.
     """
-    ws_handlers: dict = hass.data.get("websocket_api", {})
+    ws_handlers: dict[str, Any] = hass.data.get("websocket_api", {})
     entry = ws_handlers.get("counter/create")
     if entry is None:
         raise HomeAssistantError(
@@ -188,7 +189,10 @@ async def async_delete_member_entities(
     if er_todo is not None and er_todo.config_entry_id:
         await hass.config_entries.async_remove(er_todo.config_entry_id)
     elif er_todo is not None:
-        _LOGGER.warning("todo entity %s has no config_entry_id; skipping config entry removal", todo_entity_id)
+        _LOGGER.warning(
+            "todo entity %s has no config_entry_id; skipping config entry removal",
+            todo_entity_id,
+        )
 
     # Delete counter via storage collection — propagate on failure so the caller
     # knows deletion did not complete and can preserve the member record.

@@ -10,12 +10,12 @@ from .const import DOMAIN
 _WS_REGISTERED_KEY = "__ws_registered__"
 
 
-@websocket_api.websocket_command({vol.Required("type"): "lucarne_family/get_family"})
-@websocket_api.async_response
+@websocket_api.websocket_command({vol.Required("type"): "lucarne_family/get_family"})  # type: ignore[attr-defined]
+@websocket_api.async_response  # type: ignore[attr-defined]
 async def ws_get_family(
     hass: HomeAssistant,
-    connection: websocket_api.ActiveConnection,
-    msg: dict,
+    connection: websocket_api.ActiveConnection,  # type: ignore[name-defined]
+    msg: dict[str, object],
 ) -> None:
     """Return the full family state for cards to subscribe to."""
     domain_data = hass.data.get(DOMAIN, {})
