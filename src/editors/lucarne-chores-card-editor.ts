@@ -1,6 +1,14 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { HomeAssistant, KidConfig } from '../shared/types.js';
+import type { HomeAssistant } from '../shared/types.js';
+
+interface KidConfig {
+  name: string;
+  color: string;
+  avatar?: string;
+  streak: string;
+  chores: { name: string; entity: string }[];
+}
 import type { LucarneChoresCardConfig } from '../cards/lucarne-chores-card.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { ensureHaFormElements } from '../shared/ha-elements.js';
