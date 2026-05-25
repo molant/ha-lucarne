@@ -77,17 +77,78 @@ and the `RollingWindowController` state machine.
 
 ## Custom integration (lucarne_family)
 
-This repo ships both a **Frontend** (Lovelace card pack, `dist/ha-lucarne.js`) and an **Integration** (`custom_components/lucarne_family/`). The integration will own family members, task metadata, managed entities (`todo.<slug>`, `counter.<slug>_streak`), and managed automations (Phase 2 creates managed entities; Phase 3 creates managed automations). Cards will become thin views that call integration services.
+This repo ships both a **Frontend** (Lovelace card pack, `dist/ha-lucarne.js`) and an **Integration** (`custom_components/lucarne_family/`). The integration owns family members, task metadata, managed entities (`todo.<slug>`, `counter.<slug>_streak`), and (starting Phase 3) managed automations.
+
+### Data flow — entity-manager + task-service (Phase 2)
+
+```
+Options flow (add/edit/remove member)
+          │
+          │  async_create_member_entities
+          │  async_delete_member_entities
+          │  async_rename_member_entities
+          ▼
+   entity_manager.py ───────────────────────────────────────►  HA Entity Registry
+          │                                                       todo.<slug>
+          │  local_todo config-flow init                          counter.<slug>_streak
+          │  counter StorageCollection API
+          │
+          │  async_setup_entry (on reload)
+          │  _async_reconcile_member_entities
+          ▼
+   Both entities missing → recreate
+   Partial state (one missing) → warn, skip (Phase 3 adds per-side recovery)
+   Orphaned local_todo entity → warn
+
+Service calls (Developer Tools / automations / cards)
+          │
+          │  lucarne_family.add_task
+          │  lucarne_family.update_task_metadata
+          │  lucarne_family.delete_task
+          │  lucarne_family.toggle_task
+          ▼
+   task_service.py ─── calls entity (async_create_todo_item / update / remove)
+          │                          todo.<slug> or todo.lucarne_household
+          │
+          └──► store.py (SQLite) ── task_metadata table
+                                    completion_log table
+
+   lucarne_family.upload_avatar
+          │
+          ▼
+   avatar_service.py ─── validates (magic bytes, size, dimensions)
+          │               writes <config>/www/lucarne/avatars/<slug>.<ext>
+          └──► store.py  updates member.avatar path
+
+WebSocket (chores card Phase 4)
+          │
+          │  lucarne_family/get_family
+          ▼
+   websocket_api.py ─── reads store.get_members() + store.async_get_all_task_metadata()
+                         returns {members, task_metadata, reset_time, streak_check_time,
+                                  household_entity_id}
+```
 
 ### Config flow shape
 
 The integration uses a single config entry per family. The config flow runs once at install (collects `family_name`). Ongoing edits go through the Options flow ("Configure" button in Settings → Devices & Services).
 
-The config entry `data` dict has this shape (Phase 1):
+The config entry `data` dict has this shape (Phase 2):
 ```json
 {
   "family_name": "Family",
-  "members": [],
+  "members": [
+    {
+      "slug": "anna",
+      "name": "Anna",
+      "color": "#f5c89c",
+      "avatar": "/local/lucarne/avatars/anna.png",
+      "created_at": "2026-05-24T12:00:00+00:00",
+      "preset": "school-age",
+      "todo_entity_id": "todo.anna",
+      "streak_counter_id": "counter.anna_streak"
+    }
+  ],
   "reset_time": "04:00",
   "streak_check_time": "21:00",
   "round_trip": { "enabled": false, "webhook_url": "", "secret": "", "device_name": "Sync device" },
@@ -102,12 +163,15 @@ The config entry `data` dict has this shape (Phase 1):
 | Members | `config_entry.data["members"]` | Bounded (~5), visible in HA backups, easily debuggable via `.storage/core.config_entries` |
 | Task metadata | SQLite (`lucarne_family_<entry_id>.db`, table `task_metadata`) | Unbounded — could be thousands; SQLite handles this cleanly |
 | Completion history | SQLite (`completion_log` table) | Append-only audit log; foundation for streak computation and future rewards |
+| Avatar files | `<config>/www/lucarne/avatars/` | Binary files stay off the database; path reference in member data |
 
 ### Members are first-class
 
-Each member has: `slug` (stable ID, used in entity IDs), `name` (display, freely editable), `color` (hex), `avatar` (emoji or path), `preset` (routine template set). Members are stored in `config_entry.data` so HA's Configure dialog can render and edit them.
+Each member has: `slug` (stable ID, used in entity IDs), `name` (display, freely editable), `color` (hex), `avatar` (emoji or `/local/...` path), `preset` (routine template set), `todo_entity_id`, `streak_counter_id`. Members are stored in `config_entry.data` so HA's Configure dialog can render and edit them.
 
-In Phase 1, **no entities are created**. Entity lifecycle (`todo.<slug>`, `counter.<slug>_streak`) starts in Phase 2.
+**Entity lifecycle** (Phase 2+): when a member is added, `entity_manager.py` creates `todo.<slug>` via the `local_todo` config flow and `counter.<slug>_streak` via the counter storage collection API. Both entity IDs are normalized to the canonical slug form after creation. On remove, both are deleted through their respective APIs. On rename (slug-changing), both are renamed with rollback logic.
+
+**Reconciliation**: `async_setup_entry` calls `_async_reconcile_member_entities` on every load. If both entities for a member are missing, they are recreated. If only one is missing (partial state), a warning is logged — per-side recovery is deferred to Phase 3.
 
 ### SQLite schema versioning
 
