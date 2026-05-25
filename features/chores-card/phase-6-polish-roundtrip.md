@@ -111,15 +111,15 @@ The Phase 2 service accepts base64 `image_data` + `mime_type`. Phase 4 wired a b
 The integration in Phase 3 only logged completions internally. This phase adds a round-trip event for the deferred bridge writeback.
 
 #### `__init__.py` update
-- [ ] In the completion listener: when a task with `metadata.source == "apple"` flips to `completed`:
+- [x] In the completion listener: when a task with `metadata.source == "apple"` flips to `completed`:
   - Read `entry.data["round_trip"]` config
   - If `enabled == false`: skip (just log internally)
   - If `enabled == true`: fire HA event `lucarne_family_apple_writeback_requested` with payload `{apple_uid, status, timestamp, device_name}` — **do NOT include `webhook_url` or `secret`** in the event payload. HA events are visible to every integration and to any user with Developer Tools access; secrets must stay in the integration's `entry.data`.
-- [ ] **Expose a typed accessor for the future subscriber** so the lookup mechanism is not ambiguous: add `def get_round_trip_config(hass: HomeAssistant) -> RoundTripConfig | None` to `__init__.py` (or a new `api.py` module) that returns the dataclass `RoundTripConfig(webhook_url: str, secret: str, device_name: str)` looked up from the single config entry. The future-spec subscriber MUST call this accessor — it MUST NOT read `entry.data` directly (so we can change storage layout later without breaking subscribers). Document this contract in `docs/reminders-bridge.md`.
-- [ ] **Do NOT** actually POST anything in this spec. The future spec wires that. Firing the event is the contract.
+- [x] **Expose a typed accessor for the future subscriber** so the lookup mechanism is not ambiguous: add `def get_round_trip_config(hass: HomeAssistant) -> RoundTripConfig | None` to `__init__.py` (or a new `api.py` module) that returns the dataclass `RoundTripConfig(webhook_url: str, secret: str, device_name: str)` looked up from the single config entry. The future-spec subscriber MUST call this accessor — it MUST NOT read `entry.data` directly (so we can change storage layout later without breaking subscribers). Document this contract in `docs/reminders-bridge.md`.
+- [x] **Do NOT** actually POST anything in this spec. The future spec wires that. Firing the event is the contract.
 
 #### Tests
-- [ ] `test_apple_writeback_event.py`: apple-tagged item completes, round-trip enabled → event fires with correct payload; round-trip disabled → no event; non-apple item completes → no event
+- [x] `test_apple_writeback_event.py`: apple-tagged item completes, round-trip enabled → event fires with correct payload; round-trip disabled → no event; non-apple item completes → no event
 
 ### Sub-Phase D: Round-trip documentation
 

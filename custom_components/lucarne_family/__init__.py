@@ -76,7 +76,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     managed_entity_ids = {
         m.todo_entity_id for m in members if m.todo_entity_id
     } | {"todo.lucarne_household"}
-    unsub_listener = async_start_completion_listener(hass, store, managed_entity_ids)
+    unsub_listener = async_start_completion_listener(
+        hass, store, managed_entity_ids, entry_id=entry.entry_id
+    )
     hass.data[DOMAIN][entry.entry_id]["unsub_listener"] = unsub_listener
 
     # Step 6: Write managed automations (time-change listeners) — LAST before
@@ -150,7 +152,7 @@ async def async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None
         m.todo_entity_id for m in members if m.todo_entity_id
     } | {"todo.lucarne_household"}
     entry_data["unsub_listener"] = async_start_completion_listener(
-        hass, store, managed_entity_ids
+        hass, store, managed_entity_ids, entry_id=entry.entry_id
     )
 
     new_unsub = await async_write_managed_automations(hass, entry)
@@ -248,6 +250,44 @@ async def _async_reconcile_member_entities(
                         "it may be an orphaned entity from a deleted member",
                         er_entry.entity_id,
                     )
+
+
+# ---------------------------------------------------------------------------
+# Round-trip config accessor
+# ---------------------------------------------------------------------------
+
+
+@dataclasses.dataclass(frozen=True)
+class RoundTripConfig:
+    """Typed container for the round-trip writeback configuration.
+
+    Callers MUST use get_round_trip_config() instead of reading entry.data
+    directly so storage layout changes don't break subscribers.
+    """
+
+    webhook_url: str
+    secret: str
+    device_name: str
+
+
+def get_round_trip_config(hass: HomeAssistant) -> RoundTripConfig | None:
+    """Return the round-trip config from the single lucarne_family config entry.
+
+    Returns None if the integration is not set up or round-trip is disabled.
+    Future-spec subscribers MUST call this accessor — never read entry.data directly.
+    """
+    entries = hass.config_entries.async_entries(DOMAIN)
+    if not entries:
+        return None
+    entry = entries[0]
+    rt = entry.data.get("round_trip", {})
+    if not rt.get("enabled"):
+        return None
+    return RoundTripConfig(
+        webhook_url=rt.get("webhook_url", ""),
+        secret=rt.get("secret", ""),
+        device_name=rt.get("device_name", "Sync device"),
+    )
 
 
 # ---------------------------------------------------------------------------
