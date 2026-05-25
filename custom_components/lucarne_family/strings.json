@@ -21,7 +21,8 @@
         "menu_options": {
           "manage_members": "Manage members",
           "edit_schedule": "Edit schedule",
-          "edit_round_trip": "Edit round-trip (reserved)"
+          "edit_round_trip": "Apple Reminders sync",
+          "edit_templates": "Routine presets"
         }
       },
       "manage_members": {
@@ -37,8 +38,8 @@
         "data": {
           "name": "Name",
           "color": "Color (hex, e.g. #f5c89c)",
-          "avatar": "Avatar (emoji or path)",
-          "preset": "Routine preset"
+          "avatar": "Avatar (emoji or photo path)",
+          "preset": "Starting routines"
         }
       },
       "edit_member": {
@@ -47,7 +48,7 @@
           "member_slug": "Member to edit",
           "name": "Name",
           "color": "Color (hex, e.g. #f5c89c)",
-          "avatar": "Avatar (emoji or path)",
+          "avatar": "Avatar (emoji or photo path)",
           "preset": "Routine preset"
         }
       },
@@ -72,17 +73,53 @@
           "reset_time": "Daily reset time (HH:MM)",
           "streak_check_time": "Streak check time (HH:MM)"
         }
+      },
+      "edit_round_trip": {
+        "title": "Apple Reminders sync",
+        "description": "When enabled, completing an Apple Reminders item fires an event so a bridge can mark it done in Reminders too.",
+        "data": {
+          "enabled": "Enable sync",
+          "webhook_url": "Webhook URL (http:// or https://)",
+          "secret": "Webhook secret (min 32 characters)",
+          "device_name": "Device name (shown in payloads)"
+        }
+      },
+      "edit_templates": {
+        "title": "Routine presets",
+        "menu_options": {
+          "add_custom_preset": "Add a custom preset"
+        }
+      },
+      "add_custom_preset": {
+        "title": "New routine preset",
+        "data": {
+          "display_name": "Preset name"
+        }
+      },
+      "add_preset_routine": {
+        "title": "Add a routine to this preset",
+        "data": {
+          "summary": "Routine name",
+          "icon": "Icon (emoji)",
+          "recurrence": "Repeats (RRULE, e.g. FREQ=DAILY)",
+          "add_another": "Add another routine to this preset"
+        }
       }
     },
     "error": {
       "name_empty": "Name must not be empty.",
       "name_too_long": "Name must be 50 characters or fewer.",
       "invalid_color": "Color must be a valid hex color (e.g. #f5c89c).",
-      "slug_conflict": "A member with an equivalent name already exists.",
+      "slug_conflict": "A member or preset with an equivalent name already exists.",
       "empty_slug": "The name produces an empty identifier. Use letters or numbers.",
       "confirm_mismatch": "Name does not match. Removal cancelled.",
       "invalid_time": "Time must be in HH:MM format (e.g. 04:00).",
-      "entity_rename_failed": "Failed to rename the member's entities. Check the logs and try again."
+      "entity_rename_failed": "Failed to rename the member's entities. Check the logs and try again.",
+      "entity_create_failed": "Failed to create the member's entities. Check the logs and try again.",
+      "entity_delete_failed": "Failed to delete the member's entities. Check the logs and try again.",
+      "invalid_url": "Enter a valid URL starting with http:// or https://",
+      "secret_too_short": "Secret must be at least 32 characters.",
+      "invalid_rrule": "Not a valid recurrence rule. Example: FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO"
     }
   }
 }

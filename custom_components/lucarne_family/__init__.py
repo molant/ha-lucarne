@@ -13,7 +13,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN, PRESET_ADULT_NONE
-from .models import Member
+from .models import Member, RoutinePreset
 from .presets import BUILTIN_PRESETS
 from .store import LucarneFamilyStore
 
@@ -255,13 +255,17 @@ async def seed_preset_routines(
     hass: HomeAssistant,
     store: LucarneFamilyStore,
     member: Member,
+    extra_presets: dict[str, RoutinePreset] | None = None,
 ) -> None:
     """Add preset routine items to a member's todo entity and insert task_metadata rows.
 
     Called exactly once after a new member's entities are created. Never called
     during reload / reconciliation to prevent duplicate rows.
+
+    extra_presets: mapping of slug → RoutinePreset for custom presets from entry.data.
     """
-    preset = BUILTIN_PRESETS.get(member.preset)
+    all_presets = {**BUILTIN_PRESETS, **(extra_presets or {})}
+    preset = all_presets.get(member.preset)
     if preset is None or member.preset == PRESET_ADULT_NONE or not preset.routines:
         return
 
@@ -308,4 +312,5 @@ async def seed_preset_routines(
             recurrence=template.recurrence,
             icon=template.icon,
             source="template",
+            summary=template.summary,
         )

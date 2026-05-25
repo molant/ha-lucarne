@@ -20,7 +20,7 @@ def verify_cleanup(
     expected_lingering_tasks: bool,
     expected_lingering_timers: bool,
 ) -> Generator[None, None, None]:
-    """Override verify_cleanup to allow aiohttp's _run_safe_shutdown_loop daemon thread."""
+    """Override verify_cleanup to allow executor threads and _run_safe_shutdown_loop."""
     import respx
     from homeassistant.core import HassJob
     from homeassistant.util import dt as dt_util

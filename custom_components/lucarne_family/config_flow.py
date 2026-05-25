@@ -4,12 +4,14 @@ from __future__ import annotations
 import logging
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
+from . import seed_preset_routines
 from .const import (
     CONF_CUSTOM_PRESETS,
     CONF_FAMILY_NAME,
@@ -26,8 +28,9 @@ from .const import (
     DOMAIN,
     PRESET_SCHOOL_AGE,
 )
-from .models import Member
+from .models import Member, RoutinePreset
 from .presets import BUILTIN_PRESETS
+from .recurrence import is_valid_rrule
 
 _LOGGER = logging.getLogger(__name__)
 _HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -105,6 +108,14 @@ class LucarneFamilyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return LucarneFamilyOptionsFlow(config_entry)
 
 
+def _validate_url(url: str) -> bool:
+    """Return True if url has http/https scheme and a non-empty host."""
+    if not url:
+        return False
+    parsed = urlparse(url)
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
 class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
     """Handle ongoing configuration via the Configure button."""
 
@@ -112,6 +123,8 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         self._entry = config_entry
         self._selected_member_slug: str | None = None
         self._pending_rename: dict[str, Any] | None = None
+        self._pending_preset_name: str | None = None
+        self._pending_preset_routines: list[dict[str, Any]] = []
 
     def _get_members(self) -> list[Member]:
         raw: list[dict[str, Any]] = self._entry.data.get(CONF_MEMBERS, [])
@@ -129,14 +142,154 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
     ) -> config_entries.ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["manage_members", "edit_schedule", "edit_round_trip"],
+            menu_options=["manage_members", "edit_schedule", "edit_round_trip", "edit_templates"],
         )
 
     async def async_step_edit_round_trip(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        # Reserved for Phase 6. Returns immediately to avoid a dead end.
-        return await self.async_step_init()
+        errors: dict[str, str] = {}
+        current_rt: dict[str, Any] = self._entry.data.get(CONF_ROUND_TRIP, {})
+
+        if user_input is not None:
+            enabled = user_input.get(CONF_ROUND_TRIP_ENABLED, False)
+            webhook_url = (user_input.get(CONF_ROUND_TRIP_WEBHOOK_URL) or "").strip()
+            secret = (user_input.get(CONF_ROUND_TRIP_SECRET) or "").strip()
+            device_name = (user_input.get(CONF_ROUND_TRIP_DEVICE_NAME) or "Sync device").strip()
+
+            if enabled:
+                if not _validate_url(webhook_url):
+                    errors[CONF_ROUND_TRIP_WEBHOOK_URL] = "invalid_url"
+                if len(secret) < 32:
+                    errors[CONF_ROUND_TRIP_SECRET] = "secret_too_short"
+
+            if not errors:
+                new_data = {
+                    **self._entry.data,
+                    CONF_ROUND_TRIP: {
+                        CONF_ROUND_TRIP_ENABLED: enabled,
+                        CONF_ROUND_TRIP_WEBHOOK_URL: webhook_url,
+                        CONF_ROUND_TRIP_SECRET: secret,
+                        CONF_ROUND_TRIP_DEVICE_NAME: device_name,
+                    },
+                }
+                self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+                return self.async_create_entry(title="", data={})
+
+        schema = vol.Schema(
+            {
+                vol.Required(
+                    CONF_ROUND_TRIP_ENABLED,
+                    default=current_rt.get(CONF_ROUND_TRIP_ENABLED, False),
+                ): bool,
+                vol.Optional(
+                    CONF_ROUND_TRIP_WEBHOOK_URL,
+                    default=current_rt.get(CONF_ROUND_TRIP_WEBHOOK_URL, ""),
+                ): str,
+                vol.Optional(
+                    CONF_ROUND_TRIP_SECRET,
+                    default=current_rt.get(CONF_ROUND_TRIP_SECRET, ""),
+                ): selector.TextSelector(
+                    selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)
+                ),
+                vol.Optional(
+                    CONF_ROUND_TRIP_DEVICE_NAME,
+                    default=current_rt.get(CONF_ROUND_TRIP_DEVICE_NAME, "Sync device"),
+                ): str,
+            }
+        )
+        return self.async_show_form(
+            step_id="edit_round_trip", data_schema=schema, errors=errors
+        )
+
+    async def async_step_edit_templates(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        return self.async_show_menu(
+            step_id="edit_templates",
+            menu_options=["add_custom_preset"],
+        )
+
+    async def async_step_add_custom_preset(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            display_name = (user_input.get("display_name") or "").strip()
+            if not display_name:
+                errors["display_name"] = "name_empty"
+            else:
+                candidate_slug = _make_slug(display_name)
+                existing_custom_slugs = {
+                    cp["slug"] for cp in self._entry.data.get(CONF_CUSTOM_PRESETS, [])
+                }
+                if not candidate_slug:
+                    errors["display_name"] = "empty_slug"
+                elif candidate_slug in BUILTIN_PRESETS or candidate_slug in existing_custom_slugs:
+                    errors["display_name"] = "slug_conflict"
+                else:
+                    self._pending_preset_name = display_name
+                    self._pending_preset_routines = []
+                    return await self.async_step_add_preset_routine()
+
+        schema = vol.Schema({vol.Required("display_name"): str})
+        return self.async_show_form(
+            step_id="add_custom_preset", data_schema=schema, errors=errors
+        )
+
+    async def async_step_add_preset_routine(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            summary = (user_input.get("summary") or "").strip()
+            icon = (user_input.get("icon") or "").strip()
+            recurrence = (user_input.get("recurrence") or "FREQ=DAILY").strip()
+            add_another = user_input.get("add_another", False)
+
+            if not summary:
+                errors["summary"] = "name_empty"
+            if not is_valid_rrule(recurrence):
+                errors["recurrence"] = "invalid_rrule"
+
+            if not errors:
+                self._pending_preset_routines.append(
+                    {"summary": summary, "icon": icon, "recurrence": recurrence}
+                )
+                if add_another:
+                    return await self.async_step_add_preset_routine()
+
+                # Save the new custom preset
+                slug = _make_slug(self._pending_preset_name or "custom")
+                custom_presets: list[dict[str, Any]] = list(
+                    self._entry.data.get(CONF_CUSTOM_PRESETS, [])
+                )
+                custom_presets.append(
+                    {
+                        "slug": slug,
+                        "display_name": self._pending_preset_name,
+                        "routines": list(self._pending_preset_routines),
+                    }
+                )
+                new_data = {**self._entry.data, CONF_CUSTOM_PRESETS: custom_presets}
+                self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+                self._pending_preset_name = None
+                self._pending_preset_routines = []
+                return self.async_create_entry(title="", data={})
+
+        schema = vol.Schema(
+            {
+                vol.Required("summary"): str,
+                vol.Optional("icon", default=""): str,
+                vol.Optional("recurrence", default="FREQ=DAILY"): str,
+                vol.Optional("add_another", default=False): bool,
+            }
+        )
+        return self.async_show_form(
+            step_id="add_preset_routine", data_schema=schema, errors=errors
+        )
 
     async def async_step_manage_members(
         self, user_input: dict[str, Any] | None = None
@@ -225,10 +378,15 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                             store: LucarneFamilyStore = self.hass.data[DOMAIN][
                                 self._entry.entry_id
                             ]["store"]
-                            from . import seed_preset_routines
+
+                            extra_presets: dict[str, RoutinePreset] = {}
+                            for cp in self._entry.data.get(CONF_CUSTOM_PRESETS, []):
+                                extra_presets[cp["slug"]] = RoutinePreset.from_dict(cp)
 
                             try:
-                                await seed_preset_routines(self.hass, store, new_member)
+                                await seed_preset_routines(
+                                    self.hass, store, new_member, extra_presets=extra_presets
+                                )
                             except Exception as exc:
                                 _LOGGER.warning(
                                     "Preset seeding failed for member %r: %s; "
@@ -239,6 +397,8 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                             return await self.async_step_manage_members()
 
         preset_options = {k: v.display_name for k, v in BUILTIN_PRESETS.items()}
+        for cp in self._entry.data.get(CONF_CUSTOM_PRESETS, []):
+            preset_options[cp["slug"]] = cp["display_name"]
         schema = vol.Schema(
             {
                 vol.Required("name"): str,
@@ -322,6 +482,8 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_manage_members()
 
         preset_options = {k: v.display_name for k, v in BUILTIN_PRESETS.items()}
+        for cp in self._entry.data.get(CONF_CUSTOM_PRESETS, []):
+            preset_options[cp["slug"]] = cp["display_name"]
         schema = vol.Schema(
             {
                 vol.Required("name", default=target.name): str,

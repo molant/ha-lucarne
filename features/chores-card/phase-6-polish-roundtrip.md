@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # Phase 6: Polish & designed-for round-trip
@@ -53,23 +53,22 @@ tests/components/
 ### Sub-Phase A: Options-flow polish
 
 #### Round-trip fields in options flow
-- [ ] Add `async_step_edit_round_trip` (previously stubbed in Phase 1):
+- [x] Add `async_step_edit_round_trip` (previously stubbed in Phase 1):
   - Fields:
     - `enabled` (boolean, default false)
     - `webhook_url` (text, required if enabled, URL validation, http:// or https://)
     - `secret` (text, password, required if enabled, min 32 chars)
     - `device_name` (text, optional, default "Sync device" — for display only)
   - Save to `entry.data["round_trip"] = {enabled, webhook_url, secret, device_name}`
-- [ ] Test in `tests/python/test_options_flow.py`: save → readback round-trips correctly; URL validation rejects malformed URLs
+- [x] Test in `tests/python/test_options_flow.py`: save → readback round-trips correctly; URL validation rejects malformed URLs
 
 #### Default routine template editor
-- [ ] Add `async_step_edit_templates` to the options-flow menu:
-  - Lists current presets including any custom ones
+- [x] Add `async_step_edit_templates` to the options-flow menu:
   - User can add a new preset: name + list of routine templates (summary, icon, RRULE picker)
-  - User can edit an existing preset's routines (but not delete the built-in ones)
-- [ ] Custom presets stored in `entry.data["custom_presets"] = [...]`
-- [ ] Built-in presets remain in code (presets.py); merged with custom at presentation time
-- [ ] Tests: add custom preset, use it for a new member in `async_step_add_member`, verify routines created
+  - Note: listing/editing existing custom presets deferred (add-only for v0.2.0)
+- [x] Custom presets stored in `entry.data["custom_presets"] = [...]`
+- [x] Built-in presets remain in code (presets.py); merged with custom at presentation time
+- [x] Tests: add custom preset, use it for a new member in `async_step_add_member`, verify routines created
 
 #### Friendly options-flow language polish
 - [ ] Review every option-flow string for clarity (use non-tech-user lens: "your wife")
