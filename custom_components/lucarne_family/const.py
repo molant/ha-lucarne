@@ -29,3 +29,6 @@ PRESET_CUSTOM = "custom"
 AVATAR_MAX_BYTES = 2 * 1024 * 1024
 AVATAR_MAX_PIXELS = 4096 * 4096
 AVATAR_ALLOWED_MIME: frozenset[str] = frozenset({"image/png", "image/jpeg", "image/webp"})
+
+# Round-trip event names
+EVENT_APPLE_WRITEBACK_REQUESTED = "lucarne_family_apple_writeback_requested"
