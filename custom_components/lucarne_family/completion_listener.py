@@ -20,6 +20,7 @@ from homeassistant.components.todo.const import DATA_COMPONENT, TodoItemStatus
 from homeassistant.core import CALLBACK_TYPE, CoreState, Event, HomeAssistant, callback
 from homeassistant.helpers.event import EventStateChangedData, async_track_state_change_event
 
+from .apple_sentinel_backfill import async_backfill_apple_sentinel
 from .store import LucarneFamilyStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -128,7 +129,19 @@ def async_start_completion_listener(
             new_entry = new_snapshot.get(uid)
 
             if old_entry is None or new_entry is None:
-                # Item appeared or disappeared — not a status transition we log.
+                # Item appeared: check for Apple-sentinel in description and backfill metadata.
+                if old_entry is None and new_entry is not None:
+                    metadata = await store.async_get_task_metadata(uid)
+                    member_slug_for_backfill = (
+                        metadata["member_slug"]
+                        if metadata
+                        else _resolve_member(entity_id, store)
+                    )
+                    if member_slug_for_backfill:
+                        await async_backfill_apple_sentinel(
+                            hass, store, entity_id, uid, member_slug_for_backfill
+                        )
+                # Item appeared or disappeared — not a status transition to log.
                 continue
 
             old_status, _ = old_entry
