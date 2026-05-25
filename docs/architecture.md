@@ -60,7 +60,9 @@ Each card manages its own HA subscriptions independently.
 **lucarne-today-card**
 - `fetchCalendarEvents` REST `GET /api/calendars/<entity_id>?start=...&end=...` (via `hass.callApi`) on connect + 5-minute poll (all configured `calendar.*` entities, 7-day window). Returns `{ events: Map<entity_id, CalendarEvent[]>, failed: Set<entity_id> }`. REST is used (not the `calendar.get_events` service-call) so events include `uid`, which is required for the `calendar/event/delete` WS command used by the Delete affordance.
 - `weather.get_forecasts` service call (daily type) on connect + on weather entity state change
-- `subscribeTodoItems` — `subscribe_trigger` on entity state change + `todo.get_items` re-poll for live task-count badge
+- `subscribeTodoItems` — `subscribe_trigger` on entity state change + `todo.get_items` re-poll for live task-count badge. Only subscribed when `tasks:` is set and `household_tasks_from_integration` is false.
+- `subscribeFamilyState` — subscribed only when `household_tasks_from_integration: true` or `show_family_ready_pill: true`. Reuses the same WebSocket subscription as the chores card (`lucarne_family/get_family`). The pill reads `tasksByMember` for each member's routines; the household tasks pane reads `tasksByMember.get('household')`.
+- **Integration-mode guard**: both the family-ready pill and household task pane are suppressed when `familyState.integrationError !== null` (integration missing or failed) to avoid rendering a misleading empty state.
 
 **lucarne-calendar-card**
 - `RollingWindowController` (Lit ReactiveController) owns the fetch lifecycle: fetches `visible + ±visibleCount buffer` days on connect, on `setHass` first-arrival, on day-step navigation (pan), and on a 5-minute background poll
@@ -77,6 +79,33 @@ Each card manages its own HA subscriptions independently.
 ### `calendar-day-pan` wrapper
 
 `LucarneCalendarDayPan` (`src/components/calendar-day-pan.ts`) is a thin Lit element that wraps `<lucarne-calendar-grid>` via a `<slot>` and translates Pointer Events into a `pan-snap` CustomEvent carrying a `deltaDays` count. It uses the Pointer Events API (`pointerdown / pointermove / pointerup / pointercancel`) so that mouse, pen, and touch are handled uniformly without fighting the browser's native scroll. Direction lock: the first 10 px of movement decide the axis — if vertical movement dominates, pointer capture is released immediately and the browser's native vertical scroll takes over. During a horizontal pan the slotted grid's inner `.day-cols-track` elements receive a `transform: translateX(...)`, while the time-column gutter (grid column 1, outside `.day-cols-track`) remains stationary. When the pointer is released, `snapToDay(dx, dayWidthPx, velocity)` (from `pan-math.ts`) computes the day count with a flick-velocity bias (≥500 px/s overcomes the half-column threshold), and `rubberBand(dx, 0)` provides resistance when panning into a disabled direction. The snap-back animation uses the `--lucarne-pan-easing` and `--lucarne-pan-duration` tokens; under `prefers-reduced-motion: reduce`, the transform is applied instantly.
+
+### User action data flow
+
+```
+User taps "complete" on chores card
+          │
+          │  todo.update_item (HA service)
+          ▼
+  todo.<slug> entity (local_todo)
+          │ state_changed
+          ▼
+  completion_listener.py
+    ├── snapshot diff detects completed transition
+    ├── appends completion_log row (action="completed")
+    ├── fires lucarne_family_task_completed {member, uid, summary}
+    ├── all routines done?
+    │     yes → fires lucarne_family_all_routines_done
+    │           + ha_lucarne_chores_all_done (compat shim)
+    └── (fires nothing extra if already seen this transition)
+          │
+          │  WebSocket state push (todo entity state changed)
+          ▼
+  subscribeFamilyState (card)
+    ├── todoItemsByEntity updated
+    ├── tasksByMember rebuilt
+    └── callback → card re-renders
+```
 
 **lucarne-chores-card**
 - Subscribes to `subscribeFamilyState` (`src/shared/family-subscription.ts`) on first `hass` set; unsubscribes in `disconnectedCallback`
