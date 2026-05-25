@@ -133,14 +133,37 @@ On confirm:
 
 If the SQLite migration (step 1) or entity rename (step 2–3) fails, the partial changes are rolled back before returning. If the final config-entry save (step 4) fails after the entities have already been renamed, the entities remain under the new slug — the config entry will reflect the old slug until the next successful options-flow submission.
 
-## Schedule settings
+## Schedule settings and managed automations
 
 Choose **Edit schedule** to adjust:
 
 - **Daily reset time** (default `04:00`) — when routine tasks flip back to `needs_action`.
 - **Streak check time** (default `21:00`) — when the streak counter is recomputed.
 
-These times are used by the managed automations created in Phase 3.
+### How managed automations work
+
+The integration registers in-process `async_track_time_change` listeners at the configured times.
+There are no `automation.*` HA entities to view or edit — the behavior is driven entirely inside
+the integration process.
+
+**Daily reset** (`perform_daily_reset` service, fired at `reset_time`):
+
+- For every member, iterates their `todo.<slug>` items.
+- Items with `type=routine` that are in `completed` state are flipped back to `needs_action`.
+- Idempotent: items already in `needs_action` are untouched (safe to trigger multiple times).
+- The completion listener detects the resulting state changes and appends `action="reset"` rows
+  to the completion log (distinct from `action="undone"` for user-initiated unchecks).
+
+**Streak check** (`evaluate_all_streaks` service, fired at `streak_check_time`):
+
+- For every member, recomputes the streak by walking backward through the completion log.
+- Writes the result to `counter.<slug>_streak` via `counter.set_value`.
+- No-routine days are skipped; all-complete days increment; any-missing day stops the walk.
+- Cap: 365 days maximum walk.
+
+**Changing the times**: open Settings → Devices & Services → Lucarne Family → Configure →
+Edit schedule, enter the new times, and submit. The listeners are re-registered immediately — no
+HA restart required.
 
 ## Troubleshooting
 

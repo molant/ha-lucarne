@@ -15,7 +15,28 @@ Mac mini ──── POST /api/webhook/<secret> ────► Home Assistant
                                                      │ upsert by Apple UID
                                                      ▼
                                             local_todo entities
-                                          (todo.ingrid_tasks, etc.)
+                                        (todo.<slug>, todo.lucarne_household)
+                                                     │ state_changed
+                                                     ▼
+                                          lucarne_family completion_listener
+                                          ┌─────────────────────────────┐
+                                          │  snapshot diff (uid→status) │
+                                          │  ┌──────────────────────┐   │
+                                          │  │ new item appeared?   │   │
+                                          │  │ → apple_sentinel_    │   │
+                                          │  │   backfill           │   │
+                                          │  │   ([apple:UUID] →    │   │
+                                          │  │   source=apple meta) │   │
+                                          │  └──────────────────────┘   │
+                                          │  status transition →         │
+                                          │    completion_log row        │
+                                          │    (completed/undone/reset)  │
+                                          │  all routines done? →        │
+                                          │    lucarne_family_all_       │
+                                          │    routines_done event       │
+                                          │    + ha_lucarne_chores_all_  │
+                                          │      done (legacy compat)    │
+                                          └─────────────────────────────┘
                                                      │
                                         WebSocket subscription
                                                      ▼
@@ -26,6 +47,10 @@ Mac mini ──── POST /api/webhook/<secret> ────► Home Assistant
                                         │    card              │
                                         │  lucarne-chores-card │
                                         └──────────────────────┘
+
+lucarne_family integration (time-change listeners)
+  ├── reset_time  → perform_daily_reset  → flip type=routine items → needs_action
+  └── streak_check_time → evaluate_all_streaks → recompute streak → counter.<slug>_streak
 ```
 
 ## Card subscription model

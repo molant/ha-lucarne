@@ -9,8 +9,8 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.lucarne_family.const import DOMAIN
 from custom_components.lucarne_family.models import Member
-from custom_components.lucarne_family.streak_logic import async_evaluate_streak
 from custom_components.lucarne_family.store import LucarneFamilyStore
+from custom_components.lucarne_family.streak_logic import async_evaluate_streak
 
 
 def _make_entry(hass: HomeAssistant, slug: str = "anna") -> MockConfigEntry:
@@ -107,7 +107,9 @@ async def test_three_consecutive_daily_completions_streak_3(
         _insert_completion(store, "anna", uid, "Brush teeth", "completed", _midday(d))
 
     member = _member()
-    streak = await async_evaluate_streak(hass, store, member, datetime(2025, 1, 3, 21, 0, tzinfo=UTC))
+    streak = await async_evaluate_streak(
+        hass, store, member, datetime(2025, 1, 3, 21, 0, tzinfo=UTC)
+    )
     assert streak == 3
 
 
@@ -129,14 +131,16 @@ async def test_missed_day_resets_streak_to_zero(
         _insert_completion(store, "anna", uid, "Brush teeth", "completed", _midday(d))
 
     member = _member()
-    streak = await async_evaluate_streak(hass, store, member, datetime(2025, 1, 3, 21, 0, tzinfo=UTC))
+    streak = await async_evaluate_streak(
+        hass, store, member, datetime(2025, 1, 3, 21, 0, tzinfo=UTC)
+    )
     assert streak == 0
 
 
 async def test_no_routine_today_skips_to_yesterday(
     hass: HomeAssistant, tmp_path: Path
 ) -> None:
-    """No routine due today (e.g. weekly on Monday, today is Tuesday) → streak equals yesterday's streak."""
+    """No routine due today (weekly Mon, today Tue) → streak equals yesterday's streak."""
     entry = _make_entry(hass)
     store = await _make_store(hass, entry.entry_id, tmp_path)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"store": store}
