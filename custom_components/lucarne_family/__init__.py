@@ -26,7 +26,18 @@ async def async_setup(_hass: HomeAssistant, _config: dict[str, Any]) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Lucarne Family from a config entry."""
+    """Set up Lucarne Family from a config entry.
+
+    Setup order is load-bearing — do NOT reorder these steps:
+    1. Init store (SQLite ready before anything reads tasks)
+    2. Ensure entities (todo + counter entities exist before services reference them)
+    3. Register services (must exist before managed automations can call them)
+    4. Register WebSocket command (once per process, guarded)
+    5. Start completion listener (needs entity set from step 2)
+    6. Write managed automations (time-change listeners call services from step 3)
+    7. Register options-update listener (last, so re-setup uses the populated state)
+    """
+    # Step 1: Initialize store.
     db_path = os.path.join(hass.config.config_dir, f"lucarne_family_{entry.entry_id}.db")
     store = LucarneFamilyStore(hass, entry.entry_id, db_path)
     await store.async_init()
@@ -34,9 +45,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {"store": store}
 
-    entry.async_on_unload(entry.add_update_listener(async_options_updated))
-
-    # Ensure the shared household todo entity exists.
+    # Step 2: Ensure household + per-member entities.
     from .entity_manager import async_ensure_household_entity
 
     try:
@@ -44,17 +53,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception as exc:
         _LOGGER.warning("Failed to ensure household entity during setup: %s", exc)
 
-    # Reconcile per-member entities (recreate missing; warn on orphans).
     await _async_reconcile_member_entities(hass, store)
 
-    # Register task services, avatar service, and the WebSocket read command.
+    # Step 3: Register all lucarne_family.* services.
     from .avatar_service import async_setup_avatar_service
     from .task_service import async_setup_services
-    from .websocket_api import async_register_websocket_commands
 
     await async_setup_services(hass, entry.entry_id)
     await async_setup_avatar_service(hass, entry.entry_id)
+
+    # Step 4: Register WebSocket command (once per HA process, guarded).
+    from .websocket_api import async_register_websocket_commands
+
     async_register_websocket_commands(hass)
+
+    # Step 5: Start completion listener (state-change listener for managed entities).
+    from .completion_listener import async_start_completion_listener
+
+    members = store.get_members()
+    managed_entity_ids = {
+        m.todo_entity_id for m in members if m.todo_entity_id
+    } | {"todo.lucarne_household"}
+    unsub_listener = async_start_completion_listener(hass, store, managed_entity_ids)
+    hass.data[DOMAIN][entry.entry_id]["unsub_listener"] = unsub_listener
+
+    # Step 6: Write managed automations (time-change listeners) — LAST before
+    # options listener so services from step 3 are guaranteed registered.
+    from .automation_writer import async_write_managed_automations
+
+    unsub_automations = await async_write_managed_automations(hass, entry)
+    hass.data[DOMAIN][entry.entry_id]["unsub_automations"] = unsub_automations
+
+    # Step 7: Register options-update listener.
+    entry.async_on_unload(entry.add_update_listener(async_options_updated))
 
     return True
 
@@ -64,6 +95,16 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     domain_data = hass.data.get(DOMAIN, {})
     entry_data = domain_data.pop(entry.entry_id, None)
     if entry_data:
+        # Unsubscribe time-change listeners.
+        unsub_automations = entry_data.get("unsub_automations")
+        if unsub_automations is not None:
+            unsub_automations()
+
+        # Unsubscribe completion listener.
+        unsub_listener = entry_data.get("unsub_listener")
+        if unsub_listener is not None:
+            unsub_listener()
+
         await entry_data["store"].async_close()
 
     # Unload services when the last entry is removed.
@@ -80,9 +121,36 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_options_updated(_hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update."""
+async def async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Handle options update — rewire time-change listeners and completion listener."""
     _LOGGER.debug("Options updated: %s", entry.entry_id)
+
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+
+    # Rewire time-change listeners for new reset/streak times.
+    old_unsub = entry_data.pop("unsub_automations", None)
+    if old_unsub is not None:
+        old_unsub()
+
+    # Restart completion listener so newly-added members are tracked.
+    old_listener = entry_data.pop("unsub_listener", None)
+    if old_listener is not None:
+        old_listener()
+
+    from .automation_writer import async_write_managed_automations
+    from .completion_listener import async_start_completion_listener
+
+    store: LucarneFamilyStore = entry_data["store"]
+    members = store.get_members()
+    managed_entity_ids = {
+        m.todo_entity_id for m in members if m.todo_entity_id
+    } | {"todo.lucarne_household"}
+    entry_data["unsub_listener"] = async_start_completion_listener(
+        hass, store, managed_entity_ids
+    )
+
+    new_unsub = await async_write_managed_automations(hass, entry)
+    entry_data["unsub_automations"] = new_unsub
 
 
 async def _async_reconcile_member_entities(

@@ -16,6 +16,9 @@ _EXPECTED_FIELDS: dict[str, set[str]] = {
     "delete_task": {"uid"},
     "toggle_task": {"uid"},
     "upload_avatar": {"member", "image_data", "mime_type"},
+    # Phase 3 internal services — no user-supplied fields.
+    "perform_daily_reset": set(),
+    "evaluate_all_streaks": set(),
 }
 
 

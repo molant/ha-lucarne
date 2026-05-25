@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+
 from homeassistant.components.todo import TodoItem
 from homeassistant.components.todo.const import DATA_COMPONENT, TodoItemStatus
 from homeassistant.core import HomeAssistant
@@ -152,7 +153,15 @@ async def test_reset_is_idempotent(hass: HomeAssistant, tmp_path: Path) -> None:
 
 
 async def test_reset_log_rows_match_reset_count(hass: HomeAssistant, tmp_path: Path) -> None:
-    """Each reset appends exactly one 'reset' log row per item reset."""
+    """Each reset appends exactly one 'reset' log row per item reset.
+
+    Completion logging is handled by the completion_listener (Phase 3-C). The listener
+    is started here so that the COMPLETED→NEEDS_ACTION transitions produced by
+    async_perform_daily_reset are classified as action='reset' (via the reset-pending
+    mechanism) and written to completion_log.
+    """
+    from custom_components.lucarne_family.completion_listener import async_start_completion_listener
+
     await _setup_member_todo(hass, "anna")
     entry = _make_entry(hass, "anna")
     store = await _make_store(hass, entry.entry_id, tmp_path)
@@ -165,8 +174,16 @@ async def test_reset_log_rows_match_reset_count(hass: HomeAssistant, tmp_path: P
         )
         await _complete_item(hass, "todo.anna", uid, f"Routine {i}")
 
+    # Start listener after items are set to completed so the pre-populated snapshot
+    # reflects the completed state. The reset will flip items to NEEDS_ACTION and the
+    # listener will classify each as action='reset'.
+    unsub_listener = async_start_completion_listener(hass, store, {"todo.anna"})
+
     reset_count = await async_perform_daily_reset(hass, store)
     assert reset_count == 3
+
+    # Allow the async tasks created by the state-change listener to complete.
+    await hass.async_block_till_done()
 
     def _count_reset_rows() -> int:
         with store._db_connect() as con:
@@ -175,6 +192,7 @@ async def test_reset_log_rows_match_reset_count(hass: HomeAssistant, tmp_path: P
             ).fetchone()[0]
 
     count = await hass.async_add_executor_job(_count_reset_rows)
+    unsub_listener()
     assert count == 3
 
 

@@ -446,8 +446,17 @@ async def test_toggle_task_flips_status_and_appends_log(
     hass: HomeAssistant,
     tmp_path: Path,
 ) -> None:
-    """toggle_task flips status from NEEDS_ACTION → COMPLETED and appends log."""
+    """toggle_task flips status from NEEDS_ACTION → COMPLETED and appends log.
+
+    Completion logging is handled by the completion_listener (Phase 3-C), not by
+    toggle_task directly. This test wires the listener so end-to-end log writing works.
+    """
+    from custom_components.lucarne_family.completion_listener import (
+        async_start_completion_listener,
+    )
+
     _entry, store, _ = await _setup_with_member(hass, tmp_path)
+    unsub_listener = async_start_completion_listener(hass, store, {"todo.anna"})
 
     await hass.services.async_call(
         DOMAIN,
@@ -475,6 +484,7 @@ async def test_toggle_task_flips_status_and_appends_log(
             ).fetchall()
 
     rows = await hass.async_add_executor_job(_get_log)
+    unsub_listener()
     assert len(rows) == 1
     assert rows[0][0] == "completed"
 
@@ -483,8 +493,17 @@ async def test_toggle_task_twice_uses_undone_action(
     hass: HomeAssistant,
     tmp_path: Path,
 ) -> None:
-    """Toggling twice produces 'completed' then 'undone' — matching schema CHECK."""
+    """Toggling twice produces 'completed' then 'undone' — matching schema CHECK.
+
+    Completion logging is handled by the completion_listener (Phase 3-C), not by
+    toggle_task directly. This test wires the listener so end-to-end log writing works.
+    """
+    from custom_components.lucarne_family.completion_listener import (
+        async_start_completion_listener,
+    )
+
     _entry, store, _ = await _setup_with_member(hass, tmp_path)
+    unsub_listener = async_start_completion_listener(hass, store, {"todo.anna"})
 
     await hass.services.async_call(
         DOMAIN,
@@ -516,4 +535,5 @@ async def test_toggle_task_twice_uses_undone_action(
             ]
 
     actions = await hass.async_add_executor_job(_get_actions)
+    unsub_listener()
     assert actions == ["completed", "undone"]

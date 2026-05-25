@@ -30,7 +30,9 @@ async def async_evaluate_streak(
     the same local date that the recurrence engine evaluated).
     """
     import zoneinfo
+    from datetime import timezone as _tz
 
+    local_tz: zoneinfo.ZoneInfo | _tz
     try:
         local_tz = zoneinfo.ZoneInfo(str(hass.config.time_zone))
     except Exception:
