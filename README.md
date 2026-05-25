@@ -34,7 +34,7 @@ without manual entry.
 
 ## What it isn't
 
-- Not a HA integration — only custom Lovelace cards and blueprints.
+- Not a replacement for HA's built-in todo or calendar integrations.
 - Not a replacement for Google Calendar or Apple Calendar — it reads your existing calendars.
 - The Reminders bridge is Mac mini–specific. If you don't have a Mac always-on, use HA's built-in
   todo directly (e.g. via the iOS Companion app) — see [config-recipes.md](docs/config-recipes.md).
@@ -51,9 +51,8 @@ without manual entry.
   `ha_lucarne_chores_all_done` custom event
 - **Apple Reminders bridge** — Mac mini Shortcut + launchd job syncs Reminders to HA todo entities
   every 5 minutes
-- **Three blueprints** — `lucarne_reminders_sync` (webhook receiver that upserts Reminders into
-  `local_todo`), `lucarne_chores_daily_reset` (midnight auto-reset), and
-  `lucarne_chores_streak_advance` (nightly streak check at 21:00)
+- **One blueprint** — `lucarne_reminders_sync` (webhook receiver that upserts Reminders into
+  `local_todo`). Daily reset and streak checks are now owned by the `lucarne_family` integration.
 - **Design-token layer** — CSS custom properties for spacing, radii, typography, palette; consistent
   at all 4 breakpoints (700 / 1080 / 1366 / 1440 px)
 
@@ -91,7 +90,12 @@ Each card has a visual editor — click **Visual editor** after adding.
 
 ### 5. (Optional) Install the Lucarne Family integration
 
-A companion `lucarne_family` custom integration is in development (see `docs/integration.md` once Phase 1 ships). It will manage family members, tasks, and automations so the chores card requires no manual helper setup.
+The `lucarne_family` integration manages family members, tasks, daily routine reset, and streak
+checks against its own `todo.<slug>` model. The chores card currently still reads `input_boolean.*`
+entities directly (full card↔integration wiring lands in a later phase) — see the note under
+`lucarne-chores-card` below for the current state. See [docs/integration.md](docs/integration.md)
+for installation and configuration steps. Once installed, go to Settings → Devices & Services →
+Add Integration → Lucarne Family.
 
 ### 6. (Optional) Install the Lucarne theme
 
@@ -178,13 +182,22 @@ show_create_button: true  # optional; shows a + button on empty slots (requires 
 
 ### `lucarne-chores-card`
 
+> **Note on reset/streak**: The chores card reads `input_boolean.*` entities (configured below).
+> The `lucarne_family` integration manages a separate `todo.<slug>` model and owns daily reset +
+> streak for integration members — but the card currently still uses `input_boolean.*` directly.
+> Full card↔integration wiring lands in a later phase. If you use the integration, streak counters
+> are created automatically but are updated from the integration's `todo` completion log, not from
+> `input_boolean` toggles. If you use only the card without the integration, you must write your
+> own HA automations for daily reset and streak — the old `lucarne_chores_daily_reset` and
+> `lucarne_chores_streak_advance` blueprints have been retired.
+
 ```yaml
 type: custom:lucarne-chores-card
 title: Chores           # optional, default "Chores"
 kids:
   - name: Kid 1
     color: "#f5c89c"
-    streak: counter.kid_1_streak   # counter helper — see Blueprints section
+    streak: counter.kid_1_streak   # counter helper (created by the integration or manually)
     chores:
       - name: Brush teeth
         entity: input_boolean.kid_1_brush_teeth
@@ -212,20 +225,23 @@ The card's visual editor lets you pick existing helpers from a dropdown once the
 
 ## Blueprints
 
-Three automation blueprints live in `blueprints/automation/`. Import them via HA:
+One automation blueprint lives in `blueprints/automation/`. Import it via HA:
 
 **Settings → Automations → Blueprints → Import Blueprint** and paste the raw GitHub URL:
 
 - `lucarne_reminders_sync` — webhook receiver: upserts the Mac mini's Reminders payload into HA
   `local_todo` entities. Inputs: Webhook ID + `list_mappings` JSON (e.g.
   `{"Family": "todo.ingrid_tasks", "Groceries": "todo.groceries"}`). Required for the bridge.
-- `lucarne_chores_daily_reset` — resets all `input_boolean` chore entities to `off` at midnight
-- `lucarne_chores_streak_advance` — checks each kid's completion at 21:00 and increments or resets
-  the `counter.*` streak helper accordingly
 
-After importing, create **one automation instance per blueprint** covering all kids:
-- `lucarne_chores_daily_reset`: pass all chore `input_boolean` entity IDs as a comma-separated list
-- `lucarne_chores_streak_advance`: pass a JSON array of kid configs (see the blueprint's description)
+> **Note**: The `lucarne_chores_daily_reset` and `lucarne_chores_streak_advance` blueprints have
+> been retired. Daily routine reset and streak checks are now managed by the `lucarne_family`
+> integration using in-process time-change listeners (for its `todo.<slug>` model only).
+> If you had automation instances of the old blueprints, back them up before deleting:
+> - **Integration users** (chore entities migrated to `todo.<slug>`): no replacement needed —
+>   the integration owns reset/streak.
+> - **Card-only users** (`input_boolean.*` chores): you must write replacement automations for
+>   daily reset and streak counting — see [docs/config-recipes.md](docs/config-recipes.md) for
+>   guidance. The retired blueprints are no longer available.
 
 ---
 
