@@ -101,20 +101,16 @@ async def _configure(
 # ---------------------------------------------------------------------------
 
 
-async def test_compute_impact_no_files_returns_empty(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_compute_impact_no_files_returns_empty(hass: HomeAssistant) -> None:
     """Empty config dir → empty impact."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     impact = await async_compute_rename_impact(hass, "todo.anna")
     assert impact.is_empty
 
 
 async def test_compute_impact_automation_reference(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """automations.yaml referencing the entity_id is included in impact."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     automations = [
         {
             "id": "morning_routine",
@@ -139,10 +135,9 @@ async def test_compute_impact_automation_reference(
 
 
 async def test_compute_impact_script_reference(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """scripts.yaml referencing the entity_id is included in impact."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     scripts = {
         "check_anna_tasks": {
             "sequence": [
@@ -158,10 +153,9 @@ async def test_compute_impact_script_reference(
 
 
 async def test_compute_impact_scene_reference(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """scenes.yaml referencing the entity_id is included in impact."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     scenes = [
         {"name": "Evening", "entities": {"todo.anna": {"state": "in_progress"}}},
         {"name": "Morning", "entities": {}},
@@ -173,12 +167,11 @@ async def test_compute_impact_scene_reference(
 
 
 async def test_compute_impact_dashboard_reference(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """lovelace storage referencing the entity_id is included in impact."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     storage_dir = tmp_path / ".storage"
-    storage_dir.mkdir()
+    storage_dir.mkdir(exist_ok=True)
     dashboard = {
         "key": "lovelace",
         "data": {
@@ -206,10 +199,9 @@ async def test_compute_impact_dashboard_reference(
 
 
 async def test_rename_member_noop_same_slug(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """Renaming to a name with the same slug returns empty impact without scanning."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     automations = [
         {"id": "ref_anna", "alias": "ref", "action": [{"entity_id": "todo.anna"}]}
     ]
@@ -221,21 +213,17 @@ async def test_rename_member_noop_same_slug(
     assert impact.is_empty
 
 
-async def test_rename_member_slug_changes_no_refs(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+async def test_rename_member_slug_changes_no_refs(hass: HomeAssistant) -> None:
     """Slug-changing rename with no downstream refs returns empty impact."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     member = _make_member("anna", "Anna")
     impact = await async_rename_member(hass, member, "Annabelle")
     assert impact.is_empty
 
 
 async def test_rename_member_slug_changes_with_refs(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """Slug-changing rename returns automation refs from both todo and counter entities."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     automations = [
         {
             "id": "streak_watcher",
@@ -292,12 +280,9 @@ def _patch_entity_ops_rename():
 
 async def test_rename_confirm_step_shown_on_slug_change(
     hass: HomeAssistant,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
     _patch_entity_ops_rename: None,
 ) -> None:
     """Editing a member with a name that changes the slug shows rename_confirm step."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     anna = _make_member("anna", "Anna")
     entry = _make_entry(hass, [anna.to_dict()])
     await _setup_entry(hass, entry)
@@ -319,12 +304,9 @@ async def test_rename_confirm_step_shown_on_slug_change(
 
 async def test_rename_confirm_confirmed_renames_member(
     hass: HomeAssistant,
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
     _patch_entity_ops_rename: None,
 ) -> None:
     """Confirming rename updates the member slug and entity IDs."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     anna = _make_member("anna", "Anna")
     entry = _make_entry(hass, [anna.to_dict()])
     await _setup_entry(hass, entry)
@@ -359,10 +341,8 @@ async def test_rename_confirm_confirmed_renames_member(
 async def test_rename_confirm_entity_rename_failure_rolls_back_sqlite(
     hass: HomeAssistant,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Entity rename fails after SQLite migration → SQLite rolled back, form re-renders."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     anna = _make_member("anna", "Anna")
     entry = _make_entry(hass, [anna.to_dict()])
 
@@ -433,11 +413,9 @@ async def test_rename_confirm_entity_rename_failure_rolls_back_sqlite(
 async def test_rename_confirm_cancel_discards_change(
     hass: HomeAssistant,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
     _patch_entity_ops_rename: None,
 ) -> None:
     """Declining rename confirm discards the name change."""
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     anna = _make_member("anna", "Anna")
     entry = _make_entry(hass, [anna.to_dict()])
     await _setup_entry(hass, entry)

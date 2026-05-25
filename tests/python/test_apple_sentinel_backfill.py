@@ -271,9 +271,6 @@ async def test_backfill_via_completion_listener_on_item_appear(
         async_start_completion_listener,
     )
 
-    # Use isolated storage dir so local_todo ICS file is not shared with other tests.
-    (tmp_path / ".storage").mkdir(parents=True, exist_ok=True)
-    hass.config.config_dir = str(tmp_path)
     await _setup_member_todo(hass, "anna")
     entry = _make_entry(hass, "anna")
     store = await _make_store(hass, entry.entry_id, tmp_path)

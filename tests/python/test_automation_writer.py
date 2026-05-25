@@ -7,7 +7,6 @@ fallback.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from pathlib import Path
 from unittest.mock import patch
 
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -205,9 +204,7 @@ async def test_options_update_rewires_listeners(hass: HomeAssistant) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_services_registered_after_setup_entry(
-    hass: HomeAssistant, tmp_path: Path
-) -> None:
+async def test_services_registered_after_setup_entry(hass: HomeAssistant) -> None:
     """After async_setup_entry returns, all lucarne_family services are registered.
 
     The spec requires services to be registered before managed automations so
@@ -246,8 +243,6 @@ async def test_services_registered_after_setup_entry(
     )
     entry.add_to_hass(hass)
 
-    # Redirect db to tmp_path so no files are written outside the test sandbox.
-    hass.config.config_dir = str(tmp_path)
     result = await async_setup_entry(hass, entry)
 
     assert result is True
