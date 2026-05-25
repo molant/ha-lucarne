@@ -2,10 +2,20 @@
 
 ## Install
 
-1. Copy (or deploy via `scripts/deploy-integration.sh`) the `custom_components/lucarne_family/` directory to your HA `config/custom_components/` folder.
-2. Restart Home Assistant.
-3. Go to **Settings → Devices & Services → Add Integration** and search for **Lucarne Family**.
-4. Enter your family name (e.g. "The Smiths") and click Submit. The integration is installed.
+### Via HACS (recommended)
+
+1. Open HA → **HACS** → **Integrations** → **⋮** → **Custom repositories**
+2. Paste `https://github.com/molant/ha-lucarne` and set Type to **Integration**
+3. Search for **Lucarne Family** and click **Download**
+4. Restart Home Assistant
+5. Go to **Settings → Devices & Services → Add Integration** and search for **Lucarne Family**
+6. Enter your family name (e.g. "The Smiths") and click Submit
+
+### Manual / developer
+
+Copy `custom_components/lucarne_family/` to your HA `config/custom_components/` folder and restart.
+The deploy script `scripts/deploy-integration.sh` automates this for dev iteration (requires
+`HA_SSH_HOST` + `HA_INTEGRATION_PATH` env vars; see `.env.example`).
 
 Only one Lucarne Family integration can be installed per HA instance.
 
@@ -13,10 +23,13 @@ Only one Lucarne Family integration can be installed per HA instance.
 
 After install, the integration:
 - Creates a config entry with an empty members list.
-- Initialises the SQLite database (`lucarne_family_<entry_id>.db` in your config directory) with the task and completion-log schema.
-- Registers options-flow listeners for future edits.
+- Creates the shared `todo.lucarne_household` entity.
+- Initialises the SQLite database (`lucarne_family_<entry_id>.db` in your config directory) with
+  the task and completion-log schema.
+- Registers in-process `async_track_time_change` listeners for daily reset and streak check
+  (no `automation.*` HA entities are created — the integration uses in-process listeners).
 
-No entities, helpers, or automations are created in Phase 1. Those appear starting Phase 2.
+Open **Settings → Devices & Services → Lucarne Family → Configure** to add family members.
 
 ## Member management
 
@@ -206,6 +219,30 @@ subscription; if `show_streak` is enabled, it renders 0.
 
 ## Troubleshooting
 
-- **Integration not visible in Add Integration**: Verify `custom_components/lucarne_family/` is in the right location and `manifest.json` is present.
-- **Setup errors**: Check HA logs (`Settings → System → Logs`) and filter for `lucarne_family`.
-- **Deploy script**: Run `scripts/deploy-integration.sh` to scp the integration to `ha-vm`.
+| Symptom | Fix |
+|---------|-----|
+| Integration not visible in Add Integration | Verify `custom_components/lucarne_family/` is in the right location and `manifest.json` is present. Restart HA after adding. |
+| Setup errors or missing entities | Check HA logs (Settings → System → Logs) and filter for `lucarne_family`. |
+| Member's todo entity missing after adding | Trigger a reload: Settings → Devices & Services → Lucarne Family → ⋮ → Reload. The reconciliation loop recreates missing entities. |
+| Streaks not updating | Check HA logs (Settings → System → Logs) for `lucarne_family` entries around the configured `streak_check_time`. To force an immediate recompute, call `lucarne_family.evaluate_all_streaks` from Developer Tools → Services. Also confirm your HA timezone matches the `streak_check_time` value. |
+| Chores card shows error block | The integration is either not installed or the `lucarne_family/get_family` WebSocket command failed. Check HA logs. |
+
+## Deprecation notes
+
+- **`ha_lucarne_chores_all_done`** event: fired as a compatibility shim alongside `lucarne_family_all_routines_done` in v0.x. Will be removed in v1.0. Migrate consumers:
+  ```yaml
+  # Old:
+  trigger:
+    - trigger: event
+      event_type: ha_lucarne_chores_all_done
+  # New:
+  trigger:
+    - trigger: event
+      event_type: lucarne_family_all_routines_done
+      event_data:
+        member: anna  # member slug
+  ```
+
+- **`lucarne_chores_daily_reset` / `lucarne_chores_streak_advance` blueprints**: retired. Delete any instances — the integration handles these automatically.
+
+- **`kids:` chores card config**: old YAML shape is not migrated. The card shows an upgrade message; configure via the integration instead.

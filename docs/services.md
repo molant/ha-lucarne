@@ -2,6 +2,8 @@
 
 All services are in the `lucarne_family` domain and are callable from **Developer Tools → Services** or via `hass.callService()` / `hass.services.async_call()` in automations.
 
+> **Phase 5 status**: Services documented here are fully implemented. The `lucarne-today-card` reads household tasks via the existing `lucarne_family/get_family` WebSocket command (no new services in Phase 5). Two additional services — `perform_daily_reset` and `evaluate_all_streaks` — are already registered and callable from Developer Tools → Services, but are not yet documented below (Phase 6 will add their reference entries). They take no fields; the in-process time-change listeners call them on schedule, and they can also be triggered manually to force an immediate reset or streak recompute.
+
 ---
 
 ## `lucarne_family.add_task`

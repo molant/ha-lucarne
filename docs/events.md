@@ -211,3 +211,32 @@ version bump (v2.0.0).
 
 `ha_lucarne_chores_all_done` pre-dates this policy and is exempt from the v1
 lock. It will be removed in the first stable release (v1.0.0).
+
+---
+
+## Migration table (legacy → new)
+
+| Legacy event | Deprecated since | Replacement | Notes |
+|---|---|---|---|
+| `ha_lucarne_chores_all_done` | Phase 3 | `lucarne_family_all_routines_done` | Payload changed: legacy had `kid_slug`, `kid_name`, `streak`, `chores_completed`; compat shim only has `member` |
+
+---
+
+## Planned events (Phase 6)
+
+The following event is **designed but not yet implemented**. Do not build consumers until Phase 6 ships.
+
+### lucarne_family_apple_writeback_requested *(Phase 6)*
+
+Fired when a task with `source == "apple"` flips to `completed`. A future subscriber performs the
+webhook POST to the Reminders bridge device.
+
+**Reserved payload fields (subject to change before Phase 6):**
+```yaml
+event_type: lucarne_family_apple_writeback_requested
+event_data:
+  apple_uid: "Apple-UUID-string"
+  status: completed
+  timestamp: "2026-05-25T14:30:00+00:00"
+  device_name: "Sync device"
+```
