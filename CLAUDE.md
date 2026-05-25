@@ -16,7 +16,7 @@ Two test runners, two deploy targets.
 ```
 src/                          TypeScript sources (Lit cards + components)
   cards/                      lucarne-today-card.ts, lucarne-calendar-card.ts, lucarne-chores-card.ts
-  components/                 Lit sub-components (member-column, task-row, family-ready-pill, ...)
+  components/                 Lit sub-components (member-column, task-row, family-ready-pill, avatar-upload-modal, ...)
   editors/                    Visual editor elements for each card
   shared/                     types, design-tokens, ha-subscriptions, recurrence, family-subscription, ...
 custom_components/
@@ -33,6 +33,7 @@ custom_components/
     reset_logic.py            Performs the daily routine reset (flips routine items → needs_action)
     streak_logic.py           Recomputes per-member streaks from completion_log
     avatar_service.py         Avatar upload: validates, writes to /local/lucarne/avatars/, fires event
+    member_service.py         set_member_avatar service: emoji or path avatar, fires member_updated
     websocket_api.py          WS handler for lucarne_family/get_family command
     apple_sentinel_backfill.py Extracts [apple:UUID] from item descriptions → source=apple metadata
     presets.py                Routine preset definitions (school-age kid, toddler, adult)
@@ -122,6 +123,9 @@ Both surfaces ship from the same GitHub repo via HACS custom-repository registra
 - **RRULE math**: Use `dateutil.rrule` via `recurrence.py` (Python) and `parseRRule`/`isRoutineDueToday` from `src/shared/recurrence.ts` (JS). Never hand-roll date arithmetic.
 - **Avatar writes**: Only permitted write path under `<config>/www/` is `/local/lucarne/avatars/`. `avatar_service.py` enforces this; tests must cover path-traversal cases.
 - **SQLite file in `<config>/` root**: Name pattern: `lucarne_family_<entry_id>.db`. Never hardcode the entry ID.
+- **Avatar center-square crop is deferred**: The upload modal accepts any aspect ratio; `avatar_service.py` stores raw uploaded bytes. A future spec should add `PIL ImageOps.fit` centering in `_write_avatar`. Do not add it without a spec.
+- **Round-trip event vs POST**: `completion_listener.py` fires `lucarne_family_apple_writeback_requested` when `round_trip.enabled == true` but does **not** POST to the webhook. The POST is deferred to a future spec. Future subscribers **must** call `get_round_trip_config(hass)` from `__init__.py` — never read `entry.data["round_trip"]` directly, to survive storage layout changes.
+- **`set_member_avatar` emoji validation**: Uses explicit Unicode block ranges (U+1F000–U+1FAFF, U+2300–U+27FF, U+2B00–U+2BFF, U+1F1E0–U+1F1FF). Requires at least one base-emoji codepoint; allows ZWJ-joined compound emoji (e.g., family/profession glyphs); rejects ASCII text, invisible-only strings, and unjoined back-to-back emoji.
 
 ## Don'ts
 
@@ -131,6 +135,8 @@ Both surfaces ship from the same GitHub repo via HACS custom-repository registra
 - **Don't** add `contributing.md`, `code_of_conduct.md`, or other meta docs unless asked.
 - **Don't** generate vitest imports in test files.
 - **Don't** split the ESM bundle or add a second HACS manifest.
+- **Don't** implement the round-trip webhook POST without a spec — only the HA event is fired in v0.2.
+- **Don't** add server-side center-square crop to `avatar_service.py` without a spec — the deferred design is documented in CLAUDE.md and the phase-6 spec.
 
 ## Pointers
 

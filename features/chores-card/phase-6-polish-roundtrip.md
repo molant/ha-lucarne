@@ -154,10 +154,10 @@ This is the most important deliverable of the phase — making the deferred work
 
 ### Sub-Phase E: Misc polish
 
-- [ ] Add a CHANGELOG.md entry summarizing the whole spec's work
-- [ ] Bump version in `package.json` and `manifest.json` and `hacs.json` to `0.2.0`
-- [ ] Update README.md banner placeholder note: "Screenshots updated for v0.2.0" once screenshots from Phase 4-5 are committed
-- [ ] Run final pass through CLAUDE.md to ensure it covers everything new
+- [x] Add a CHANGELOG.md entry summarizing the whole spec's work
+- [x] Bump version in `package.json` and `manifest.json` to `0.2.0` (`hacs.json` has no version field — HACS resolves version from git tags)
+- [x] Update README.md banner placeholder note for v0.2.0 (screenshots gallery deferred until wall-iPad deployment)
+- [x] Run final pass through CLAUDE.md to ensure it covers everything new
 
 ### Build verification (final)
 
