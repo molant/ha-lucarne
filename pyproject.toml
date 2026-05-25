@@ -17,6 +17,7 @@ dev = [
     "pytest-homeassistant-custom-component>=0.13.0",
     "ruff>=0.4",
     "mypy>=1.10",
+    "ical==8.2.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -48,9 +49,4 @@ asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["."]
 filterwarnings = [
     "error::DeprecationWarning:custom_components.lucarne_family",
-]
-
-[dependency-groups]
-dev = [
-    "ical==8.2.0",
 ]
