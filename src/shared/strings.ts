@@ -18,4 +18,6 @@ export const STRINGS = {
   timePillInHours: (h: number) => `in ${h}h`,
   timePillTomorrow: (time: string) => `tomorrow ${time}`,
   errorUnavailable: '—',
+  noRoutinesToday: 'no routines today',
+  familyReady: (n: number, m: number) => `${n}/${m} ready`,
 } as const;

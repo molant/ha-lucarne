@@ -65,6 +65,9 @@ export const lucarneStyles = css`
     --lucarne-color-birthdays: #f0dca0;
     --lucarne-color-les-lilas: #b8b4e8;
 
+    --lucarne-success-bg: #e8f5e9;
+    --lucarne-success-fg: #2e7d32;
+
     --lucarne-surface: var(--ha-card-background, var(--card-background-color, #fff));
     --lucarne-on-surface: var(--primary-text-color, #212121);
     --lucarne-on-surface-muted: var(--secondary-text-color, #727272);
