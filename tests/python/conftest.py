@@ -5,8 +5,26 @@ import asyncio
 import logging
 import threading
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _ensure_testing_config_storage() -> None:
+    """Make sure local_todo can write its ICS files in CI.
+
+    pytest-homeassistant-custom-component points hass.config_dir at the
+    package's bundled `testing_config` directory. On a fresh install the
+    `.storage` subdir does not exist, so local_todo's first write fails
+    with FileNotFoundError. Locally the dir gets created incidentally by
+    earlier runs.
+    """
+    import pytest_homeassistant_custom_component
+
+    pkg_root = Path(pytest_homeassistant_custom_component.__file__).parent
+    storage = pkg_root / "testing_config" / ".storage"
+    storage.mkdir(parents=True, exist_ok=True)
 
 
 @pytest.fixture(autouse=True)
