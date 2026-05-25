@@ -135,51 +135,26 @@ event_data:
 
 ---
 
-## Legacy card event — ha_lucarne_chores_all_done
+## Legacy event — ha_lucarne_chores_all_done
 
-> **Deprecation notice**: This event is deprecated as of Phase 3 and will be removed in v1.0.
-> Migrate automations to `lucarne_family_all_routines_done` (above), which fires from the
-> integration and does not require the card to be loaded.
+> **Deprecated (Phase 3+)**: This event is no longer fired by the card. As of Phase 4 the
+> card is a view over integration state and does not fire HA events. The `lucarne_family`
+> integration fires a compatibility shim (see below) so existing automations continue to
+> work without changes. Migrate to `lucarne_family_all_routines_done` (above) — it fires
+> independent of card load state and is the canonical signal for Phase 3+.
 
-Fired from `lucarne-chores-card` the moment a kid transitions from **not-all-done** to
-**all-done** — i.e., when the last chore for that kid is checked off within the current
-browser session. The event does NOT replay on page load if a kid was already all-done.
-
-**Also fired by the integration** (Phase 3 compatibility shim) with a simplified payload
-(`{member: slug}`) so existing automations continue to receive it even when the card is not
-loaded. The integration payload differs from the card's legacy payload (see schemas below).
+Starting Phase 3, the `lucarne_family` integration fires this event as a compatibility shim
+whenever all routines for a member transition to done. This fires independent of whether the
+card is loaded. The payload is simplified compared to the original card-fired payload.
 
 ### Semantics
 
-- Fired from the card via a `fire_event` WebSocket message: `this.hass.connection.sendMessagePromise({ type: 'fire_event', event_type: 'ha_lucarne_chores_all_done', event_data: {...} })`.
-- Fires once per `not-all-done → all-done` transition for each kid within the current
-  browser session. If a chore is later unchecked and all chores are then re-completed,
-  the event fires again. State is held in the card instance, so a full page reload resets
-  the tracking.
-- The `streak` field reflects the counter value at the moment of the transition, **before** the
-  nightly streak check has run. If you have the `lucarne_family` integration installed, it runs
-  `lucarne_family.evaluate_all_streaks` at the configured `streak_check_time` (21:00 by default)
-  and may set the streak to a different value (increment, leave unchanged, or reset to zero).
-  The recompute reads the integration's completion log, not the card's `input_boolean` state.
-- **Card firing**: the card fires this event for any not-all-done → all-done transition
-  observed **while the card is rendered**, regardless of whether the chore was toggled via
-  the card or an external source. If the card is not loaded, the card does not fire.
-- **Integration shim**: starting Phase 3, the `lucarne_family` integration also fires
-  `ha_lucarne_chores_all_done` (with the simplified `{member}` payload — see schema below)
-  whenever all routines for a member transition to done. This fires independent of whether
-  the card is loaded.
-
-### Schema (card — legacy payload)
-
-```yaml
-event_type: ha_lucarne_chores_all_done
-event_data:
-  kid_slug: kid_1         # Slugified kid name (name.toLowerCase().replace(/\s+/g, '_'))
-  kid_name: "Kid 1"       # Display name from card YAML config
-  date: "2026-05-21"      # ISO 8601 local date at the moment of the event
-  chores_completed: 5     # Count of chores configured for this kid
-  streak: 7               # Current counter state at transition time (before nightly increment)
-```
+- **Integration shim only** (Phase 3+): fired by the integration's completion listener
+  whenever all routine-type todo items for a member flip to `completed`. Fires independent
+  of card load state.
+- Prior to Phase 4, the card also fired this event with a richer payload (`kid_slug`,
+  `kid_name`, `streak`, `chores_completed`). That card-side firing is removed in Phase 4;
+  the card no longer emits HA events.
 
 ### Schema (integration — compatibility shim payload)
 
@@ -191,33 +166,30 @@ event_data:
 
 ### Example consumer automation
 
-> **Card-payload only.** `ha_lucarne_chores_all_done` fired by the chores card carries
-> `kid_name` and `streak`. The integration's compatibility shim fires the same event type
-> but only includes `member`. New automations should use `lucarne_family_all_routines_done`
+> **Integration shim only (Phase 3+).** Prior to Phase 4, the chores card carried
+> `kid_name` and `streak` in this event. The card no longer fires HA events (Phase 4+).
+> Only the integration's compatibility shim fires `ha_lucarne_chores_all_done`, with
+> `member` as the only payload field. New automations should use `lucarne_family_all_routines_done`
 > (see [Example consumer automation](#example-consumer-automation-1) above).
 
 ```yaml
-alias: "Chores all done — celebrate! (card payload)"
+alias: "Chores all done — celebrate! (integration shim payload)"
 trigger:
   - trigger: event
     event_type: ha_lucarne_chores_all_done
 action:
   - variables:
-      kid: "{{ trigger.event.data.kid_name }}"
-      streak: "{{ trigger.event.data.streak }}"
+      member: "{{ trigger.event.data.member }}"
   - service: tts.speak
     target:
       entity_id: tts.google_translate_en_com   # replace with your TTS provider entity
     data:
       media_player_entity_id: media_player.kitchen_homepod
-      message: >
-        Great job {{ kid }}! All chores done today!
-        {% if streak | int > 1 %}That's a {{ streak }}-day streak! {% endif %}
+      message: "Great job {{ member }}! All routines done today!"
   # Or: send a push notification via the Companion app
   # - service: notify.mobile_app_iphone
   #   data:
-  #     title: "🎉 {{ kid }} finished their chores!"
-  #     message: "Streak: {{ streak }} days"
+  #     title: "🎉 {{ member }} finished their routines!"
 ```
 
 **Recommended migration:**
