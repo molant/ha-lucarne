@@ -59,6 +59,13 @@
           "confirm_name": "Member name"
         }
       },
+      "rename_confirm": {
+        "title": "Confirm member rename",
+        "description": "Renaming '{old_name}' to '{new_name}' will change the entity slug.\n\nDownstream impact:\n{impact}\n\nCheck the box to proceed.",
+        "data": {
+          "confirm": "I understand — proceed with rename"
+        }
+      },
       "edit_schedule": {
         "title": "Edit schedule",
         "data": {
@@ -76,6 +83,7 @@
       "confirm_mismatch": "Name does not match. Removal cancelled.",
       "entity_create_failed": "Failed to create entities for this member. Check the Home Assistant logs for details.",
       "entity_delete_failed": "Failed to delete entities for this member. Check the Home Assistant logs, then try again.",
+      "entity_rename_failed": "Failed to rename the member's entities. Check the logs and try again.",
       "invalid_time": "Time must be in HH:MM format (e.g. 04:00)."
     }
   }

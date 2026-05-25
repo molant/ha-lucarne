@@ -68,7 +68,12 @@ async def _create_local_todo(hass: HomeAssistant, name: str) -> ConfigEntry:
             f"Failed to create local_todo for {name!r}: flow returned {result.get('type')!r}"
         )
     await hass.async_block_till_done()
-    return result["result"]
+    ce: ConfigEntry | None = result.get("result")
+    if ce is None:
+        raise HomeAssistantError(
+            f"Config entry missing after creating local_todo for {name!r}."
+        )
+    return ce
 
 
 def _find_todo_entity_id(hass: HomeAssistant, config_entry_id: str) -> str | None:
@@ -203,14 +208,112 @@ async def async_rename_member_entities(
 ) -> tuple[str, str]:
     """Rename todo + counter entities to reflect a member's new slug.
 
+    The counter helper is deleted and recreated under the new slug so that the
+    counter StorageCollection's IDManager frees the old id — otherwise adding a
+    new member with the freed slug later would fail with a canonical-id collision.
+    The streak value is preserved via ``initial`` on the new item.
+
+    Raises HomeAssistantError if either entity is missing or the target id is taken.
+    If the todo rename succeeds but the counter rename fails, the todo rename is rolled back.
+
     Returns ``(new_todo_entity_id, new_counter_entity_id)``.
     """
+    from homeassistant.exceptions import HomeAssistantError
+
     er = er_get(hass)
     new_todo_id = f"todo.{new_slug}"
     new_counter_id = f"counter.{new_slug}_streak"
 
-    er.async_update_entity(old_todo_id, new_entity_id=new_todo_id)
-    er.async_update_entity(old_counter_id, new_entity_id=new_counter_id)
+    # Preflight: ensure old entities exist and new ids are free.
+    if er.async_get(old_todo_id) is None:
+        raise HomeAssistantError(f"Entity {old_todo_id!r} not found in registry")
+    er_counter = er.async_get(old_counter_id)
+    if er_counter is None:
+        raise HomeAssistantError(f"Entity {old_counter_id!r} not found in registry")
+    if er.async_get(new_todo_id) is not None:
+        raise HomeAssistantError(f"Target entity {new_todo_id!r} already exists")
+    if er.async_get(new_counter_id) is not None:
+        raise HomeAssistantError(f"Target entity {new_counter_id!r} already exists")
+
+    # Preserve current streak value before replacing the counter storage item.
+    current_value = 0
+    state = hass.states.get(old_counter_id)
+    if state and state.state not in (None, "unknown", "unavailable"):
+        try:
+            current_value = int(state.state)
+        except (ValueError, TypeError):
+            current_value = 0
+    else:
+        _LOGGER.warning(
+            "Counter state for %s is %r at rename time; streak will reset to 0",
+            old_counter_id,
+            state.state if state else None,
+        )
+
+    sc = _get_counter_storage_collection(hass)
+
+    # Step 1: Create the new counter first — verify canonical id before touching old one.
+    # If this fails nothing in the registry has changed yet.
+    new_item_id: str | None = None
+    try:
+        new_item = await sc.async_create_item(
+            {
+                "name": f"{new_slug}_streak",
+                "initial": current_value,
+                "step": 1,
+                "minimum": 0,
+                "restore": True,
+            }
+        )
+        new_item_id = str(new_item["id"])
+        await hass.async_block_till_done()
+
+        registry_counter_id = er.async_get_entity_id("counter", "counter", new_item_id)
+        if registry_counter_id != new_counter_id:
+            raise HomeAssistantError(
+                f"Cannot rename to {new_counter_id}: registry assigned {registry_counter_id!r}. "
+                "Delete or rename the conflicting helper before renaming this member."
+            )
+    except Exception as exc:
+        if new_item_id is not None:
+            try:
+                await sc.async_delete_item(new_item_id)
+            except Exception:
+                pass
+        raise HomeAssistantError(
+            f"Failed to create new counter entity for {new_slug!r}: {exc}"
+        ) from exc
+
+    # Step 2: Rename the todo entity (simple in-memory registry update).
+    # Wrap so a rare registry race doesn't leave the new counter orphaned.
+    try:
+        er.async_update_entity(old_todo_id, new_entity_id=new_todo_id)
+    except Exception as exc:
+        if new_item_id is not None:
+            try:
+                await sc.async_delete_item(new_item_id)
+            except Exception:
+                pass
+        raise HomeAssistantError(
+            f"Failed to rename todo entity {old_todo_id!r} to {new_todo_id!r}: {exc}"
+        ) from exc
+
+    # Step 3: Delete old counter — new one is already verified so rollback on
+    # failure means undoing the todo rename and removing the new counter.
+    old_item_id = er_counter.unique_id
+    try:
+        if old_item_id:
+            await sc.async_delete_item(old_item_id)
+    except Exception as exc:
+        er.async_update_entity(new_todo_id, new_entity_id=old_todo_id)
+        if new_item_id is not None:
+            try:
+                await sc.async_delete_item(new_item_id)
+            except Exception:
+                pass
+        raise HomeAssistantError(
+            f"Failed to remove old counter entity {old_counter_id!r}: {exc}"
+        ) from exc
 
     return (new_todo_id, new_counter_id)
 

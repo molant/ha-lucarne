@@ -181,6 +181,26 @@ class LucarneFamilyStore:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    async def async_rename_member_slug(self, old_slug: str, new_slug: str) -> None:
+        """Update all slug-keyed rows in task_metadata and completion_log atomically."""
+
+        def _rename() -> None:
+            with self._db_connect() as con:
+                con.execute(
+                    "UPDATE task_metadata SET member_slug = ? WHERE member_slug = ?",
+                    (new_slug, old_slug),
+                )
+                con.execute(
+                    "UPDATE task_metadata SET assignee_slug = ? WHERE assignee_slug = ?",
+                    (new_slug, old_slug),
+                )
+                con.execute(
+                    "UPDATE completion_log SET member_slug = ? WHERE member_slug = ?",
+                    (new_slug, old_slug),
+                )
+
+        await self._hass.async_add_executor_job(_rename)
+
     # ------------------------------------------------------------------
     # Completion log
     # ------------------------------------------------------------------

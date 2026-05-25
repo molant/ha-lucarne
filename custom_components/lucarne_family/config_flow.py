@@ -112,6 +112,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         self._entry = config_entry
         self._selected_member_slug: str | None = None
+        self._pending_rename: dict[str, Any] | None = None
 
     def _get_members(self) -> list[Member]:
         raw: list[dict[str, Any]] = self._entry.data.get(CONF_MEMBERS, [])
@@ -273,6 +274,23 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                 errors["color"] = color_err
 
             if not errors:
+                target = next(
+                    (m for m in members if m.slug == self._selected_member_slug), None
+                )
+                new_slug = _make_slug(name) if name else ""
+                if target is not None and new_slug and new_slug != target.slug:
+                    if any(m.slug == new_slug for m in members if m.slug != target.slug):
+                        errors["name"] = "slug_conflict"
+                    else:
+                        self._pending_rename = {
+                            "name": name,
+                            "color": color,
+                            "avatar": avatar,
+                            "preset": preset,
+                        }
+                        return await self.async_step_rename_confirm()
+
+            if not errors:
                 updated = [
                     Member(
                         slug=m.slug,
@@ -313,6 +331,125 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             }
         )
         return self.async_show_form(step_id="edit_member", data_schema=schema, errors=errors)
+
+    async def async_step_rename_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Show rename impact and ask for confirmation when a slug change is detected."""
+        members = self._get_members()
+        target = next(
+            (m for m in members if m.slug == self._selected_member_slug), None
+        )
+
+        if target is None or self._pending_rename is None:
+            self._selected_member_slug = None
+            self._pending_rename = None
+            return await self.async_step_manage_members()
+
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            if user_input.get("confirm"):
+                new_name: str = self._pending_rename["name"]
+                new_slug = _make_slug(new_name)
+
+                from .entity_manager import async_rename_member_entities
+                from .store import LucarneFamilyStore
+
+                store: LucarneFamilyStore = self.hass.data[DOMAIN][
+                    self._entry.entry_id
+                ]["store"]
+
+                # Step 1: SQLite migration first — if this fails, nothing in the
+                # entity registry has changed yet and the user can retry cleanly.
+                try:
+                    await store.async_rename_member_slug(target.slug, new_slug)
+                except Exception as exc:
+                    _LOGGER.warning(
+                        "Failed to migrate SQLite rows for member %r: %s", target.slug, exc
+                    )
+                    errors["base"] = "entity_rename_failed"
+
+                new_todo_id = target.todo_entity_id or f"todo.{target.slug}"
+                new_counter_id = target.streak_counter_id or f"counter.{target.slug}_streak"
+
+                # Step 2: Entity registry rename — if this fails, roll back SQLite.
+                if not errors:
+                    try:
+                        new_todo_id, new_counter_id = await async_rename_member_entities(
+                            self.hass,
+                            target.todo_entity_id or f"todo.{target.slug}",
+                            new_slug,
+                            target.streak_counter_id or f"counter.{target.slug}_streak",
+                        )
+                    except Exception as exc:
+                        _LOGGER.warning(
+                            "Failed to rename entities for member %r: %s", target.slug, exc
+                        )
+                        try:
+                            await store.async_rename_member_slug(new_slug, target.slug)
+                        except Exception as rollback_exc:
+                            _LOGGER.error(
+                                "SQLite rollback failed for member %r after entity rename failure: %s",
+                                target.slug,
+                                rollback_exc,
+                            )
+                        errors["base"] = "entity_rename_failed"
+
+                if not errors:
+                    sel = self._selected_member_slug
+                    pend = self._pending_rename
+                    updated = [
+                        Member(
+                            slug=new_slug if m.slug == sel else m.slug,
+                            name=pend["name"] if m.slug == sel else m.name,
+                            color=pend["color"] if m.slug == sel else m.color,
+                            avatar=pend["avatar"] if m.slug == sel else m.avatar,
+                            created_at=m.created_at,
+                            preset=pend["preset"] if m.slug == sel else m.preset,
+                            todo_entity_id=new_todo_id if m.slug == sel else m.todo_entity_id,
+                            streak_counter_id=(
+                                new_counter_id if m.slug == sel else m.streak_counter_id
+                            ),
+                        )
+                        for m in members
+                    ]
+                    await self._save_members(updated)
+                    self._selected_member_slug = None
+                    self._pending_rename = None
+                    return await self.async_step_manage_members()
+
+            else:
+                self._selected_member_slug = None
+                self._pending_rename = None
+                return await self.async_step_manage_members()
+
+        # Compute impact for display (first entry into step).
+        from .rename import async_rename_member
+
+        impact = await async_rename_member(self.hass, target, self._pending_rename["name"])
+        impact_parts: list[str] = []
+        if impact.automations:
+            impact_parts.append(f"Automations: {', '.join(impact.automations)}")
+        if impact.scripts:
+            impact_parts.append(f"Scripts: {', '.join(impact.scripts)}")
+        if impact.scenes:
+            impact_parts.append(f"Scenes: {', '.join(impact.scenes)}")
+        if impact.dashboards:
+            impact_parts.append(f"Dashboards: {len(impact.dashboards)} reference(s)")
+        impact_text = "\n".join(impact_parts) if impact_parts else "No downstream references found."
+
+        schema = vol.Schema({vol.Required("confirm", default=False): bool})
+        return self.async_show_form(
+            step_id="rename_confirm",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={
+                "old_name": target.name,
+                "new_name": self._pending_rename["name"],
+                "impact": impact_text,
+            },
+        )
 
     async def async_step_remove_member(
         self, user_input: dict[str, Any] | None = None

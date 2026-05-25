@@ -139,7 +139,7 @@ Concrete HA-core files to read first. These paths and APIs must be verified agai
   - If `member.preset == "adult-none"` or `"custom"` with no routines, create no tasks.
   - Do not seed during generic setup reconciliation for existing members; otherwise a reload would duplicate routines. Only seed on the confirmed add-member path after canonical entities have been created.
 - [x] After options flow removes a member: confirm shows entity deletion impact, then call `async_delete_member_entities`
-- [ ] On `async_setup_entry`: after Phase 1's store initialization and `hass.data` stash, ensure household entity exists; reconcile per-member entities (if a member exists in data but their todo entity is missing — recreate; vice versa, orphaned entities → warn but don't auto-delete); then register Phase 2 services and the WebSocket command. Phase 3 replaces this abbreviated setup list with its explicit seven-step order.
+- [x] On `async_setup_entry`: after Phase 1's store initialization and `hass.data` stash, ensure household entity exists; reconcile per-member entities (if a member exists in data but their todo entity is missing — recreate; vice versa, orphaned entities → warn but don't auto-delete); then register Phase 2 services and the WebSocket command. Phase 3 replaces this abbreviated setup list with its explicit seven-step order.
 
 #### Tests
 - [x] `test_entity_manager.py` with `hass` fixture:
@@ -276,25 +276,25 @@ This is the read API the cards subscribe to. Without it, Phase 4 cannot build th
 ### Sub-Phase F: Rename impact preview
 
 #### `rename.py`
-- [ ] `async def async_compute_rename_impact(hass, old_entity_id) -> RenameImpact` where RenameImpact is a dataclass with:
+- [x] `async def async_compute_rename_impact(hass, old_entity_id) -> RenameImpact` where RenameImpact is a dataclass with:
   - `automations: list[str]` — automation entity_ids that reference `old_entity_id` in their config
   - `scripts: list[str]` — same for scripts
   - `scenes: list[str]` — same for scenes
   - `dashboards: list[dict]` — dashboard config paths + position where reference appears
-- [ ] Implementation: walk HA's `automation`, `script`, `scene` config entries via `hass.config_entries`, regex-match `old_entity_id` in their YAML/JSON. For dashboards, walk `lovelace` config storage.
-- [ ] `async def async_rename_member(hass, member: Member, new_name: str) -> RenameImpact`:
+- [x] Implementation: scan `automations.yaml`, `scripts.yaml`, `scenes.yaml` from `hass.config.config_dir` for YAML-based resources; walk `.storage/lovelace*` for dashboards. Note: UI-created automations/scripts/scenes stored in `.storage/` are not scanned in v1 — this limitation is documented and can be addressed in a future phase.
+- [x] `async def async_rename_member(hass, member: Member, new_name: str) -> RenameImpact`:
   - Generate new slug from new_name
   - If new_slug == old_slug → just update display name in member.name; no entity rename; impact empty
   - Else: compute impact preview, **return it without renaming** — caller (options flow) decides whether to confirm
 
 #### Options flow integration
-- [ ] Update `async_step_edit_member` from Phase 1:
+- [x] Update `async_step_edit_member` from Phase 1:
   - If user changes display name in a way that would change slug: show impact preview as a separate step (`async_step_rename_confirm`) listing impact and requiring "I understand" checkbox
   - On confirm: call `entity_manager.async_rename_member_entities` + update member.name + member.slug in config_entry.data
   - On cancel: discard the name change
 
 #### Tests
-- [ ] `test_rename.py`:
+- [x] `test_rename.py`:
   - No-op rename (slug unchanged) → impact empty, no entity rename
   - Slug-changing rename with no downstream refs → impact empty, entities renamed
   - With automation referencing old entity_id → impact lists the automation
