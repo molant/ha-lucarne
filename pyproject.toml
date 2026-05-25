@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "lucarne_family"
 version = "0.0.0"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "python-dateutil>=2.8",
 ]
@@ -29,7 +29,7 @@ exclude = ["src*", "tests*", "dist*", "node_modules*"]
 "custom_components.lucarne_family" = ["manifest.json", "schema.sql", "services.yaml", "translations/*.json"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 line-length = 100
 
 [tool.ruff.lint]

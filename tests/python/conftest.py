@@ -34,11 +34,14 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
 
 @pytest.fixture(autouse=True)
 def verify_cleanup(
-    event_loop: asyncio.AbstractEventLoop,
     expected_lingering_tasks: bool,
     expected_lingering_timers: bool,
-) -> Generator[None, None, None]:
-    """Override verify_cleanup to allow executor threads and _run_safe_shutdown_loop."""
+) -> Generator[None]:
+    """Override verify_cleanup to allow executor threads and _run_safe_shutdown_loop.
+
+    pytest-asyncio 1.x removed the `event_loop` fixture; access the running
+    loop via asyncio directly, matching the upstream package's own pattern.
+    """
     import respx
     from homeassistant.core import HassJob
     from homeassistant.util import dt as dt_util
@@ -48,6 +51,7 @@ def verify_cleanup(
         long_repr_strings,
     )
 
+    event_loop = asyncio.get_event_loop()
     threads_before = frozenset(threading.enumerate())
     tasks_before = asyncio.all_tasks(event_loop)
     yield
