@@ -41,8 +41,7 @@ def _get_counter_storage_collection(hass: HomeAssistant) -> Any:
     if entry is None:
         raise HomeAssistantError(
             "counter/create WS handler not found. "
-            "Ensure the counter component is loaded before calling lucarne_family services. "
-            "This integration requires Home Assistant 2024.12 or newer."
+            "Ensure the counter component is loaded before calling lucarne_family services."
         )
     handler, _ = entry
     # Unwrap @require_admin(@async_response(ws_create_item))
