@@ -110,3 +110,94 @@ person filtering (e.g. only Ingrid's assignments), add an Assignee filter in the
 | List is empty in HA | iCloud not synced on this Mac | Sign in to iCloud, open Reminders.app |
 | Sync stops after macOS upgrade | `shortcuts run` CLI reset | Re-launch Shortcuts.app manually |
 | Network partition | Mini can't reach HA | Items queue in Reminders; next sync catches up |
+
+---
+
+## Round-trip writeback (designed for v0.2; writeback POST deferred to a future spec)
+
+The integration is ready to fire the round-trip event. The webhook POST from HA → Mac mini is
+deferred to a future spec.
+
+### What is ready now
+
+When a task with `source == "apple"` **and a non-empty `apple_uid`** (set by the Apple sentinel
+backfill) flips to `completed` **and** `round_trip.enabled == true` in the Options Flow config,
+the integration fires:
+
+```yaml
+event_type: lucarne_family_apple_writeback_requested
+event_data:
+  apple_uid: "Apple-UUID-string"   # from [apple:UUID] sentinel in item description
+  status: "completed"
+  timestamp: "2026-05-25T14:30:00+00:00"   # UTC ISO-8601
+  device_name: "Mac mini"          # from Options Flow config
+```
+
+`webhook_url` and `secret` are **never** included in the event payload. HA events are visible to
+every integration and any user with Developer Tools access; secrets stay in `entry.data` only.
+
+Enable round-trip in the Options Flow:
+**Settings → Devices & Services → Lucarne Family → Configure → Apple Reminders sync**
+
+### Accessor contract for future subscribers
+
+Future-spec code that subscribes to `lucarne_family_apple_writeback_requested` and needs to POST
+to the webhook **MUST** call:
+
+```python
+from custom_components.lucarne_family import get_round_trip_config
+
+config = get_round_trip_config(hass)
+# config is None if the integration is not set up or round-trip is disabled.
+# config.webhook_url, config.secret, config.device_name are the typed fields.
+```
+
+**NEVER read `entry.data["round_trip"]` directly.** The accessor abstracts the storage layout so
+a future migration does not break subscribers.
+
+### Full protocol (for the future-spec implementer)
+
+**Trigger**: HA event `lucarne_family_apple_writeback_requested` — subscriber receives it from
+the HA bus. Get `webhook_url` and `secret` by calling `get_round_trip_config(hass)`.
+
+**Receiver**: any device with Apple Reminders write access (Mac mini in the current bridge,
+or any iCloud-connected automation server).
+
+**Webhook contract** — POST to `webhook_url`:
+
+```json
+{
+  "apple_uid": "<UUID>",
+  "status": "completed",
+  "timestamp": "2026-05-23T17:00:00Z",
+  "device_name": "Mac mini"
+}
+```
+
+**Authentication**: HMAC-SHA256 of the raw JSON body using `secret`, sent as `X-Lucarne-Signature`
+header. Receiver verifies before acting.
+
+```
+X-Lucarne-Signature: sha256=<hex_digest>
+```
+
+**Idempotency**: receiver must handle duplicate webhooks (HA may retry on network failure). Use
+`apple_uid + status + timestamp` as the dedup key.
+
+**Failure modes (future subscriber requirement)**: the subscriber should catch network errors,
+log them, and not retry. Retry queues are out of scope for this design. In v0.2 no HTTP request
+is made — the event is fired on the HA bus only.
+
+**Mac mini side** (future spec): add a Shortcuts automation or Python subscriber that receives
+the webhook, reads `apple_uid`, calls `EKEventStore.calendarItem(withIdentifier:)` (cast to
+`EKReminder`) or `fetchReminders(matching:completion:)`, and marks the Reminder completed.
+
+### Why this design
+
+- **Webhook + HMAC** is symmetric to the inbound bridge — same mental model for both directions.
+- **Generic "sync device" naming** keeps the config portable: any Mac or iCloud-connected server
+  can receive the webhook, not just the Mac mini.
+- **HMAC vs. shared-secret-in-URL**: HMAC chosen because it survives URL logging and proxy caches
+  that would expose a plain token in the query string.
+- **Secrets stay in entry.data**: firing an HA event with the secret would expose it to any
+  automation author, log parser, or Developer Tools user — unacceptable for a credential.

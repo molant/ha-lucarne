@@ -227,6 +227,40 @@ subscription; if `show_streak` is enabled, it renders 0.
 | Streaks not updating | Check HA logs (Settings → System → Logs) for `lucarne_family` entries around the configured `streak_check_time`. To force an immediate recompute, call `lucarne_family.evaluate_all_streaks` from Developer Tools → Services. Also confirm your HA timezone matches the `streak_check_time` value. |
 | Chores card shows error block | The integration is either not installed or the `lucarne_family/get_family` WebSocket command failed. Check HA logs. |
 
+## Round-trip readiness (v0.2)
+
+The integration can fire a round-trip event when apple-synced items are completed in HA, so a
+future subscriber can mark the corresponding Apple Reminder complete on the Mac mini.
+
+### Enable round-trip config
+
+**Settings → Devices & Services → Lucarne Family → Configure → Apple Reminders sync**
+
+| Field | Description |
+|-------|-------------|
+| Enable round-trip | Toggle. Leave off until the future receiver is deployed. |
+| Webhook URL | The URL the future subscriber will POST to (e.g. `http://mac-mini.local:9123/writeback`). |
+| Shared secret | Min 32 characters. Used for HMAC-SHA256 signing by the future subscriber. |
+| Sync device name | Displayed in the event payload for receiver identification. Default: "Sync device". |
+
+### What happens when enabled
+
+When `enabled == true` and an apple-sourced task with a non-empty `apple_uid` is marked complete,
+the integration fires `lucarne_family_apple_writeback_requested` on the HA bus. The payload
+contains `apple_uid`, `status`, `timestamp`, and `device_name`. **The webhook URL and secret are
+never in the event.** Tasks without an `apple_uid` (e.g. added manually) do not trigger the event.
+
+The actual POST to the bridge is deferred — no HTTP request is made in v0.2. Enable this now
+to verify events appear in **Developer Tools → Events**, then wire the subscriber in the next spec.
+
+### What is missing
+
+The webhook POST and HMAC signing are not implemented yet. See
+[`docs/reminders-bridge.md` — Round-trip writeback](reminders-bridge.md#round-trip-writeback)
+for the full protocol and the subscriber accessor contract (`get_round_trip_config(hass)`).
+
+---
+
 ## Deprecation notes
 
 - **`ha_lucarne_chores_all_done`** event: fired as a compatibility shim alongside `lucarne_family_all_routines_done` in v0.x. Will be removed in v1.0. Migrate consumers:
