@@ -3,7 +3,7 @@ import { customElement, property } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { iconCheck } from '../shared/icons.js';
 import { STRINGS } from '../shared/strings.js';
-import type { TodoItem } from '../shared/types.js';
+import type { TodoItem, RenderableTask } from '../shared/types.js';
 
 @customElement('lucarne-tasks-summary')
 export class LucarneTasksSummary extends LitElement {
@@ -54,6 +54,10 @@ export class LucarneTasksSummary extends LitElement {
         margin-left: auto;
         white-space: nowrap;
       }
+      .task-icon {
+        font-size: 1em;
+        flex-shrink: 0;
+      }
       .more-row {
         padding: var(--lucarne-spacing-xs) 0 0;
         font-size: var(--lucarne-fs-sm);
@@ -81,6 +85,9 @@ export class LucarneTasksSummary extends LitElement {
 
   @property({ type: Array }) items: TodoItem[] = [];
   @property({ type: String }) todoEntityId?: string;
+  /** When true, renders integration household tasks from renderableTasks instead of raw items */
+  @property({ type: Boolean }) integrationMode = false;
+  @property({ attribute: false }) renderableTasks: RenderableTask[] = [];
 
   private _handleMoreClick() {
     if (this.todoEntityId) {
@@ -95,6 +102,13 @@ export class LucarneTasksSummary extends LitElement {
   }
 
   render() {
+    if (this.integrationMode) {
+      return this._renderIntegrationMode();
+    }
+    return this._renderRawMode();
+  }
+
+  private _renderRawMode() {
     const active = this.items.filter((i) => i.status === 'needs_action');
     const count = active.length;
     const visible = active.slice(0, 3);
@@ -119,6 +133,43 @@ export class LucarneTasksSummary extends LitElement {
           <div class="task-row">
             <span class="summary">${item.summary}</span>
             ${item.due ? html`<span class="due-chip">${this._formatDue(item.due)}</span>` : ''}
+          </div>
+        `,
+      )}
+      ${extra > 0
+        ? html`<div class="more-row" @click=${this._handleMoreClick}>
+            ${STRINGS.moreItems(extra)}
+          </div>`
+        : ''}
+    `;
+  }
+
+  private _renderIntegrationMode() {
+    const active = this.renderableTasks.filter((t) => t.status === 'needs_action');
+    const count = active.length;
+    const visible = active.slice(0, 3);
+    const extra = count - visible.length;
+
+    if (count === 0) {
+      return html`
+        <div class="empty-state">
+          <span class="empty-icon">${iconCheck}</span>
+          ${STRINGS.allDone}
+        </div>
+      `;
+    }
+
+    return html`
+      <div class="header">
+        ${STRINGS.tasksTitle}
+        <span class="count-badge">${count}</span>
+      </div>
+      ${visible.map(
+        (task) => html`
+          <div class="task-row">
+            ${task.metadata.icon ? html`<span class="task-icon">${task.metadata.icon}</span>` : ''}
+            <span class="summary">${task.summary}</span>
+            ${task.due ? html`<span class="due-chip">${this._formatDue(task.due)}</span>` : ''}
           </div>
         `,
       )}

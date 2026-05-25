@@ -249,3 +249,76 @@ function nthLabel(n: number): string {
   if (n === 3) return '3rd';
   return `${n}th`;
 }
+
+const EPOCH = new Date(Date.UTC(1970, 0, 1));
+
+function utcDaysSinceEpoch(d: Date): number {
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000);
+}
+
+function nthWeekdayOfMonth(d: Date, nth: number, weekday: number): boolean {
+  const dom = d.getDate();
+  const dow = d.getDay();
+  if (dow !== weekday) return false;
+  if (nth > 0) {
+    // e.g. nth=1: first occurrence; this is the case when (dom - 1) / 7 < 1 → dom ≤ 7
+    return Math.floor((dom - 1) / 7) === nth - 1;
+  }
+  // nth=-1: last occurrence
+  const lastDom = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  return Math.floor((lastDom - dom) / 7) === 0;
+}
+
+const JS_DAY: Record<string, number> = {
+  SU: 0, MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6,
+};
+
+/**
+ * Returns true if the parsed recurrence fires on `today`.
+ * Interval rules are anchored to 1970-01-01, matching recurrence.py.
+ * `unknown` and `none` always return false.
+ */
+export function isRoutineDueToday(parsed: ParsedRecurrence, today: Date = new Date()): boolean {
+  if (parsed.mode === 'none' || parsed.mode === 'unknown') return false;
+
+  const interval = ('interval' in parsed && parsed.interval) ? parsed.interval : 1;
+  const daysSince = utcDaysSinceEpoch(today) - utcDaysSinceEpoch(EPOCH);
+
+  if (parsed.mode === 'daily') {
+    return daysSince % interval === 0;
+  }
+
+  if (parsed.mode === 'weekly') {
+    const weekday = today.getDay();
+    const inDays = parsed.days.some((d) => JS_DAY[d] === weekday);
+    if (!inDays) return false;
+    if (interval === 1) return true;
+    const weeksSince = Math.floor(daysSince / 7);
+    return weeksSince % interval === 0;
+  }
+
+  if (parsed.mode === 'monthly-date') {
+    if (today.getDate() !== parsed.dayOfMonth) return false;
+    if (interval === 1) return true;
+    const monthsSince = (today.getFullYear() - 1970) * 12 + today.getMonth();
+    return monthsSince % interval === 0;
+  }
+
+  if (parsed.mode === 'monthly-nth') {
+    const weekday = JS_DAY[parsed.day];
+    if (!nthWeekdayOfMonth(today, parsed.nth, weekday)) return false;
+    if (interval === 1) return true;
+    const monthsSince = (today.getFullYear() - 1970) * 12 + today.getMonth();
+    return monthsSince % interval === 0;
+  }
+
+  if (parsed.mode === 'yearly') {
+    if (today.getMonth() + 1 !== parsed.month) return false;
+    if (today.getDate() !== parsed.dayOfMonth) return false;
+    if (interval === 1) return true;
+    const yearsSince = today.getFullYear() - 1970;
+    return yearsSince % interval === 0;
+  }
+
+  return false;
+}

@@ -3,13 +3,16 @@ import { customElement, property, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { fetchCalendarEvents, subscribeTodoItems } from '../shared/ha-subscriptions.js';
 import { installPreviewColumnOverride, type PreviewOverrideHandle } from '../shared/grid-preview-override.js';
+import { subscribeFamilyState } from '../shared/family-subscription.js';
+import type { FamilyState } from '../shared/family-subscription.js';
 import { STRINGS } from '../shared/strings.js';
-import type { HomeAssistant, CalendarConfig, CalendarEvent, TodoItem } from '../shared/types.js';
+import type { HomeAssistant, CalendarConfig, CalendarEvent, TodoItem, RenderableTask, MemberSummary } from '../shared/types.js';
 
 import '../components/agenda-strip.js';
 import '../components/weather-block.js';
 import '../components/tasks-summary.js';
 import '../components/presence-pills.js';
+import '../components/family-ready-pill.js';
 
 export interface LucarneTodayCardConfig {
   type: 'custom:lucarne-today-card';
@@ -19,6 +22,10 @@ export interface LucarneTodayCardConfig {
   tasks?: string;
   presence?: { entity: string; name: string }[];
   agenda_limit?: number;
+  /** If true, ignores tasks: setting and reads household tasks from the integration */
+  household_tasks_from_integration?: boolean;
+  /** If true, shows N/M members ready pill in header */
+  show_family_ready_pill?: boolean;
 }
 
 (window as Window & typeof globalThis & { customCards?: object[] }).customCards =
@@ -58,6 +65,11 @@ export class LucarneTodayCard extends LitElement {
         font-weight: 700;
         color: var(--lucarne-on-surface);
         margin: 0;
+      }
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: var(--lucarne-spacing-sm);
       }
       .card-body {
         display: grid;
@@ -101,9 +113,11 @@ export class LucarneTodayCard extends LitElement {
   @state() private _calendarEvents: Map<string, CalendarEvent[]> = new Map();
   @state() private _forecast: { temperature: number; templow?: number; condition: string; datetime: string; precipitation_probability?: number }[] = [];
   @state() private _todoItems: TodoItem[] = [];
+  @state() private _familyState: FamilyState | null = null;
 
   private _calendarIntervalId?: ReturnType<typeof setInterval>;
   private _todoUnsub?: () => void;
+  private _unsubFamily?: () => void;
   private _fetchingForecast = false;
   private _lastWeatherState = '';
   private _previewOverride?: PreviewOverrideHandle | null;
@@ -190,9 +204,14 @@ export class LucarneTodayCard extends LitElement {
       this._fetchCalendarEvents();
       if (this._config?.weather) this._fetchForecast();
     }, 5 * 60 * 1000);
-    if (this._config.tasks) {
+    if (this._config.tasks && !this._config.household_tasks_from_integration) {
       this._todoUnsub = subscribeTodoItems(this.hass, this._config.tasks, (items) => {
         this._todoItems = items;
+      });
+    }
+    if (this._config.household_tasks_from_integration || this._config.show_family_ready_pill) {
+      this._unsubFamily = subscribeFamilyState(this.hass, (state) => {
+        this._familyState = state;
       });
     }
   }
@@ -201,6 +220,8 @@ export class LucarneTodayCard extends LitElement {
     clearInterval(this._calendarIntervalId);
     this._todoUnsub?.();
     this._todoUnsub = undefined;
+    this._unsubFamily?.();
+    this._unsubFamily = undefined;
     this._calendarIntervalId = undefined;
   }
 
@@ -283,6 +304,18 @@ export class LucarneTodayCard extends LitElement {
     return m;
   }
 
+  private get _householdTasks(): RenderableTask[] {
+    return this._familyState?.tasksByMember.get('household') ?? [];
+  }
+
+  private get _familyMembers(): MemberSummary[] {
+    return this._familyState?.members ?? [];
+  }
+
+  private get _familyTasksByMember(): Map<string, RenderableTask[]> {
+    return this._familyState?.tasksByMember ?? new Map();
+  }
+
   render() {
     if (!this._config) return html``;
 
@@ -292,13 +325,29 @@ export class LucarneTodayCard extends LitElement {
       isHome: this.hass?.states[p.entity]?.state === 'on',
     }));
 
+    // Only enable integration-backed sections when the family subscription is loaded and healthy.
+    // When integrationError is non-null (integration missing or failed), suppress these sections
+    // rather than rendering a misleading empty state.
+    const integrationOk = this._familyState !== null && this._familyState.integrationError === null;
+    const showFamilyPill = (this._config.show_family_ready_pill ?? false) && integrationOk;
+    const integrationTasks = (this._config.household_tasks_from_integration ?? false) && integrationOk;
+    const showRawTasks = !(this._config.household_tasks_from_integration ?? false) && !!this._config.tasks;
+
     return html`
       <ha-card>
         <div class="card-header">
           <h2 class="card-title">${this._config.title ?? STRINGS.today}</h2>
-          ${presenceEntries.length > 0
-            ? html`<lucarne-presence-pills .entries=${presenceEntries}></lucarne-presence-pills>`
-            : ''}
+          <div class="header-right">
+            ${presenceEntries.length > 0
+              ? html`<lucarne-presence-pills .entries=${presenceEntries}></lucarne-presence-pills>`
+              : ''}
+            ${showFamilyPill
+              ? html`<lucarne-family-ready-pill
+                  .members=${this._familyMembers}
+                  .tasksByMember=${this._familyTasksByMember}
+                ></lucarne-family-ready-pill>`
+              : ''}
+          </div>
         </div>
         <div class="card-body">
           <div class="left-col">
@@ -315,12 +364,23 @@ export class LucarneTodayCard extends LitElement {
                 .forecast=${this._forecast}
               ></lucarne-weather-block>
             </div>
-            ${this._config.tasks
+            ${showRawTasks
               ? html`
                   <div class="tasks-section">
                     <lucarne-tasks-summary
                       .items=${this._todoItems}
                       .todoEntityId=${this._config.tasks}
+                    ></lucarne-tasks-summary>
+                  </div>
+                `
+              : ''}
+            ${integrationTasks
+              ? html`
+                  <div class="tasks-section">
+                    <lucarne-tasks-summary
+                      .integrationMode=${true}
+                      .renderableTasks=${this._householdTasks}
+                      .todoEntityId=${'todo.lucarne_household'}
                     ></lucarne-tasks-summary>
                   </div>
                 `

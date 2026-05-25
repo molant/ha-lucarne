@@ -2,6 +2,7 @@ import { LitElement, html } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from '../shared/types.js';
 import type { LucarneTodayCardConfig } from '../cards/lucarne-today-card.js';
+import { SYNTHETIC_HOUSEHOLD } from '../shared/family-subscription.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { editorBaseStyles } from '../shared/editor-styles.js';
 import { ensureHaFormElements } from '../shared/ha-elements.js';
@@ -43,6 +44,23 @@ export class LucarneTodayCardEditor extends LitElement {
 
   private _tasksChanged(e: CustomEvent) {
     this._fire({ ...this._config!, tasks: e.detail?.value ?? undefined });
+  }
+
+  private _integrationTasksChanged(e: Event) {
+    const checked = (e.target as HTMLInputElement).checked;
+    this._fire({ ...this._config!, household_tasks_from_integration: checked || undefined });
+  }
+
+  private _familyPillChanged(e: Event) {
+    const checked = (e.target as HTMLInputElement).checked;
+    this._fire({ ...this._config!, show_family_ready_pill: checked || undefined });
+  }
+
+  private _isIntegrationAvailable(): boolean {
+    // Heuristic: household entity exists when integration is set up. This may briefly
+    // return false during first setup before async_ensure_household_entity runs; that
+    // is acceptable — the toggles become enabled on the next hass update.
+    return !!(this.hass?.states?.[SYNTHETIC_HOUSEHOLD.todo_entity_id]);
   }
 
   private _agendaLimitChanged(e: Event) {
@@ -149,6 +167,28 @@ export class LucarneTodayCardEditor extends LitElement {
         allow-custom-entity
         @value-changed=${this._tasksChanged}
       ></ha-entity-picker>
+
+      <div class="section-label">Lucarne Family integration</div>
+      <label class="field" style="${this._isIntegrationAvailable() ? '' : 'opacity:0.5;pointer-events:none'}">
+        <span class="field-label">Household tasks from integration</span>
+        <input
+          type="checkbox"
+          .checked=${this._config.household_tasks_from_integration ?? false}
+          @change=${this._integrationTasksChanged}
+          ?disabled=${!this._isIntegrationAvailable()}
+        />
+        ${this._isIntegrationAvailable() ? '' : html`<small> — install Lucarne Family integration first</small>`}
+      </label>
+      <label class="field" style="${this._isIntegrationAvailable() ? '' : 'opacity:0.5;pointer-events:none'}">
+        <span class="field-label">Show family ready pill</span>
+        <input
+          type="checkbox"
+          .checked=${this._config.show_family_ready_pill ?? false}
+          @change=${this._familyPillChanged}
+          ?disabled=${!this._isIntegrationAvailable()}
+        />
+        ${this._isIntegrationAvailable() ? '' : html`<small> — install Lucarne Family integration first</small>`}
+      </label>
 
       <div class="section-label">Calendars</div>
       ${calendars.map(
