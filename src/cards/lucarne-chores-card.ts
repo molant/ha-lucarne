@@ -2,11 +2,17 @@ import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { isAllDone } from '../shared/chore-helpers.js';
-import type { HomeAssistant, KidConfig } from '../shared/types.js';
+import type { HomeAssistant } from '../shared/types.js';
 
 import '../components/kid-column.js';
 
-export type { KidConfig };
+interface KidConfig {
+  name: string;
+  color: string;
+  avatar?: string;
+  streak: string;
+  chores: { name: string; entity: string }[];
+}
 
 export interface LucarneChoresCardConfig {
   type: 'custom:lucarne-chores-card';

@@ -1,6 +1,14 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
-import type { HomeAssistant, KidConfig } from '../shared/types.js';
+import type { HomeAssistant } from '../shared/types.js';
+
+interface KidConfig {
+  name: string;
+  color: string;
+  avatar?: string;
+  streak: string;
+  chores: { name: string; entity: string }[];
+}
 
 import './kid-avatar.js';
 import './chore-row.js';

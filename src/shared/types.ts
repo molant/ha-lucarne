@@ -1,12 +1,35 @@
 export type { HassEntity } from 'home-assistant-js-websocket';
 export type { HomeAssistant } from 'custom-card-helpers';
 
-export interface KidConfig {
+export type TaskType = 'routine' | 'chore';
+export type TaskSource = 'manual' | 'template' | 'apple';
+
+export interface MemberSummary {
+  slug: string;
   name: string;
   color: string;
-  avatar?: string;
-  streak: string;
-  chores: { name: string; entity: string }[];
+  avatar: string | null;
+  todo_entity_id: string;
+  streak_counter_id: string;
+}
+
+export interface TaskMetadata {
+  item_uid: string;
+  member_slug: string;
+  assignee_slug: string;
+  type: TaskType;
+  recurrence: string;
+  icon: string;
+  source: TaskSource;
+}
+
+export interface RenderableTask {
+  uid: string;
+  summary: string;
+  status: 'needs_action' | 'completed';
+  due: string | null;
+  description: string;
+  metadata: TaskMetadata;
 }
 
 export interface CalendarEvent {
