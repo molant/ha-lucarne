@@ -1,6 +1,7 @@
 """Service handlers for task management in the Lucarne Family integration."""
 from __future__ import annotations
 
+import logging
 import uuid
 from typing import Any
 
@@ -15,6 +16,7 @@ from .const import DOMAIN
 from .recurrence import is_valid_rrule
 from .store import LucarneFamilyStore
 
+_LOGGER = logging.getLogger(__name__)
 _HOUSEHOLD_SLUG = "household"
 _HOUSEHOLD_ENTITY_ID = "todo.lucarne_household"
 _TASK_TYPES = ("routine", "chore")
@@ -205,14 +207,31 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
                 description=item.description,
             )
         )
-        await store.async_append_completion(
-            member_slug=metadata["member_slug"],
-            item_uid=uid,
-            summary=item.summary or "",
-            action=action,
-            recurrence_at_time=metadata.get("recurrence", ""),
-        )
+        # Phase 3: completion_listener is now the authoritative source for the
+        # completion log. toggle_task must NOT append here or a double row appears
+        # for every card tap (once from this handler, once from the state-change
+        # listener). The state change triggered by async_update_todo_item above
+        # is what drives the log entry.
         hass.bus.async_fire("lucarne_family_task_toggled", {"uid": uid, "action": action})
+
+    async def handle_perform_daily_reset(_call: ServiceCall) -> None:
+        from .reset_logic import async_perform_daily_reset
+
+        store = _get_store(hass, entry_id)
+        reset_count = await async_perform_daily_reset(hass, store)
+        _LOGGER.debug("Daily reset: %d items reset", reset_count)
+
+    async def handle_evaluate_all_streaks(_call: ServiceCall) -> None:
+        from datetime import UTC, datetime
+
+        from .streak_logic import async_apply_streak, async_evaluate_streak
+
+        store = _get_store(hass, entry_id)
+        as_of = datetime.now(UTC)
+        for member in store.get_members():
+            new_streak = await async_evaluate_streak(hass, store, member, as_of)
+            await async_apply_streak(hass, store, member, new_streak)
+        _LOGGER.debug("Evaluated streaks for %d members", len(store.get_members()))
 
     hass.services.async_register(DOMAIN, "add_task", handle_add_task, schema=ADD_TASK_SCHEMA)
     hass.services.async_register(
@@ -224,9 +243,22 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
     hass.services.async_register(
         DOMAIN, "toggle_task", handle_toggle_task, schema=TOGGLE_TASK_SCHEMA
     )
+    hass.services.async_register(
+        DOMAIN, "perform_daily_reset", handle_perform_daily_reset, schema=vol.Schema({})
+    )
+    hass.services.async_register(
+        DOMAIN, "evaluate_all_streaks", handle_evaluate_all_streaks, schema=vol.Schema({})
+    )
 
 
 async def async_unload_services(hass: HomeAssistant) -> None:
     """Remove lucarne_family task services."""
-    for service in ("add_task", "update_task_metadata", "delete_task", "toggle_task"):
+    for service in (
+        "add_task",
+        "update_task_metadata",
+        "delete_task",
+        "toggle_task",
+        "perform_daily_reset",
+        "evaluate_all_streaks",
+    ):
         hass.services.async_remove(DOMAIN, service)
