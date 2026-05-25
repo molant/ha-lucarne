@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 ---
 
 # Phase 3: Managed automations
@@ -43,35 +43,35 @@ tests/python/
 
 ### Baseline verification (before starting)
 
-- [ ] `pytest tests/python` — Phase 2 tests pass
-- [ ] On real HA: 2 test members with todo entities + counter entities; ~5 tasks across them (some routines, some chores)
-- [ ] Note: the existing `lucarne_chores_daily_reset` blueprint instance (if user has one wired up) will be retired by this phase — back up the user's current automation config first
+- [x] `pytest tests/python` — Phase 2 tests pass
+- [x] On real HA: 2 test members with todo entities + counter entities; ~5 tasks across them (some routines, some chores)
+- [x] Note: the existing `lucarne_chores_daily_reset` blueprint instance (if user has one wired up) will be retired by this phase — back up the user's current automation config first
 
 ### Sub-Phase A: Pure reset & streak logic
 
 Build the logic as testable pure functions before wiring it into automations.
 
 #### `reset_logic.py`
-- [ ] `async def async_perform_daily_reset(hass, store) -> int`:
+- [x] `async def async_perform_daily_reset(hass, store) -> int`:
   - For each member: fetch their todo items via `todo.get_items` (status: completed)
   - For each completed item with metadata `type=routine`: flip status via `todo.update_item`
   - Append `reset` row to completion_log with current timestamp + the item's RRULE at reset time
   - Returns count of items reset
-- [ ] Idempotent: running twice on the same day → second call is no-op (because items are already `needs_action`)
+- [x] Idempotent: running twice on the same day → second call is no-op (because items are already `needs_action`)
 
 #### `streak_logic.py`
-- [ ] `async def async_evaluate_streak(hass, store, member: Member, as_of: datetime) -> int`:
+- [x] `async def async_evaluate_streak(hass, store, member: Member, as_of: datetime) -> int`:
   - Build a recurrence evaluator: `evaluator = recurrence.make_recurrence_evaluator(hass, store, member.slug)` (factory defined in Phase 2 `recurrence.py`)
   - Compute the new streak from `completion_log` via `store.async_get_streak(member.slug, as_of.date(), evaluator)`; do not read `counter.<slug>_streak` as an input to the calculation. The store walks backward day-by-day, calling `evaluator(date)` to learn which routine UIDs were due on each historical day.
   - Behavior delegated to the store's algorithm (locked in Phase 2 Sub-Phase B): no-routine days are skipped, all-complete days increment, any-missing days stop the walk and return the accumulated count.
   - Returns the new streak value. `completion_log` is the canonical source; `counter.<slug>_streak` is a derived mirror for external automations.
-- [ ] `async def async_apply_streak(hass, store, member, new_streak)`:
+- [x] `async def async_apply_streak(hass, store, member, new_streak)`:
   - Call `counter.set_value` to update the derived `counter.<slug>_streak` mirror
   - Append a metadata-event row to completion_log? No — streak changes already derivable from log; don't double-write
 
 #### Tests
-- [ ] `test_reset_logic.py`: idempotency; only routines flipped (not chores); log row count matches reset count
-- [ ] `test_streak_logic.py`:
+- [x] `test_reset_logic.py`: idempotency; only routines flipped (not chores); log row count matches reset count
+- [x] `test_streak_logic.py`:
   - 3 consecutive days of full completion → streak 3
   - 1 missed day (any expected routine not in `completion_log` for that day) → streak resets to 0
   - Member with no routines today but completed yesterday → streak today equals yesterday's streak (the no-routine day is skipped, not counted)
@@ -82,7 +82,7 @@ Build the logic as testable pure functions before wiring it into automations.
 ### Sub-Phase B: Automation writer
 
 #### `automation_writer.py`
-- [ ] `async def async_write_managed_automations(hass, entry: ConfigEntry)`:
+- [x] `async def async_write_managed_automations(hass, entry: ConfigEntry)`:
   - Reads `entry.data["reset_time"]` and `entry.data["streak_check_time"]`
   - Builds two automation configs in HA's standard YAML-as-dict format:
     - `lucarne_daily_reset`: `alias: "Lucarne Daily Reset"`, trigger at reset_time, action `service: lucarne_family.perform_daily_reset` (new internal service registered in this phase). Resulting entity_id MUST be `automation.lucarne_daily_reset`.
@@ -90,14 +90,14 @@ Build the logic as testable pure functions before wiring it into automations.
   - Each automation has an `id` field of `lucarne_family_daily_reset` / `lucarne_family_streak_check` (HA uses `id` as the storage key — keep stable across updates so traces are continuous)
   - Each automation has `description: "Managed by Lucarne Family integration. Do not edit."`
   - **Verify after first write**: read back from the entity registry that the entity_ids are exactly `automation.lucarne_daily_reset` and `automation.lucarne_streak_check`. If HA appended a suffix (e.g. `_2` because of a prior collision), fail loudly — the user has a stale automation that must be cleaned up before the integration can take over.
-- [ ] Use HA's automation config API exposed by `homeassistant/components/automation/config.py` and registered from `homeassistant/components/automation/__init__.py` to create/update/delete the two managed YAML automation entries. Phase 3's first implementation task is to add a failing `test_automation_writer.py` fixture that exercises the chosen in-process call path on the pinned HA version. If HA exposes no stable in-process upsert API on that version, replace managed persisted automations with integration-owned `async_track_time_change` listeners in this phase and update README + docs before implementing runtime logic; do not write raw `.storage` files.
-- [ ] Treat the automation config API path above as a pinned-version verification gate, not a guaranteed API. Document the exact HA source file + function used in `automation_writer.py` once verified.
-- [ ] `async def async_remove_managed_automations(hass, entry)` — for integration uninstall
+- [x] Use HA's automation config API exposed by `homeassistant/components/automation/config.py` and registered from `homeassistant/components/automation/__init__.py` to create/update/delete the two managed YAML automation entries. Phase 3's first implementation task is to add a failing `test_automation_writer.py` fixture that exercises the chosen in-process call path on the pinned HA version. If HA exposes no stable in-process upsert API on that version, replace managed persisted automations with integration-owned `async_track_time_change` listeners in this phase and update README + docs before implementing runtime logic; do not write raw `.storage` files.
+- [x] Treat the automation config API path above as a pinned-version verification gate, not a guaranteed API. Document the exact HA source file + function used in `automation_writer.py` once verified.
+- [x] `async def async_remove_managed_automations(hass, entry)` — for integration uninstall
 
 #### Internal services (called by the managed automations)
-- [ ] Register `lucarne_family.perform_daily_reset` service in `task_service.py` — calls `reset_logic.async_perform_daily_reset`
-- [ ] Register `lucarne_family.evaluate_all_streaks` — iterates members, calls `streak_logic`
-- [ ] Both services are listed in `services.yaml` so they're discoverable. Their voluptuous schemas have no user-supplied fields, so the `services.yaml` field map for each is empty (`fields: {}`) and `test_services_yaml.py` includes them in the schema/field-name parity assertion.
+- [x] Register `lucarne_family.perform_daily_reset` service in `task_service.py` — calls `reset_logic.async_perform_daily_reset`
+- [x] Register `lucarne_family.evaluate_all_streaks` — iterates members, calls `streak_logic`
+- [x] Both services are listed in `services.yaml` so they're discoverable. Their voluptuous schemas have no user-supplied fields, so the `services.yaml` field map for each is empty (`fields: {}`) and `test_services_yaml.py` includes them in the schema/field-name parity assertion.
 
 #### Wire into setup + options-flow listener
 
@@ -111,38 +111,38 @@ Build the logic as testable pure functions before wiring it into automations.
 6. **Write managed automations LAST** (`async_write_managed_automations`). If HA reloads the automation right after write, its trigger fires against already-registered services from step 3.
 7. Register the options-update listener (`entry.async_on_unload(entry.add_update_listener(async_options_updated))`).
 
-- [ ] Implement `async_setup_entry` with the seven steps above, in order. Add a code comment naming the order so a future edit doesn't reshuffle it.
-- [ ] In `async_options_updated` (stubbed in Phase 1): call `async_write_managed_automations` again to pick up time changes. Services are already registered from initial setup, so order matters less here.
-- [ ] On `async_unload_entry`: unsubscribe the completion listener, unregister services, then optionally leave the managed automations (default: leave them so user can re-install without losing automation history).
-- [ ] Test in `test_automation_writer.py`: stop+restart the integration; assert services are re-registered before the automation entity is loaded (check by reading `hass.services.has_service` immediately after `async_setup_entry` returns and BEFORE the next event loop tick).
+- [x] Implement `async_setup_entry` with the seven steps above, in order. Add a code comment naming the order so a future edit doesn't reshuffle it.
+- [x] In `async_options_updated` (stubbed in Phase 1): call `async_write_managed_automations` again to pick up time changes. Services are already registered from initial setup, so order matters less here.
+- [x] On `async_unload_entry`: unsubscribe the completion listener, unregister services, then optionally leave the managed automations (default: leave them so user can re-install without losing automation history).
+- [x] Test in `test_automation_writer.py`: stop+restart the integration; assert services are re-registered before the automation entity is loaded (check by reading `hass.services.has_service` immediately after `async_setup_entry` returns and BEFORE the next event loop tick).
 
 #### Phase 2 `toggle_task` handoff
 
-- [ ] Update the Phase 2 `lucarne_family.toggle_task` service handler in this phase: it must continue to resolve metadata and call `todo.update_item`, but it must **stop appending directly to `completion_log`**. The completion listener is now authoritative for every status transition, including toggles initiated by this integration service. Leaving the Phase 2 direct append in place creates duplicate `completed` / `undone` rows for card taps and Developer Tools calls.
-- [ ] Add a regression test in `test_completion_listener.py` or `test_task_service.py`: call `lucarne_family.toggle_task` once after the listener is started, then assert exactly one completion-log row is written for that UID and status transition.
+- [x] Update the Phase 2 `lucarne_family.toggle_task` service handler in this phase: it must continue to resolve metadata and call `todo.update_item`, but it must **stop appending directly to `completion_log`**. The completion listener is now authoritative for every status transition, including toggles initiated by this integration service. Leaving the Phase 2 direct append in place creates duplicate `completed` / `undone` rows for card taps and Developer Tools calls.
+- [x] Add a regression test in `test_completion_listener.py` or `test_task_service.py`: call `lucarne_family.toggle_task` once after the listener is started, then assert exactly one completion-log row is written for that UID and status transition.
 
 #### Tests
-- [ ] `test_automation_writer.py`: write creates 2 automations with correct triggers and actions; reset_time change in config → automation updated; remove deletes both
+- [x] `test_automation_writer.py`: write creates 2 automations with correct triggers and actions; reset_time change in config → automation updated; remove deletes both
 
 ### Sub-Phase C: Completion listener
 
 #### `completion_listener.py`
-- [ ] `def async_start_completion_listener(hass, store, managed_todo_entity_ids: set[str]) -> CALLBACK_TYPE`:
+- [x] `def async_start_completion_listener(hass, store, managed_todo_entity_ids: set[str]) -> CALLBACK_TYPE`:
   - Registers `async_track_state_change_event` for the managed todo entities
   - On each state change: HA passes the event with old + new state. First verify on the pinned HA version whether managed todo states include an `items` attribute. If they do, diff that attribute to find which item changed status. If they do not, maintain an in-memory per-entity snapshot from `todo.get_items`, refresh it after each state change, and diff old snapshot → new snapshot. Do NOT assume `items` exists without a compatibility test.
   - For each item whose status changed:
     - `needs_action → completed`: append `completed` row to completion_log
     - `completed → needs_action`: append `undone` row
   - Fires `lucarne_family_task_completed` HA event with `{member, uid, summary}` so other automations can subscribe (replaces `ha_lucarne_chores_all_done`)
-- [ ] Returns an unsubscribe callback; store it in `hass.data[DOMAIN][entry.entry_id]` so it can be cleaned up at unload
-- [ ] **Carefully diff todo item snapshots** — HA fires `state_changed` for any attribute change, not just status. Whether the snapshot came from an `items` attribute or `todo.get_items`, compute the actual status delta by UID before logging.
+- [x] Returns an unsubscribe callback; store it in `hass.data[DOMAIN][entry.entry_id]` so it can be cleaned up at unload
+- [x] **Carefully diff todo item snapshots** — HA fires `state_changed` for any attribute change, not just status. Whether the snapshot came from an `items` attribute or `todo.get_items`, compute the actual status delta by UID before logging.
 
 #### Wire into setup
-- [ ] On `async_setup_entry`, after entity manager has ensured all member entities exist, start the listener
-- [ ] On member add/remove: restart the listener with the updated entity set (or use a dynamic filter)
+- [x] On `async_setup_entry`, after entity manager has ensured all member entities exist, start the listener
+- [x] On member add/remove: restart the listener with the updated entity set (or use a dynamic filter)
 
 #### Tests
-- [ ] `test_completion_listener.py` with `hass` fixture:
+- [x] `test_completion_listener.py` with `hass` fixture:
   - Mark item complete → log row appended with action=completed
   - Mark item uncompleted → log row appended with action=undone
   - Update item's summary without changing status → NO log row
@@ -153,53 +153,53 @@ Build the logic as testable pure functions before wiring it into automations.
 ### Sub-Phase D: Apple sentinel backfill
 
 #### `apple_sentinel_backfill.py`
-- [ ] When the Reminders bridge upserts an item via `todo.add_item` (called from the existing blueprint), the description contains `[apple:UUID]`. The integration must notice and write a `source=apple` metadata row.
-- [ ] **Exact regex** (lock this, do not let an LLM "improve" it): `r"\[apple:([^\]]+)\]"` — this matches the existing `lucarne_reminders_sync` blueprint's sentinel extraction and accepts standard UUIDs, Shortcuts-provided IDs such as `apple-stable-uuid`, and opaque Apple IDs. Match is case-insensitive on the literal `apple:` prefix? **No** — keep `apple:` literal-lowercase to match what `bridge/README.md` documents. Cover a real synced-item fixture in `test_apple_sentinel_backfill.py`.
-- [ ] Approach: in the completion_listener's state-change handler, on items that appear (new uid not previously seen), run the regex against the item's `description`. If matched: insert a task_metadata row with `source=apple`, `apple_uid=<captured group>`, `type=chore` (default for synced items), `recurrence=""`.
-- [ ] Idempotent: if a metadata row already exists for this UID, do not overwrite (the user may have explicitly set a different `type` via `update_task_metadata`).
+- [x] When the Reminders bridge upserts an item via `todo.add_item` (called from the existing blueprint), the description contains `[apple:UUID]`. The integration must notice and write a `source=apple` metadata row.
+- [x] **Exact regex** (lock this, do not let an LLM "improve" it): `r"\[apple:([^\]]+)\]"` — this matches the existing `lucarne_reminders_sync` blueprint's sentinel extraction and accepts standard UUIDs, Shortcuts-provided IDs such as `apple-stable-uuid`, and opaque Apple IDs. Match is case-insensitive on the literal `apple:` prefix? **No** — keep `apple:` literal-lowercase to match what `bridge/README.md` documents. Cover a real synced-item fixture in `test_apple_sentinel_backfill.py`.
+- [x] Approach: in the completion_listener's state-change handler, on items that appear (new uid not previously seen), run the regex against the item's `description`. If matched: insert a task_metadata row with `source=apple`, `apple_uid=<captured group>`, `type=chore` (default for synced items), `recurrence=""`.
+- [x] Idempotent: if a metadata row already exists for this UID, do not overwrite (the user may have explicitly set a different `type` via `update_task_metadata`).
 
 #### Tests
-- [ ] `test_apple_sentinel_backfill.py`:
+- [x] `test_apple_sentinel_backfill.py`:
   - New item arrives with `[apple:abc123]` in description → metadata row created with `source=apple`, `apple_uid=abc123`
   - Item without sentinel → no metadata row (treated as orphan; cards show with default styling)
   - Existing metadata for an apple_uid → backfill does not overwrite
 
 ### Sub-Phase E: Retire old blueprints
 
-- [ ] Delete `blueprints/automation/lucarne_chores_daily_reset.yaml`
-- [ ] Delete `blueprints/automation/lucarne_chores_streak_advance.yaml`
-- [ ] **Keep** `blueprints/automation/lucarne_reminders_sync.yaml` — the bridge still needs it
-- [ ] Update `README.md` Blueprints section to remove the deleted blueprints and add a note explaining the integration now owns reset/streak
+- [x] Delete `blueprints/automation/lucarne_chores_daily_reset.yaml`
+- [x] Delete `blueprints/automation/lucarne_chores_streak_advance.yaml`
+- [x] **Keep** `blueprints/automation/lucarne_reminders_sync.yaml` — the bridge still needs it
+- [x] Update `README.md` Blueprints section to remove the deleted blueprints and add a note explaining the integration now owns reset/streak
 
 ### Sub-Phase F: Event compatibility shim
 
 The existing `ha_lucarne_chores_all_done` event (documented in `docs/events.md`) is fired by the old chores card. Phase 4 removes the card. To preserve compatibility for users who built automations on this event:
 
-- [ ] In `completion_listener`, when all of a member's today's routines flip to completed (transition: not-all-complete → all-complete): fire BOTH the new `lucarne_family_all_routines_done` event AND the legacy `ha_lucarne_chores_all_done` event with the legacy payload (so user's existing automations keep working)
-- [ ] Document deprecation in `docs/events.md`: the legacy event will be removed in v1.0; recommend migrating to the new event
+- [x] In `completion_listener`, when all of a member's today's routines flip to completed (transition: not-all-complete → all-complete): fire BOTH the new `lucarne_family_all_routines_done` event AND the legacy `ha_lucarne_chores_all_done` event with the legacy payload (so user's existing automations keep working)
+- [x] Document deprecation in `docs/events.md`: the legacy event will be removed in v1.0; recommend migrating to the new event
 
 ### Documentation (end of phase)
 
-- [ ] `docs/events.md`: deprecate `ha_lucarne_chores_all_done`; add `lucarne_family_task_added`, `lucarne_family_task_completed`, `lucarne_family_task_deleted`, `lucarne_family_task_metadata_updated`, `lucarne_family_task_toggled`, `lucarne_family_all_routines_done`, `lucarne_family_avatar_uploaded`. Each with full payload schema.
-- [ ] `docs/integration.md`: add Managed Automations section explaining reset/streak behavior + how to change times via Options Flow
-- [ ] `docs/architecture.md`: data-flow diagram updated with completion listener path and apple backfill flow
+- [x] `docs/events.md`: deprecate `ha_lucarne_chores_all_done`; add `lucarne_family_task_added`, `lucarne_family_task_completed`, `lucarne_family_task_deleted`, `lucarne_family_task_metadata_updated`, `lucarne_family_task_toggled`, `lucarne_family_all_routines_done`, `lucarne_family_avatar_uploaded`. Each with full payload schema.
+- [x] `docs/integration.md`: add Managed Automations section explaining reset/streak behavior + how to change times via Options Flow
+- [x] `docs/architecture.md`: data-flow diagram updated with completion listener path and apple backfill flow
 
 ### Build verification
 
-- [ ] Ruff, mypy, pytest clean
-- [ ] TS side green
-- [ ] On real HA: trigger reset by setting reset_time to ~2 minutes from now; watch routines flip; observe log rows via SQLite query (use sqlite3 CLI in the container or expose a debug service)
-- [ ] Trigger streak check similarly; verify counter updates
-- [ ] Complete a task on a member's todo entity via Developer Tools → Services → `todo.update_item`; observe `lucarne_family_task_completed` event in Developer Tools → Events
-- [ ] Trigger the bridge or simulate by calling `todo.add_item` with `[apple:test123]` in description; verify metadata row inserted with `source=apple`
-- [ ] HA logs clean for `lucarne_family`
-- [ ] Mark phase `status: done`
+- [x] Ruff, mypy, pytest clean
+- [x] TS side green
+- [x] On real HA: trigger reset by setting reset_time to ~2 minutes from now; watch routines flip; observe log rows via SQLite query (use sqlite3 CLI in the container or expose a debug service)
+- [x] Trigger streak check similarly; verify counter updates
+- [x] Complete a task on a member's todo entity via Developer Tools → Services → `todo.update_item`; observe `lucarne_family_task_completed` event in Developer Tools → Events
+- [x] Trigger the bridge or simulate by calling `todo.add_item` with `[apple:test123]` in description; verify metadata row inserted with `source=apple`
+- [x] HA logs clean for `lucarne_family`
+- [x] Mark phase `status: done`
 
 ### Manual verification with MCP tools
 
-- [ ] `mcp__home-assistant__ha_call_service` for `lucarne_family.perform_daily_reset` — observe state changes
-- [ ] `mcp__home-assistant__ha_get_automation_traces` for `automation.lucarne_daily_reset` — verify successful traces after reset_time fires
-- [ ] `mcp__home-assistant__ha_eval_template` to inspect any related state
+- [x] `mcp__home-assistant__ha_call_service` for `lucarne_family.perform_daily_reset` — observe state changes
+- [x] `mcp__home-assistant__ha_get_automation_traces` for `automation.lucarne_daily_reset` — verify successful traces after reset_time fires
+- [x] `mcp__home-assistant__ha_eval_template` to inspect any related state
 
 ## Technical Details
 
