@@ -1,11 +1,12 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { HomeAssistant } from '../shared/types.js';
+import type { HomeAssistant, MemberSummary } from '../shared/types.js';
 import type { LucarneChoresCardConfig } from '../cards/lucarne-chores-card.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { subscribeFamilyState, SYNTHETIC_HOUSEHOLD } from '../shared/family-subscription.js';
 import type { FamilyState } from '../shared/family-subscription.js';
 import { fireEvent } from 'custom-card-helpers';
+import '../components/avatar-upload-modal.js';
 
 @customElement('lucarne-chores-card-editor')
 export class LucarneChoresCardEditor extends LitElement {
@@ -45,6 +46,33 @@ export class LucarneChoresCardEditor extends LitElement {
         cursor: pointer;
         flex: 1;
       }
+      .member-avatar {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid rgba(0,0,0,0.1);
+        flex-shrink: 0;
+        font-size: 1.1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.05);
+        overflow: hidden;
+      }
+      .change-avatar-btn {
+        background: none;
+        border: 1px solid rgba(0,0,0,0.15);
+        border-radius: var(--lucarne-radius-sm);
+        padding: 2px 8px;
+        font-size: var(--lucarne-fs-xs, 0.75rem);
+        cursor: pointer;
+        color: var(--lucarne-on-surface-muted);
+        flex-shrink: 0;
+      }
+      .change-avatar-btn:hover {
+        background: rgba(0,0,0,0.05);
+      }
       input[type='checkbox'] {
         width: 18px;
         height: 18px;
@@ -82,6 +110,7 @@ export class LucarneChoresCardEditor extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
   @state() private _config?: LucarneChoresCardConfig;
   @state() private _familyState: FamilyState | null = null;
+  @state() private _avatarModalMember: MemberSummary | null = null;
 
   private _unsubFamily?: () => void;
 
@@ -187,10 +216,31 @@ export class LucarneChoresCardEditor extends LitElement {
               @change=${(e: Event) =>
                 this._memberToggled(m.slug, (e.target as HTMLInputElement).checked)}
             />
+            <div class="member-avatar">
+              ${m.avatar && m.avatar.startsWith('/local/')
+                ? html`<img src=${m.avatar} alt=${m.name} style="width:100%;height:100%;object-fit:cover;" />`
+                : html`${m.avatar ?? m.name[0]}`}
+            </div>
             <label for="member-${m.slug}">${m.name}</label>
+            ${m.slug !== 'household'
+              ? html`<button
+                  class="change-avatar-btn"
+                  @click=${() => { this._avatarModalMember = m; }}
+                >Change</button>`
+              : ''}
           </div>
         `,
       )}
+
+      ${this._avatarModalMember
+        ? html`<lucarne-avatar-upload-modal
+            .hass=${this.hass}
+            .memberSlug=${this._avatarModalMember.slug}
+            .memberName=${this._avatarModalMember.name}
+            @close=${() => { this._avatarModalMember = null; }}
+            @avatar-changed=${() => { this._avatarModalMember = null; }}
+          ></lucarne-avatar-upload-modal>`
+        : ''}
 
       <div class="section-label">Display</div>
       ${(

@@ -57,10 +57,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Step 3: Register all lucarne_family.* services.
     from .avatar_service import async_setup_avatar_service
+    from .member_service import async_setup_member_service
     from .task_service import async_setup_services
 
     await async_setup_services(hass, entry.entry_id)
     await async_setup_avatar_service(hass, entry.entry_id)
+    await async_setup_member_service(hass, entry.entry_id)
 
     # Step 4: Register WebSocket command (once per HA process, guarded).
     from .websocket_api import async_register_websocket_commands
@@ -113,10 +115,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     }
     if not remaining_entries:
         from .avatar_service import async_unload_avatar_service
+        from .member_service import async_unload_member_service
         from .task_service import async_unload_services
 
         await async_unload_services(hass)
         await async_unload_avatar_service(hass)
+        await async_unload_member_service(hass)
 
     return True
 
