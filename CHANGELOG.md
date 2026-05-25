@@ -13,6 +13,13 @@
 
 ### Added
 
+- `lucarne-today-card` — optional `household_tasks_from_integration: true` flag: reads household tasks from the `lucarne_family` integration (`todo.lucarne_household`) instead of a raw `tasks:` entity; renders task metadata (icon, due date) for richer display.
+- `lucarne-today-card` — optional `show_family_ready_pill: true` flag: shows a compact N/M pill in the card header indicating how many members have completed all their routines due today.
+- New `family-ready-pill` Lit component: computes readiness by filtering routines due today via the RRULE engine (not the streak counter, which can be stale until `streak_check_time`).
+- `CLAUDE.md` at repo root: working guide for AI sessions and new contributors — commands, deploy targets, test-runner conventions, pitfalls.
+- `lucarne_family` integration: `perform_daily_reset` and `evaluate_all_streaks` services are now callable from Developer Tools → Services for on-demand reset and streak recompute.
+- Design tokens `--lucarne-success-bg` and `--lucarne-success-fg` for the family-ready pill.
+
 - `lucarne-calendar-card` — horizontal touch swipe with snap-to-day, flick-velocity bias, and iOS-like 240 ms snap-back easing. Uses Pointer Events for unified mouse/pen/finger support.
 - `lucarne-calendar-card` — skeleton-column placeholder for uncached days: a shimmer animation appears while events are loading, replaced by real events once the fetch completes. Shimmer degrades to a static placeholder under `prefers-reduced-motion: reduce`.
 - `lucarne-calendar-card` — editor options `min_days`, `max_days`, `min_col_width`, `max_col_width` for the responsive visible-day-count algorithm.
@@ -21,6 +28,10 @@
 - `lucarne-calendar-card` — synthetic UID generation (`syn:start|end|summary`) for upstream events with no `uid`, preventing collisions across color lookup, allDayClipped keying, and the optimistic-delete tombstone filter.
 
 ### Changed
+
+- `README.md` — complete rewrite of Install and Configuration sections for dual HACS distribution (Frontend plugin + Integration); added "What does the integration do?" and "Family configuration" subsections; updated chores card config example to new schema; removed `Settings → Helpers` instructions for the now-retired `input_boolean` approach.
+- `docs/architecture.md`, `docs/integration.md`, `docs/services.md`, `docs/events.md` — finalized to reflect Phase 2–5 implementation; added migration table, Phase 6 planned events, corrected managed-automation model (in-process `async_track_time_change`, no `automation.*` HA entities).
+- `bridge/README.md` — updated entity name examples to integration-managed `todo.<slug>` / `todo.lucarne_household` pattern; added "When using the Lucarne Family integration" section.
 
 - `lucarne-calendar-card` — now uses a rolling N-day window anchored on today (replaces fixed Monday-anchored week). Column count adapts to container width. Navigation arrows step by `visibleCount` days; a "Today" button re-anchors when panned away.
 - `lucarne-calendar-card` — layout engine refactored to accept arbitrary day arrays (foundation for rolling-window).

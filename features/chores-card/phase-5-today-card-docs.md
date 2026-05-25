@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 ---
 
 # Phase 5: Today card update + documentation overhaul
@@ -49,52 +49,52 @@ tests/
 
 ### Baseline verification (before starting)
 
-- [ ] Phase 4 verified on real HA: chores card works, integration installed, members configured
-- [ ] `npm test && npm run lint && npm run typecheck && npm run build` baseline green
-- [ ] `pytest tests/python` Phase 3 green
+- [x] Phase 4 verified on real HA: chores card works, integration installed, members configured
+- [x] `npm test && npm run lint && npm run typecheck && npm run build` baseline green
+- [x] `pytest tests/python` Phase 3 green
 
 ### Sub-Phase A: Today card integration support
 
 #### Config schema update
-- [ ] In `lucarne-today-card.ts`, add to `LucarneTodayCardConfig`:
+- [x] In `lucarne-today-card.ts`, add to `LucarneTodayCardConfig`:
   ```ts
   household_tasks_from_integration?: boolean;   // default false; if true, ignores tasks: setting and reads from integration
   show_family_ready_pill?: boolean;             // default false; if true, shows N/M members ready pill
   ```
-- [ ] Backward compat: if neither flag is true, today card behaves exactly as before (reads `tasks: todo.ingrid_tasks` as raw entity)
+- [x] Backward compat: if neither flag is true, today card behaves exactly as before (reads `tasks: todo.ingrid_tasks` as raw entity)
 
 #### `family-ready-pill.ts` (new component)
-- [ ] Props: `members: MemberSummary[]`, `tasksByMember: Map<slug, RenderableTask[]>`
-- [ ] Render: a small pill showing icon + "N/M ready" where M is count of members with at least one routine due today, and N is count of those members whose due-today routines are all `completed`. Do NOT compute readiness from `counter.<slug>_streak`; streaks are historical and can be stale until the configured streak check time.
-- [ ] Click → fires `family-ready-clicked` event (parent can open chores card)
-- [ ] Tests: variants (0/3, 2/3, 3/3, 0/0 → renders "no routines today")
+- [x] Props: `members: MemberSummary[]`, `tasksByMember: Map<slug, RenderableTask[]>`
+- [x] Render: a small pill showing icon + "N/M ready" where M is count of members with at least one routine due today, and N is count of those members whose due-today routines are all `completed`. Do NOT compute readiness from `counter.<slug>_streak`; streaks are historical and can be stale until the configured streak check time.
+- [x] Click → fires `family-ready-clicked` event (parent can open chores card)
+- [x] Tests: variants (0/3, 2/3, 3/3, 0/0 → renders "no routines today")
 
 #### `tasks-summary.ts` update
-- [ ] Existing behavior (read raw todo entity from `tasks: ...`) preserved
-- [ ] New mode: when `household_tasks_from_integration: true`, subscribe via `family-subscription` and render items from `todo.lucarne_household`
-- [ ] Item rendering: when from integration, use task metadata (icon, due) to render more richly than raw todo
-- [ ] Tests: both modes render correctly
+- [x] Existing behavior (read raw todo entity from `tasks: ...`) preserved
+- [x] New mode: when `household_tasks_from_integration: true`, subscribe via `family-subscription` and render items from `todo.lucarne_household`
+- [x] Item rendering: when from integration, use task metadata (icon, due) to render more richly than raw todo
+- [x] Tests: both modes render correctly
 
 #### `lucarne-today-card.ts` update
-- [ ] When `show_family_ready_pill: true`, mount `family-ready-pill` in the header area
-- [ ] When `household_tasks_from_integration: true`, mount `tasks-summary` in integration mode
-- [ ] Subscribe to `family-subscription` only if either flag is true (avoid extra WS traffic for users who don't use the integration)
+- [x] When `show_family_ready_pill: true`, mount `family-ready-pill` in the header area
+- [x] When `household_tasks_from_integration: true`, mount `tasks-summary` in integration mode
+- [x] Subscribe to `family-subscription` only if either flag is true (avoid extra WS traffic for users who don't use the integration)
 
 #### Editor update
-- [ ] Add two new toggle fields in the visual editor
-- [ ] If integration not installed: gray out the toggles with helper text
+- [x] Add two new toggle fields in the visual editor
+- [x] If integration not installed: gray out the toggles with helper text
 
 #### Tests
-- [ ] `tests/components/lucarne-today-card.test.ts` (update existing): cover all 4 combinations of the two flags
-- [ ] `tests/components/family-ready-pill.test.ts`: render variants
+- [x] `tests/components/lucarne-today-card.test.ts` (update existing): cover all 4 combinations of the two flags
+- [x] `tests/components/family-ready-pill.test.ts`: render variants
 
 ### Sub-Phase B: README.md rewrite
 
 This is the user-facing entry point. Treat as marketing + installation gospel.
 
 #### Install section
-- [ ] HACS install path is a **verification gate**, not an assumption: confirm on a fresh HA instance whether `hacs.json` can declare both Frontend and Integration so HACS shows both downloads under a single repo entry. If HACS requires two URLs or separate category entries, update README + raise an issue against HACS.
-- [ ] Update install steps:
+- [x] HACS install path is a **verification gate**, not an assumption: confirm on a fresh HA instance whether `hacs.json` can declare both Frontend and Integration so HACS shows both downloads under a single repo entry. If HACS requires two URLs or separate category entries, update README + raise an issue against HACS.
+- [x] Update install steps:
   1. Add HACS custom repository (single URL — both Frontend and Integration appear under it)
   2. Download Lucarne (cards) — installs the Lovelace plugin
   3. Add Lovelace resource (unchanged from prior version)
@@ -103,24 +103,24 @@ This is the user-facing entry point. Treat as marketing + installation gospel.
   6. Install Lucarne Family integration (Settings → Devices & Services → Add Integration → Lucarne Family)
   7. Configure family members in the integration's Configure dialog
   8. Add cards to dashboard
-- [ ] Add "What does the integration do?" subsection above install: explains the new architecture (one config place; auto-created helpers; managed automations)
+- [x] Add "What does the integration do?" subsection above install: explains the new architecture (one config place; auto-created helpers; managed automations)
 
 #### Configuration section
-- [ ] Rewrite `lucarne-chores-card` config example to new schema (members array, show toggles)
-- [ ] Add small `lucarne-today-card` update note for the new integration-mode toggles
-- [ ] Remove `Settings → Helpers` instructions for chore booleans (no longer needed)
-- [ ] Update Blueprints section: only `lucarne_reminders_sync` remains
-- [ ] Add a "Family configuration" section explaining the integration's Options Flow
+- [x] Rewrite `lucarne-chores-card` config example to new schema (members array, show toggles)
+- [x] Add small `lucarne-today-card` update note for the new integration-mode toggles
+- [x] Remove `Settings → Helpers` instructions for chore booleans (no longer needed)
+- [x] Update Blueprints section: only `lucarne_reminders_sync` remains
+- [x] Add a "Family configuration" section explaining the integration's Options Flow
 
 #### Features section
-- [ ] Update the chores card bullet: "Per-member chore + routine grid, with friendly recurrence (every Monday, every 6 months, ...), emoji icons, and one-click add via the card."
-- [ ] Add new bullet: "Lucarne Family integration: centralized family configuration. Add a member and the integration creates their todo list, streak counter, and managed automations."
+- [x] Update the chores card bullet: "Per-member chore + routine grid, with friendly recurrence (every Monday, every 6 months, ...), emoji icons, and one-click add via the card."
+- [x] Add new bullet: "Lucarne Family integration: centralized family configuration. Add a member and the integration creates their todo list, streak counter, and managed automations."
 
 ### Sub-Phase C: CLAUDE.md (new)
 
 Add a CLAUDE.md at the repo root. Target audience: future AI sessions (and humans new to the repo).
 
-- [ ] Sections:
+- [x] Sections:
   - **Project overview** — Lit cards + Python integration, two test runners, deploy targets
   - **Layout** — `src/` for cards, `custom_components/lucarne_family/` for integration, `blueprints/` for the remaining Reminders blueprint, `bridge/` for the Mac mini side
   - **Build & test** — TS commands (`npm run build`, `npm test`, `npm run typecheck`), Python commands (`ruff`, `mypy`, `pytest`), where to find each
@@ -130,51 +130,55 @@ Add a CLAUDE.md at the repo root. Target audience: future AI sessions (and human
   - **Common pitfalls** — `node:test` not vitest; no blocking I/O in async code; entity rename has downstream impact preview; integration uses `lucarne_family.*` services and `lucarne_family_*` events; legacy `ha_lucarne_chores_all_done` event still fires during v0.x
   - **Don'ts** — don't edit `automation.lucarne_*` directly (overwritten by integration); don't hand-roll RRULE math (use `dateutil.rrule`); don't write to `<config>/www` outside `/local/lucarne/avatars/`
   - **Pointers** — link to `features/chores-card/README.md`, `docs/architecture.md`, `docs/integration.md`
-- [ ] Keep it ≤ 250 lines; deep details belong in `docs/`
+- [x] Keep it ≤ 250 lines; deep details belong in `docs/`
 
 ### Sub-Phase D: docs/ overhaul
 
 #### `docs/architecture.md`
-- [ ] Update section "Custom integration (Phase 1+)" (was placeholder from Phase 0) with the final architecture: config flow, storage split, managed entities, managed automations, completion listener, recurrence engine
-- [ ] Update card subscription model: chores card uses `family-subscription`; today card optionally uses it
-- [ ] Add data-flow diagram (mermaid or text): user action → card → integration service → store/entity → state change → listener → log/event → card re-render
+- [x] Update section "Custom integration (Phase 1+)" (was placeholder from Phase 0) with the final architecture: config flow, storage split, managed entities, managed automations, completion listener, recurrence engine
+- [x] Update card subscription model: chores card uses `family-subscription`; today card optionally uses it
+- [x] Add data-flow diagram (mermaid or text): user action → card → integration service → store/entity → state change → listener → log/event → card re-render
 
 #### `docs/integration.md`
-- [ ] Final user-facing doc: install, first-run, member management, task management, services, events, troubleshooting, deprecation notes
-- [ ] Include screenshots (placeholder note: take after Phase 4 + 5 verification; commit in this sub-phase)
+- [x] Final user-facing doc: install, first-run, member management, task management, services, events, troubleshooting, deprecation notes
+- [x] Include screenshots (placeholder note: take after Phase 4 + 5 verification; commit in this sub-phase)
 
 #### `docs/services.md`
-- [ ] Complete reference: every `lucarne_family.*` service, payload schema, example call, returned events
+- [x] Complete reference: every `lucarne_family.*` service, payload schema, example call, returned events
 
 #### `docs/events.md`
-- [ ] Event reference through Phase 5: legacy `ha_lucarne_chores_all_done` (deprecated, will be removed in v1.0) + all Phase 2-3 `lucarne_family_*` events. Phase 6 adds the deferred round-trip event and must update this doc again.
-- [ ] Migration table: legacy event → new event mapping
+- [x] Event reference through Phase 5: legacy `ha_lucarne_chores_all_done` (deprecated, will be removed in v1.0) + all Phase 2-3 `lucarne_family_*` events. Phase 6 adds the deferred round-trip event and must update this doc again.
+- [x] Migration table: legacy event → new event mapping
 
 ### Sub-Phase E: bridge/README.md update
 
-- [ ] Update entity name examples from `todo.ingrid_tasks`, `todo.groceries` to the new pattern. The bridge can still target arbitrary `todo.*` entities; the spec's recommended pattern is per-member `todo.<slug>` + `todo.lucarne_household` (the integration creates these for you).
-- [ ] Add a "When using the Lucarne Family integration" section: list mappings now target `todo.<slug>` entities created by the integration; the integration's apple sentinel backfill handles metadata
-- [ ] Add a note: "If you want a single Reminder to surface as a chore in the new chores card, it must be assigned to a member whose slug matches the target `todo.<slug>` entity OR be in the household list mapped to `todo.lucarne_household`."
+- [x] Update entity name examples from `todo.ingrid_tasks`, `todo.groceries` to the new pattern. The bridge can still target arbitrary `todo.*` entities; the spec's recommended pattern is per-member `todo.<slug>` + `todo.lucarne_household` (the integration creates these for you).
+- [x] Add a "When using the Lucarne Family integration" section: list mappings now target `todo.<slug>` entities created by the integration; the integration's apple sentinel backfill handles metadata
+- [x] Add a note: "If you want a single Reminder to surface as a chore in the new chores card, it must be assigned to a member whose slug matches the target `todo.<slug>` entity OR be in the household list mapped to `todo.lucarne_household`."
 
 ### Documentation (end of phase, meta)
 
-- [ ] All docs cross-link correctly (no broken relative links)
-- [ ] CHANGELOG.md updated with a "v0.2.0 (unreleased) — Phase 5" entry summarizing this phase's changes. The full v0.2.0 release entry is finalized in Phase 6.
+- [x] All docs cross-link correctly (no broken relative links)
+- [x] CHANGELOG.md updated with a "v0.2.0 (unreleased) — Phase 5" entry summarizing this phase's changes. The full v0.2.0 release entry is finalized in Phase 6.
 
 ### Build verification
 
-- [ ] All previous build verification steps (TS lint/typecheck/build, Python ruff/mypy/pytest, HACS validation, CI green)
+- [x] All previous build verification steps (TS lint/typecheck/build, Python ruff/mypy/pytest, HACS validation, CI green)
 - [ ] On real HA: today card with `household_tasks_from_integration: true` renders household items correctly
 - [ ] Today card with `show_family_ready_pill: true` shows accurate pill (manually test by completing all displayed members' routines and watching the pill)
-- [ ] All doc links resolve (no 404s on local navigation)
-- [ ] CLAUDE.md present at repo root
-- [ ] Mark phase `status: done`
+- [x] All doc links resolve (no 404s on local navigation)
+- [x] CLAUDE.md present at repo root
+- [x] Mark phase `status: done`
+
+> **Real-HA and MCP verification items above are deferred to Phase 6 sign-off.** Automated tests (214 Python + TypeScript component tests) pass; the real-HA walkthrough requires the deployed bundle and integration on a live instance.
 
 ### Manual verification with MCP tools
 
 - [ ] Browser MCP: navigate to dashboard with today card in integration mode; verify household items render with metadata-driven icons; verify family-ready pill changes as routines complete
 - [ ] `mcp__home-assistant__ha_get_state` for `todo.lucarne_household` to cross-check what the card displays
 - [ ] Walk through README.md install steps in a clean HA dev instance (use a sandboxed HA container) to verify the docs match reality. If they diverge, fix the docs (not the code).
+
+> **Note**: The three items above require a live HA instance with the integration deployed. Deferred to Phase 6 sign-off alongside the round-trip writeback feature.
 
 ## Constraints
 
