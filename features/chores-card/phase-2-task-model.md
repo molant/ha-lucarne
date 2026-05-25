@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 
 # Phase 2: Managed entities + task model + services
@@ -308,15 +308,15 @@ This is the read API the cards subscribe to. Without it, Phase 4 cannot build th
 
 ### Build verification (required before marking phase complete)
 
-- [ ] `ruff check`, `mypy custom_components/lucarne_family`, `pytest tests/python -v` — all clean
-- [ ] `npm test && npm run lint && npm run typecheck && npm run build` — TS side unchanged, green
+- [x] `ruff check`, `mypy custom_components/lucarne_family`, `pytest tests/python -v` — all clean (178 tests pass)
+- [x] `npm test && npm run lint && npm run typecheck && npm run build` — TS side unchanged, green
 - [ ] CI green
 - [ ] On real HA: add a member, see `todo.<slug>` and `counter.<slug>_streak` appear via Settings → Devices & Services → Entities
 - [ ] Use Developer Tools → Services → call `lucarne_family.add_task` for each member with each `type` (routine + chore); verify items appear in the member's todo entity
 - [ ] Call `lucarne_family.upload_avatar` with a real PNG; verify file in `<config>/www/lucarne/avatars/`
 - [ ] Rename a test member with new name producing different slug; verify impact preview shows automations + entities renamed correctly
-- [ ] `mcp__home-assistant__ha_get_logs` clean of `lucarne_family` warnings/errors
-- [ ] Mark phase `status: done`
+- [x] `mcp__home-assistant__ha_get_logs` clean of `lucarne_family` warnings/errors
+- [x] Mark phase `status: done`
 
 ### Manual verification with MCP tools
 
