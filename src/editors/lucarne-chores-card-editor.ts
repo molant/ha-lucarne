@@ -1,17 +1,10 @@
-import { LitElement, html, css } from 'lit';
+import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from '../shared/types.js';
-
-interface KidConfig {
-  name: string;
-  color: string;
-  avatar?: string;
-  streak: string;
-  chores: { name: string; entity: string }[];
-}
 import type { LucarneChoresCardConfig } from '../cards/lucarne-chores-card.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
-import { ensureHaFormElements } from '../shared/ha-elements.js';
+import { subscribeFamilyState, SYNTHETIC_HOUSEHOLD } from '../shared/family-subscription.js';
+import type { FamilyState } from '../shared/family-subscription.js';
 import { fireEvent } from 'custom-card-helpers';
 
 @customElement('lucarne-chores-card-editor')
@@ -38,90 +31,33 @@ export class LucarneChoresCardEditor extends LitElement {
       .section-label:first-of-type {
         margin-top: 0;
       }
-      .kid-block {
-        border: 1px solid rgba(0, 0, 0, 0.1);
-        border-radius: var(--lucarne-radius-md);
-        padding: var(--lucarne-spacing-md);
-        display: flex;
-        flex-direction: column;
-        gap: var(--lucarne-spacing-sm);
-        margin-bottom: var(--lucarne-spacing-sm);
-      }
-      .kid-header {
+      .member-row,
+      .toggle-row {
         display: flex;
         align-items: center;
-        justify-content: space-between;
         gap: var(--lucarne-spacing-sm);
+        padding: var(--lucarne-spacing-xs) 0;
       }
-      .kid-header-fields {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: var(--lucarne-spacing-sm);
+      .member-row label,
+      .toggle-row label {
+        font-size: var(--lucarne-fs-md);
+        color: var(--lucarne-on-surface);
+        cursor: pointer;
         flex: 1;
       }
-      .color-row {
-        display: flex;
-        align-items: center;
-        gap: var(--lucarne-spacing-sm);
-      }
-      .color-swatch {
-        width: 32px;
-        height: 32px;
-        border-radius: var(--lucarne-radius-sm);
-        border: 1px solid rgba(0, 0, 0, 0.2);
+      input[type='checkbox'] {
+        width: 18px;
+        height: 18px;
         cursor: pointer;
         flex-shrink: 0;
       }
-      .chore-row {
-        display: grid;
-        grid-template-columns: 1fr 1fr auto;
-        gap: var(--lucarne-spacing-sm);
-        align-items: center;
-        padding: var(--lucarne-spacing-xs) 0;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-      }
-      .chore-row ha-entity-picker,
-      .chore-row ha-textfield,
-      .kid-header-fields ha-entity-picker,
-      .kid-header-fields ha-textfield {
+      input[type='text'] {
         width: 100%;
-        min-width: 0;
-      }
-      .chore-row:last-of-type {
-        border-bottom: none;
-      }
-      .chore-label {
-        font-size: var(--lucarne-fs-sm);
-        color: var(--lucarne-on-surface-muted);
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        margin-top: var(--lucarne-spacing-xs);
-      }
-      button.remove {
-        background: none;
-        border: none;
-        color: var(--error-color, #f44336);
-        cursor: pointer;
-        font-size: 1.1em;
-        padding: 4px 8px;
-        border-radius: var(--lucarne-radius-sm);
-        flex-shrink: 0;
-      }
-      button.add {
-        background: none;
-        border: 1px dashed rgba(0, 0, 0, 0.2);
-        border-radius: var(--lucarne-radius-md);
         padding: var(--lucarne-spacing-sm) var(--lucarne-spacing-md);
-        cursor: pointer;
-        color: var(--lucarne-on-surface-muted);
-        font-size: var(--lucarne-fs-sm);
-        width: 100%;
-        text-align: center;
-        margin-top: var(--lucarne-spacing-xs);
-      }
-      button.add:hover {
-        background: rgba(0, 0, 0, 0.04);
+        border: 1px solid rgba(0, 0, 0, 0.2);
+        border-radius: var(--lucarne-radius-sm);
+        font-size: var(--lucarne-fs-md);
+        box-sizing: border-box;
       }
       .loading {
         color: var(--lucarne-on-surface-muted);
@@ -129,28 +65,51 @@ export class LucarneChoresCardEditor extends LitElement {
         text-align: center;
         padding: var(--lucarne-spacing-lg);
       }
+      .error-block {
+        padding: var(--lucarne-spacing-md);
+        color: var(--lucarne-on-surface);
+        font-size: var(--lucarne-fs-sm);
+        display: flex;
+        flex-direction: column;
+        gap: var(--lucarne-spacing-xs);
+      }
+      .error-block a {
+        color: var(--primary-color);
+      }
     `,
   ];
 
   @property({ attribute: false }) hass!: HomeAssistant;
   @state() private _config?: LucarneChoresCardConfig;
-  @state() private _haReady = false;
+  @state() private _familyState: FamilyState | null = null;
 
-  connectedCallback() {
-    super.connectedCallback();
-    ensureHaFormElements()
-      .catch((err) => console.warn('[lucarne] HA editor elements load failed; rendering anyway', err))
-      .then(() => {
-        this._haReady = true;
-      });
-  }
+  private _unsubFamily?: () => void;
 
   setConfig(config: LucarneChoresCardConfig) {
     this._config = config;
   }
 
+  updated(changedProps: PropertyValues) {
+    super.updated(changedProps);
+    if (changedProps.has('hass') && this.hass && !this._unsubFamily) {
+      this._unsubFamily = subscribeFamilyState(this.hass, (s) => {
+        this._familyState = s;
+      });
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._unsubFamily?.();
+    this._unsubFamily = undefined;
+  }
+
   private _fire(config: LucarneChoresCardConfig) {
-    fireEvent(this, 'config-changed', { config });
+    // Strip legacy 'kids' property and ensure members array exists (normalizes legacy configs)
+    const out = { ...config } as Record<string, unknown>;
+    delete out['kids'];
+    if (!Array.isArray(out['members'])) out['members'] = [];
+    fireEvent(this, 'config-changed', { config: out as unknown as LucarneChoresCardConfig });
   }
 
   private _titleChanged(e: Event) {
@@ -158,160 +117,92 @@ export class LucarneChoresCardEditor extends LitElement {
     this._fire({ ...this._config!, title: v || undefined });
   }
 
-  private _kidFieldChanged(kidIdx: number, field: keyof KidConfig, e: Event) {
-    const kids = [...(this._config?.kids ?? [])];
-    kids[kidIdx] = { ...kids[kidIdx], [field]: (e.target as HTMLInputElement).value };
-    this._fire({ ...this._config!, kids });
+  private _memberToggled(slug: string, checked: boolean) {
+    const current = [...(this._config?.members ?? [])];
+    if (checked) {
+      if (!current.includes(slug)) current.push(slug);
+    } else {
+      const idx = current.indexOf(slug);
+      if (idx >= 0) current.splice(idx, 1);
+    }
+    this._fire({ ...this._config!, members: current });
   }
 
-  private _kidColorChanged(kidIdx: number, e: Event) {
-    const kids = [...(this._config?.kids ?? [])];
-    kids[kidIdx] = { ...kids[kidIdx], color: (e.target as HTMLInputElement).value };
-    this._fire({ ...this._config!, kids });
-  }
-
-  private _kidStreakChanged(kidIdx: number, e: CustomEvent) {
-    const kids = [...(this._config?.kids ?? [])];
-    kids[kidIdx] = { ...kids[kidIdx], streak: e.detail?.value ?? '' };
-    this._fire({ ...this._config!, kids });
-  }
-
-  private _choreNameChanged(kidIdx: number, choreIdx: number, e: Event) {
-    const kids = [...(this._config?.kids ?? [])];
-    const chores = [...kids[kidIdx].chores];
-    chores[choreIdx] = { ...chores[choreIdx], name: (e.target as HTMLInputElement).value };
-    kids[kidIdx] = { ...kids[kidIdx], chores };
-    this._fire({ ...this._config!, kids });
-  }
-
-  private _choreEntityChanged(kidIdx: number, choreIdx: number, e: CustomEvent) {
-    const kids = [...(this._config?.kids ?? [])];
-    const chores = [...kids[kidIdx].chores];
-    chores[choreIdx] = { ...chores[choreIdx], entity: e.detail?.value ?? '' };
-    kids[kidIdx] = { ...kids[kidIdx], chores };
-    this._fire({ ...this._config!, kids });
-  }
-
-  private _removeChore(kidIdx: number, choreIdx: number) {
-    const kids = [...(this._config?.kids ?? [])];
-    const chores = [...kids[kidIdx].chores];
-    if (chores.length <= 1) return;
-    chores.splice(choreIdx, 1);
-    kids[kidIdx] = { ...kids[kidIdx], chores };
-    this._fire({ ...this._config!, kids });
-  }
-
-  private _addChore(kidIdx: number) {
-    const kids = [...(this._config?.kids ?? [])];
-    const chores = [...kids[kidIdx].chores, { name: 'New chore', entity: '' }];
-    kids[kidIdx] = { ...kids[kidIdx], chores };
-    this._fire({ ...this._config!, kids });
-  }
-
-  private _removeKid(kidIdx: number) {
-    const kids = [...(this._config?.kids ?? [])];
-    if (kids.length <= 1) return;
-    kids.splice(kidIdx, 1);
-    this._fire({ ...this._config!, kids });
-  }
-
-  private _addKid() {
-    const existingKids = this._config?.kids ?? [];
-    const existingSlugs = new Set(
-      existingKids.map((k) => k.name.toLowerCase().replace(/\s+/g, '_')),
-    );
-    const colors = ['#f5c89c', '#b8e0d2', '#f0b8c8', '#a8d8b9', '#c8b4e0'];
-    let n = existingKids.length + 1;
-    while (existingSlugs.has(`kid_${n}`)) n++;
-    const kids = [
-      ...existingKids,
-      {
-        name: `Kid ${n}`,
-        color: colors[(n - 1) % colors.length],
-        streak: `counter.kid_${n}_streak`,
-        chores: [{ name: 'Chore 1', entity: '' }],
-      },
-    ];
-    this._fire({ ...this._config!, kids });
+  private _toggleChanged(
+    field: 'show_routines' | 'show_tasks' | 'show_streak',
+    e: Event,
+  ) {
+    const v = (e.target as HTMLInputElement).checked;
+    this._fire({ ...this._config!, [field]: v });
   }
 
   render() {
     if (!this._config) return html``;
-    if (!this._haReady) return html`<div class="loading">Loading editor…</div>`;
-    const kids = this._config.kids ?? [];
+
+    if (this._familyState !== null && this._familyState.integrationError !== null) {
+      return html`
+        <div class="error-block">
+          Install the Lucarne Family integration first.
+          <a href="/config/integrations/dashboard#search=lucarne" target="_blank"
+            >Open Integrations</a
+          >
+        </div>
+      `;
+    }
+
+    if (this._familyState === null) {
+      return html`<div class="loading">Loading members…</div>`;
+    }
+
+    const allMembers = [...this._familyState.members, SYNTHETIC_HOUSEHOLD];
+    const selectedSlugs = this._config.members ?? [];
 
     return html`
       <div class="section-label">General</div>
-      <ha-textfield
-        label="Card title"
+      <input
+        id="ed-title"
+        type="text"
+        placeholder="Card title (default: Chores)"
         .value=${this._config.title ?? ''}
         @change=${this._titleChanged}
-      ></ha-textfield>
+      />
 
-      <div class="section-label">Kids</div>
-      ${kids.map(
-        (kid, kidIdx) => html`
-          <div class="kid-block">
-            <div class="kid-header">
-              <div class="kid-header-fields">
-                <ha-textfield
-                  label="Name"
-                  .value=${kid.name}
-                  @change=${(e: Event) => this._kidFieldChanged(kidIdx, 'name', e)}
-                ></ha-textfield>
-                <ha-textfield
-                  label="Avatar URL (optional)"
-                  .value=${kid.avatar ?? ''}
-                  @change=${(e: Event) => this._kidFieldChanged(kidIdx, 'avatar', e)}
-                ></ha-textfield>
-              </div>
-              <button type="button" class="remove" @click=${() => this._removeKid(kidIdx)} title="Remove kid">✕</button>
-            </div>
-
-            <div class="color-row">
-              <input
-                type="color"
-                class="color-swatch"
-                .value=${kid.color}
-                @input=${(e: Event) => this._kidColorChanged(kidIdx, e)}
-                title="Kid color"
-              />
-              <ha-entity-picker
-                label="Streak counter"
-                .hass=${this.hass}
-                .value=${kid.streak}
-                .includeDomains=${['counter']}
-                allow-custom-entity
-                @value-changed=${(e: CustomEvent) => this._kidStreakChanged(kidIdx, e)}
-              ></ha-entity-picker>
-            </div>
-
-            <div class="chore-label">Chores</div>
-            ${kid.chores.map(
-              (chore, choreIdx) => html`
-                <div class="chore-row">
-                  <ha-textfield
-                    label="Chore name"
-                    .value=${chore.name}
-                    @change=${(e: Event) => this._choreNameChanged(kidIdx, choreIdx, e)}
-                  ></ha-textfield>
-                  <ha-entity-picker
-                    label="Entity"
-                    .hass=${this.hass}
-                    .value=${chore.entity}
-                    .includeDomains=${['input_boolean']}
-                    allow-custom-entity
-                    @value-changed=${(e: CustomEvent) => this._choreEntityChanged(kidIdx, choreIdx, e)}
-                  ></ha-entity-picker>
-                  <button type="button" class="remove" @click=${() => this._removeChore(kidIdx, choreIdx)} title="Remove">✕</button>
-                </div>
-              `,
-            )}
-            <button type="button" class="add" @click=${() => this._addChore(kidIdx)}>+ Add chore</button>
+      <div class="section-label">Members</div>
+      ${allMembers.map(
+        (m) => html`
+          <div class="member-row">
+            <input
+              type="checkbox"
+              id="member-${m.slug}"
+              .checked=${selectedSlugs.includes(m.slug)}
+              @change=${(e: Event) =>
+                this._memberToggled(m.slug, (e.target as HTMLInputElement).checked)}
+            />
+            <label for="member-${m.slug}">${m.name}</label>
           </div>
         `,
       )}
-      <button type="button" class="add" @click=${this._addKid}>+ Add kid</button>
+
+      <div class="section-label">Display</div>
+      ${(
+        [
+          ['show_routines', 'Show routines'],
+          ['show_tasks', 'Show tasks'],
+          ['show_streak', 'Show streak'],
+        ] as const
+      ).map(
+        ([field, label]) => html`
+          <div class="toggle-row">
+            <input
+              type="checkbox"
+              id="ed-${field}"
+              .checked=${this._config![field] ?? true}
+              @change=${(e: Event) => this._toggleChanged(field, e)}
+            />
+            <label for="ed-${field}">${label}</label>
+          </div>
+        `,
+      )}
     `;
   }
 }

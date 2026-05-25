@@ -8,6 +8,7 @@ export interface FamilyState {
   streakByMember: Map<string, number>;
   resetTime: string;
   streakCheckTime: string;
+  integrationError: Error | null;
 }
 
 interface GetFamilyResponse {
@@ -77,6 +78,7 @@ export function subscribeFamilyState(
   let streakCheckTime = '';
 
   let metadataRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let currentError: Error | null = null;
 
   function emitState() {
     if (cancelled) return;
@@ -88,7 +90,7 @@ export function subscribeFamilyState(
     // Always include household tasks regardless of whether household is a configured column
     const householdItems = todoItemsByEntity.get('todo.lucarne_household') ?? [];
     tasksByMember.set('household', buildRenderableTasks(householdItems, 'household', metadataByUid));
-    callback({ members: allMembers, tasksByMember, streakByMember: new Map(streakBySlug), resetTime, streakCheckTime });
+    callback({ members: allMembers, tasksByMember, streakByMember: new Map(streakBySlug), resetTime, streakCheckTime, integrationError: currentError });
   }
 
   async function refreshMetadata() {
@@ -115,6 +117,7 @@ export function subscribeFamilyState(
       });
 
       allMembers = realMembers;
+      currentError = null;
       streakBySlug = new Map();
 
       unsubFns.forEach((fn) => fn());
@@ -154,6 +157,7 @@ export function subscribeFamilyState(
     } catch (err) {
       console.warn('[lucarne] get_family failed — integration may not be installed:', err);
       if (!cancelled) {
+        currentError = err instanceof Error ? err : new Error(String(err));
         unsubFns.forEach((fn) => fn());
         unsubFns.length = 0;
         allMembers = [];
