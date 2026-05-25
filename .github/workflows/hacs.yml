@@ -26,3 +26,7 @@ jobs:
       - uses: hacs/action@dcb30e72781db3f207d5236b861172774ab0b485 # main as of 2026-05-23
         with:
           category: integration
+          # Tracked in https://github.com/molant/ha-lucarne/issues/8 —
+          # add local brand assets or register in home-assistant/brands,
+          # then drop this ignore.
+          ignore: brands
