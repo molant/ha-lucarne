@@ -1,0 +1,323 @@
+import { describe, it } from 'node:test';
+import assert from 'node:assert/strict';
+import { subscribeFamilyState, SYNTHETIC_HOUSEHOLD } from '../../src/shared/family-subscription.js';
+import { makeFakeHass } from '../setup/ha-mock.mjs';
+import type { MemberSummary, TaskMetadata } from '../../src/shared/types.js';
+
+const MEMBER_ANNA: MemberSummary = {
+  slug: 'anna',
+  name: 'Anna',
+  color: '#f5c89c',
+  avatar: null,
+  todo_entity_id: 'todo.anna',
+  streak_counter_id: 'counter.anna_streak',
+};
+
+const TASK_META: TaskMetadata = {
+  item_uid: 'uid-1',
+  member_slug: 'anna',
+  assignee_slug: '',
+  type: 'routine',
+  recurrence: 'FREQ=DAILY',
+  icon: '🪥',
+  source: 'template',
+};
+
+function makeFamilyHass(opts: {
+  members?: MemberSummary[];
+  taskMetadata?: TaskMetadata[];
+  todoItems?: Record<string, { uid: string; summary: string; status: string }[]>;
+  getItemsError?: boolean;
+}) {
+  const fakeHass = makeFakeHass();
+
+  fakeHass.connection.sendMessagePromise = async (payload: Record<string, unknown>) => {
+    if (payload.type === 'lucarne_family/get_family') {
+      return {
+        members: opts.members ?? [],
+        task_metadata: opts.taskMetadata ?? [],
+        reset_time: '07:00',
+        streak_check_time: '22:00',
+        household_entity_id: 'todo.lucarne_household',
+      };
+    }
+    if (payload.type === 'call_service' && payload.domain === 'todo' && payload.service === 'get_items') {
+      if (opts.getItemsError) throw new Error('todo.get_items failed');
+      const entityId = (payload.target as { entity_id: string })?.entity_id ?? '';
+      const items = (opts.todoItems ?? {})[entityId] ?? [];
+      return { response: { [entityId]: { items } } };
+    }
+    return undefined;
+  };
+
+  return fakeHass;
+}
+
+describe('subscribeFamilyState', () => {
+  it('fires callback with merged state on initial fetch', async () => {
+    const fakeHass = makeFamilyHass({
+      members: [MEMBER_ANNA],
+      taskMetadata: [TASK_META],
+      todoItems: {
+        'todo.anna': [{ uid: 'uid-1', summary: 'Brush teeth', status: 'needs_action' }],
+      },
+    });
+
+    const states: import('../../src/shared/family-subscription.js').FamilyState[] = [];
+    const unsub = subscribeFamilyState(fakeHass as unknown as import('../../src/shared/types.js').HomeAssistant, (s) => {
+      states.push(s);
+    });
+
+    // Wait for async refresh to resolve
+    await new Promise((r) => setTimeout(r, 50));
+    unsub();
+
+    assert.ok(states.length >= 1, 'callback fired at least once');
+    const last = states[states.length - 1];
+    assert.equal(last.members.length, 1);
+    assert.equal(last.members[0].slug, 'anna');
+    assert.equal(last.resetTime, '07:00');
+    assert.equal(last.streakCheckTime, '22:00');
+
+    const annaTasks = last.tasksByMember.get('anna') ?? [];
+    assert.equal(annaTasks.length, 1);
+    assert.equal(annaTasks[0].summary, 'Brush teeth');
+    assert.equal(annaTasks[0].metadata.type, 'routine');
+    assert.equal(annaTasks[0].metadata.icon, '🪥');
+  });
+
+  it('includes todo items without metadata using fallback chore metadata', async () => {
+    const fakeHass = makeFamilyHass({
+      members: [MEMBER_ANNA],
+      taskMetadata: [],
+      todoItems: {
+        'todo.anna': [{ uid: 'orphan-uid', summary: 'Unknown task', status: 'needs_action' }],
+      },
+    });
+
+    const states: import('../../src/shared/family-subscription.js').FamilyState[] = [];
+    const unsub = subscribeFamilyState(fakeHass as unknown as import('../../src/shared/types.js').HomeAssistant, (s) => {
+      states.push(s);
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    unsub();
+
+    const last = states[states.length - 1];
+    const annaTasks = last.tasksByMember.get('anna') ?? [];
+    assert.equal(annaTasks.length, 1);
+    assert.equal(annaTasks[0].uid, 'orphan-uid');
+    assert.equal(annaTasks[0].metadata.type, 'chore', 'orphan items get fallback type=chore');
+    assert.equal(annaTasks[0].metadata.source, 'manual', 'orphan items get fallback source=manual');
+    assert.equal(annaTasks[0].metadata.member_slug, 'anna');
+  });
+
+  it('skips members whose todo_entity_id is empty string', async () => {
+    const memberNoEntity: MemberSummary = {
+      slug: 'ghost',
+      name: 'Ghost',
+      color: '#aaa',
+      avatar: null,
+      todo_entity_id: '',
+      streak_counter_id: '',
+    };
+
+    const fakeHass = makeFamilyHass({
+      members: [memberNoEntity, MEMBER_ANNA],
+      taskMetadata: [],
+      todoItems: { 'todo.anna': [] },
+    });
+
+    const states: import('../../src/shared/family-subscription.js').FamilyState[] = [];
+    const unsub = subscribeFamilyState(fakeHass as unknown as import('../../src/shared/types.js').HomeAssistant, (s) => {
+      states.push(s);
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    unsub();
+
+    const last = states[states.length - 1];
+    const slugs = last.members.map((m) => m.slug);
+    assert.ok(!slugs.includes('ghost'), 'member with empty todo_entity_id is excluded');
+    assert.ok(slugs.includes('anna'));
+  });
+
+  it('unsubscribe stops further callbacks', async () => {
+    let todoCallback: ((items: unknown[]) => void) | null = null;
+    const fakeHass = makeFakeHass();
+    fakeHass.connection.sendMessagePromise = async (payload: Record<string, unknown>) => {
+      if (payload.type === 'lucarne_family/get_family') {
+        return {
+          members: [MEMBER_ANNA],
+          task_metadata: [],
+          reset_time: '07:00',
+          streak_check_time: '22:00',
+          household_entity_id: 'todo.lucarne_household',
+        };
+      }
+      if (payload.type === 'call_service' && payload.domain === 'todo') {
+        const entityId = (payload.target as { entity_id: string })?.entity_id ?? '';
+        return { response: { [entityId]: { items: [] } } };
+      }
+      return undefined;
+    };
+    fakeHass.connection.subscribeMessage = async (
+      cb: (msg: unknown) => void,
+      payload: Record<string, unknown>,
+    ) => {
+      if (payload.type === 'subscribe_trigger') {
+        todoCallback = cb as unknown as (items: unknown[]) => void;
+      }
+      return async () => {};
+    };
+
+    let callCount = 0;
+    const unsub = subscribeFamilyState(fakeHass as unknown as import('../../src/shared/types.js').HomeAssistant, () => {
+      callCount++;
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    const countAfterInit = callCount;
+    assert.ok(countAfterInit >= 1, 'at least one call before unsub');
+
+    unsub();
+    const countAfterUnsub = callCount;
+
+    // Simulate a state change after unsubscribe — should NOT fire callback
+    if (todoCallback) {
+      (todoCallback as unknown as (msg: unknown) => void)({
+        variables: { trigger: { to_state: { state: 'on', attributes: {} } } },
+      });
+    }
+    await new Promise((r) => setTimeout(r, 20));
+
+    assert.equal(callCount, countAfterUnsub, 'no callbacks after unsubscribe');
+  });
+
+  it('handles get_family failure gracefully (empty members, no throw)', async () => {
+    const fakeHass = makeFakeHass();
+    fakeHass.connection.sendMessagePromise = async () => {
+      throw new Error('integration not installed');
+    };
+
+    const states: import('../../src/shared/family-subscription.js').FamilyState[] = [];
+    const unsub = subscribeFamilyState(fakeHass as unknown as import('../../src/shared/types.js').HomeAssistant, (s) => {
+      states.push(s);
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    unsub();
+
+    const last = states[states.length - 1];
+    assert.equal(last.members.length, 0, 'no members when integration unavailable');
+  });
+
+  it('seeds initial streak from hass.states without waiting for a counter state change', async () => {
+    const fakeHass = makeFamilyHass({
+      members: [MEMBER_ANNA],
+      taskMetadata: [],
+      todoItems: { 'todo.anna': [] },
+    });
+    // Pre-set the counter state so it's available at subscribe time
+    (fakeHass as unknown as Record<string, unknown>).states = {
+      'counter.anna_streak': { state: '5', attributes: {} },
+    };
+
+    const states: import('../../src/shared/family-subscription.js').FamilyState[] = [];
+    const unsub = subscribeFamilyState(fakeHass as unknown as import('../../src/shared/types.js').HomeAssistant, (s) => {
+      states.push(s);
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    unsub();
+
+    const last = states[states.length - 1];
+    assert.equal(last.streakByMember.get('anna'), 5, 'initial streak seeded from hass.states');
+  });
+
+  it('emits streak values in streakByMember when counter state changes', async () => {
+    let streakCallback: ((msg: unknown) => void) | null = null;
+    const fakeHass = makeFakeHass();
+    fakeHass.connection.sendMessagePromise = async (payload: Record<string, unknown>) => {
+      if (payload.type === 'lucarne_family/get_family') {
+        return {
+          members: [MEMBER_ANNA],
+          task_metadata: [],
+          reset_time: '07:00',
+          streak_check_time: '22:00',
+          household_entity_id: 'todo.lucarne_household',
+        };
+      }
+      if (payload.type === 'call_service' && payload.domain === 'todo') {
+        const entityId = (payload.target as { entity_id: string })?.entity_id ?? '';
+        return { response: { [entityId]: { items: [] } } };
+      }
+      return undefined;
+    };
+    fakeHass.connection.subscribeMessage = async (
+      cb: (msg: unknown) => void,
+      payload: Record<string, unknown>,
+    ) => {
+      // Capture the subscription for the streak counter entity
+      if (
+        payload.type === 'subscribe_trigger' &&
+        (payload.trigger as { entity_id?: string })?.entity_id === 'counter.anna_streak'
+      ) {
+        streakCallback = cb;
+      }
+      return async () => {};
+    };
+
+    const states: import('../../src/shared/family-subscription.js').FamilyState[] = [];
+    const unsub = subscribeFamilyState(fakeHass as unknown as import('../../src/shared/types.js').HomeAssistant, (s) => {
+      states.push(s);
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Simulate a counter state change
+    assert.ok(streakCallback !== null, 'streak counter subscribeMessage was called');
+    streakCallback!({
+      variables: { trigger: { to_state: { state: '7', attributes: {} } } },
+    });
+
+    await new Promise((r) => setTimeout(r, 20));
+    unsub();
+
+    const last = states[states.length - 1];
+    assert.equal(last.streakByMember.get('anna'), 7, 'streak value from counter state propagates');
+  });
+
+  it('includes household tasks in tasksByMember under slug "household"', async () => {
+    const fakeHass = makeFamilyHass({
+      members: [MEMBER_ANNA],
+      taskMetadata: [],
+      todoItems: {
+        'todo.anna': [],
+        'todo.lucarne_household': [{ uid: 'h-uid-1', summary: 'Feed dog', status: 'needs_action' }],
+      },
+    });
+
+    const states: import('../../src/shared/family-subscription.js').FamilyState[] = [];
+    const unsub = subscribeFamilyState(fakeHass as unknown as import('../../src/shared/types.js').HomeAssistant, (s) => {
+      states.push(s);
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+    unsub();
+
+    const last = states[states.length - 1];
+    const householdTasks = last.tasksByMember.get('household') ?? [];
+    assert.equal(householdTasks.length, 1);
+    assert.equal(householdTasks[0].summary, 'Feed dog');
+  });
+});
+
+describe('SYNTHETIC_HOUSEHOLD', () => {
+  it('has slug "household" and todo_entity_id "todo.lucarne_household"', () => {
+    assert.equal(SYNTHETIC_HOUSEHOLD.slug, 'household');
+    assert.equal(SYNTHETIC_HOUSEHOLD.todo_entity_id, 'todo.lucarne_household');
+    assert.equal(SYNTHETIC_HOUSEHOLD.streak_counter_id, '');
+    assert.equal(SYNTHETIC_HOUSEHOLD.avatar, null);
+  });
+});
