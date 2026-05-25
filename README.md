@@ -4,7 +4,7 @@
 
 <a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-<a href="https://www.home-assistant.io/"><img src="https://img.shields.io/badge/Home%20Assistant-2024.1%2B-blue.svg" alt="Home Assistant"></a>
+<a href="https://www.home-assistant.io/"><img src="https://img.shields.io/badge/Home%20Assistant-2026.3%2B-blue.svg" alt="Home Assistant"></a>
 
 A custom Lovelace card collection that turns a wall-mounted iPad into a Skylight-style family
 dashboard: a rolling N-day calendar with per-person colors, a daily agenda + weather strip, a

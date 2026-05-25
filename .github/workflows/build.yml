@@ -33,7 +33,10 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          # Single source of truth: project.requires-python in pyproject.toml.
+          # Resolves to the latest patch of the latest minor satisfying the
+          # constraint; when bumping the floor, edit pyproject.toml only.
+          python-version-file: pyproject.toml
 
       - run: pip install -e ".[dev]"
 
