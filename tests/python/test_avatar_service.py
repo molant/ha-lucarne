@@ -85,12 +85,8 @@ def _webp_bytes(width: int = 1, height: int = 1) -> bytes:
 async def _setup(
     hass: HomeAssistant,
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
     slug: str = "anna",
 ) -> tuple[MockConfigEntry, LucarneFamilyStore, Member]:
-    # Point hass config dir at tmp_path so avatar files land there.
-    monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
-
     member = _make_member(slug)
     entry = _make_entry(hass, [member.to_dict()])
     store = await _make_store(hass, entry.entry_id, tmp_path)
@@ -108,10 +104,10 @@ async def _setup(
 
 
 async def test_upload_avatar_png(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """Happy path: PNG upload writes file and updates member.avatar."""
-    _entry, store, _member = await _setup(hass, tmp_path, monkeypatch)
+    _entry, store, _member = await _setup(hass, tmp_path)
 
     raw = _png_bytes()
     b64 = base64.b64encode(raw).decode()
@@ -140,10 +136,10 @@ async def test_upload_avatar_png(
 
 
 async def test_upload_avatar_jpeg(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """Happy path: JPEG upload writes file and updates member.avatar."""
-    _entry, store, _member = await _setup(hass, tmp_path, monkeypatch)
+    _entry, store, _member = await _setup(hass, tmp_path)
 
     raw = _jpeg_bytes()
     b64 = base64.b64encode(raw).decode()
@@ -162,10 +158,10 @@ async def test_upload_avatar_jpeg(
 
 
 async def test_upload_avatar_webp(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """Happy path: WebP upload writes file and updates member.avatar."""
-    _entry, store, _member = await _setup(hass, tmp_path, monkeypatch)
+    _entry, store, _member = await _setup(hass, tmp_path)
 
     raw = _webp_bytes()
     b64 = base64.b64encode(raw).decode()
@@ -184,10 +180,10 @@ async def test_upload_avatar_webp(
 
 
 async def test_upload_avatar_wrong_mime_rejected(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """PNG bytes declared as JPEG are rejected via magic-byte check."""
-    await _setup(hass, tmp_path, monkeypatch)
+    await _setup(hass, tmp_path)
 
     raw = _png_bytes()
     b64 = base64.b64encode(raw).decode()
@@ -202,10 +198,10 @@ async def test_upload_avatar_wrong_mime_rejected(
 
 
 async def test_upload_avatar_oversized_rejected(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """Images larger than AVATAR_MAX_BYTES are rejected."""
-    await _setup(hass, tmp_path, monkeypatch)
+    await _setup(hass, tmp_path)
 
     raw = b"\x89PNG\r\n\x1a\n" + b"\x00" * (AVATAR_MAX_BYTES + 1)
     b64 = base64.b64encode(raw).decode()
@@ -220,10 +216,10 @@ async def test_upload_avatar_oversized_rejected(
 
 
 async def test_upload_avatar_overdimensioned_rejected(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """Images whose pixel count exceeds AVATAR_MAX_PIXELS are rejected."""
-    await _setup(hass, tmp_path, monkeypatch)
+    await _setup(hass, tmp_path)
 
     # 4097 x 4097 = 16,785,409 > AVATAR_MAX_PIXELS (4096 x 4096 = 16,777,216)
     raw = _png_bytes(4097, 4097)
@@ -239,10 +235,10 @@ async def test_upload_avatar_overdimensioned_rejected(
 
 
 async def test_upload_avatar_unknown_member_raises(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """Uploading for an unknown member slug raises ServiceValidationError."""
-    await _setup(hass, tmp_path, monkeypatch)
+    await _setup(hass, tmp_path)
 
     raw = _png_bytes()
     b64 = base64.b64encode(raw).decode()
@@ -257,10 +253,10 @@ async def test_upload_avatar_unknown_member_raises(
 
 
 async def test_upload_avatar_truncated_png_rejected(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """A mid-IDAT-truncated PNG is rejected cleanly (img.load() forces full decode)."""
-    await _setup(hass, tmp_path, monkeypatch)
+    await _setup(hass, tmp_path)
 
     full = _png_bytes(64, 64)
     truncated = full[: len(full) // 2]  # cut in the middle of pixel data
@@ -276,10 +272,10 @@ async def test_upload_avatar_truncated_png_rejected(
 
 
 async def test_upload_avatar_invalid_base64_raises(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """Invalid base64 data raises ServiceValidationError."""
-    await _setup(hass, tmp_path, monkeypatch)
+    await _setup(hass, tmp_path)
 
     with pytest.raises(ServiceValidationError, match="Invalid base64"):
         await hass.services.async_call(
@@ -291,10 +287,10 @@ async def test_upload_avatar_invalid_base64_raises(
 
 
 async def test_upload_avatar_replaces_previous_extension(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """Uploading WebP after a PNG removes the old PNG file."""
-    _entry, _store, _member = await _setup(hass, tmp_path, monkeypatch)
+    _entry, _store, _member = await _setup(hass, tmp_path)
     avatar_dir = tmp_path / "www" / "lucarne" / "avatars"
 
     await hass.services.async_call(
@@ -324,10 +320,10 @@ async def test_upload_avatar_replaces_previous_extension(
 
 
 async def test_upload_avatar_unsafe_slug_rejected(
-    hass: HomeAssistant, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    hass: HomeAssistant, tmp_path: Path
 ) -> None:
     """A member slug with path traversal characters is rejected before file I/O."""
-    _entry, store, _member = await _setup(hass, tmp_path, monkeypatch)
+    _entry, store, _member = await _setup(hass, tmp_path)
 
     # Seed a member with an unsafe slug directly into the store so the lookup
     # passes but the path-safety check fires.

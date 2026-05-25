@@ -10,21 +10,21 @@ from pathlib import Path
 import pytest
 
 
-@pytest.fixture(autouse=True, scope="session")
-def _ensure_testing_config_storage() -> None:
-    """Make sure local_todo can write its ICS files in CI.
+@pytest.fixture
+def hass_config_dir(hass_tmp_config_dir: str) -> str:
+    """Give every `hass` test its own isolated config dir.
 
-    pytest-homeassistant-custom-component points hass.config_dir at the
-    package's bundled `testing_config` directory. On a fresh install the
-    `.storage` subdir does not exist, so local_todo's first write fails
-    with FileNotFoundError. Locally the dir gets created incidentally by
-    earlier runs.
+    pytest-homeassistant-custom-component defaults `hass.config.config_dir`
+    to its bundled `testing_config/`, which means integrations like
+    local_todo write ICS files into a directory shared across the whole
+    test session. Reused entity slugs (anna, ben, lucarne_household)
+    would then leak state between tests. Overriding `hass_config_dir`
+    routes config_dir through `hass_tmp_config_dir`, which copies the
+    bundled config into a per-test `tmp_path`. `.storage/` is created
+    here because the bundled config doesn't ship it.
     """
-    import pytest_homeassistant_custom_component
-
-    pkg_root = Path(pytest_homeassistant_custom_component.__file__).parent
-    storage = pkg_root / "testing_config" / ".storage"
-    storage.mkdir(parents=True, exist_ok=True)
+    (Path(hass_tmp_config_dir) / ".storage").mkdir(parents=True, exist_ok=True)
+    return hass_tmp_config_dir
 
 
 @pytest.fixture(autouse=True)
