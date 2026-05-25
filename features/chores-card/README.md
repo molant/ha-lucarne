@@ -1,5 +1,5 @@
 ---
-status: pending
+status: done
 ---
 
 # chores-card — Lucarne Family integration + chores card rewrite

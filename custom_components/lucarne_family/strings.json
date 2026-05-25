@@ -101,7 +101,7 @@
         "data": {
           "summary": "Routine name",
           "icon": "Icon (emoji)",
-          "recurrence": "Repeats (RRULE, e.g. FREQ=DAILY)",
+          "recurrence": "Repeats (RRULE format, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR)",
           "add_another": "Add another routine to this preset"
         }
       }
