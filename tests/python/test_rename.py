@@ -361,7 +361,7 @@ async def test_rename_confirm_entity_rename_failure_rolls_back_sqlite(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """If entity rename fails after SQLite migration, SQLite is rolled back and the form re-renders."""
+    """Entity rename fails after SQLite migration → SQLite rolled back, form re-renders."""
     monkeypatch.setattr(hass.config, "config_dir", str(tmp_path))
     anna = _make_member("anna", "Anna")
     entry = _make_entry(hass, [anna.to_dict()])

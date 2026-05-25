@@ -32,7 +32,9 @@ def _make_member(slug: str = "anna", name: str = "Anna") -> Member:
 
 
 
-def _mock_counter_storage_collection(hass: HomeAssistant, item_id: str = "anna_streak") -> MagicMock:
+def _mock_counter_storage_collection(
+    hass: HomeAssistant, item_id: str = "anna_streak"
+) -> MagicMock:
     """Return a mock storage collection that simulates counter creation and deletion.
 
     Registers/removes entries in the entity registry (mirroring what the real counter
@@ -153,7 +155,7 @@ async def test_create_raises_on_todo_collision(
     sc = _mock_counter_storage_collection(hass)
 
     with _patch_counter_sc(sc):
-        with pytest.raises(HomeAssistantError, match="todo.anna"):
+        with pytest.raises(HomeAssistantError, match=r"todo\.anna"):
             await async_create_member_entities(hass, member)
 
     # No orphan counter should have been created
