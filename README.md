@@ -11,7 +11,7 @@ dashboard: a rolling N-day calendar with per-person colors, a daily agenda + wea
 family chore tracker with streaks, and an Apple Reminders sync bridge — all designed for iPad 9
 landscape in kiosk mode.
 
-> **Screenshots coming soon** — once 0.2.0 is stable on the wall iPad, the calendar / today / chores cards will get a screenshots gallery here. The banner above is a placeholder.
+> **v0.2.0** — screenshots gallery to follow once deployed and stable on the wall iPad. The banner above is a placeholder.
 
 ---
 

@@ -26,6 +26,13 @@
 - `lucarne-calendar-card` — off-screen render-buffer days (config option `render_buffer_days`, defaults to `visibleCount`) so the user no longer sees a blank gap during a swipe-pan; off-screen days slide into view as the gesture progresses.
 - `lucarne-calendar-card` — Delete button (with inline "Confirm delete?" step) in the event-detail modal for calendars whose entity reports `CalendarEntityFeature.DELETE_EVENT`; optimistic removal with tombstones that survive transient per-entity fetch failures.
 - `lucarne-calendar-card` — synthetic UID generation (`syn:start|end|summary`) for upstream events with no `uid`, preventing collisions across color lookup, allDayClipped keying, and the optimistic-delete tombstone filter.
+- `lucarne-chores-card` — avatar-upload modal (`avatar-upload-modal` component): emoji grid (40 common avatars) or PNG/JPEG/WebP upload (≤ 2 MB); wired into the chores-card editor member picker with a "Change" button per row.
+- `lucarne_family.set_member_avatar` service — sets a member's avatar to an emoji or `/local/lucarne/avatars/<file>` path without re-uploading; fires `lucarne_family_member_updated` so subscribed cards refresh immediately.
+- Round-trip writeback readiness: when an apple-sourced task with a non-empty `apple_uid` completes and `round_trip.enabled == true`, the integration fires `lucarne_family_apple_writeback_requested` (`{apple_uid, status, timestamp, device_name}`). No HTTP request is made in v0.2 — the event is the designed-for contract; the POST is deferred to a future spec.
+- `get_round_trip_config(hass)` — typed `RoundTripConfig` accessor for future round-trip subscribers; abstracts `entry.data` so storage layout changes don't break downstream code.
+- Custom routine presets: add new presets (name + routine templates with icon + RRULE) via Options Flow → "Routine presets" → "Add a custom preset"; stored in `entry.data["custom_presets"]` and merged with built-in presets at presentation time.
+- `lucarne_family_member_updated` event: fired by `set_member_avatar`; `family-subscription.ts` subscribes so avatar changes appear in cards without a dashboard reload.
+- `docs/reminders-bridge.md` — round-trip writeback protocol section: full webhook contract, HMAC-SHA256 signing, idempotency requirements, `get_round_trip_config` accessor contract, and future-spec implementation guide.
 
 ### Changed
 
@@ -38,6 +45,9 @@
 - `lucarne-calendar-card` — New-Event dialog inputs: iPad iOS Safari `<input type="date"|"time">` no longer rendered as oversized "fat pill" controls; all-day checkbox now renders with a themed border + custom `::after` checkmark (no fill) on both iPad and Chrome.
 - `lucarne-calendar-card` — pan/snap interaction: `setPointerCapture` deferred to the 10px drag threshold (fixes Chrome desktop clicks on event pills not opening the detail modal); snap animation animates the OLD content to the next-day position and atomically swaps to NEW content on `transitionend` (eliminates the visible "jump" users reported).
 - `fetchCalendarEvents` returns `{ events, failed }` (new `FetchCalendarEventsResult`) so callers can distinguish a really-empty result from a per-entity fetch failure.
+- Chores-card editor — member rows show current avatar + "Change" button; clicking opens the avatar-upload modal. Avatar edits go through integration services (`set_member_avatar` / `upload_avatar`), not card YAML.
+- `family-subscription.ts` — `get_family` WebSocket command re-triggered on `lucarne_family_member_updated` and `lucarne_family_avatar_uploaded` so avatar changes appear without a dashboard reload.
+- Options Flow — new "Apple Reminders sync" step with fields for `enabled`, `webhook_url`, `secret`, and `device_name`; config stored in `entry.data["round_trip"]`.
 
 ### Deprecated
 
