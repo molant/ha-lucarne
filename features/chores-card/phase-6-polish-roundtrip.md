@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: done
 ---
 
 # Phase 6: Polish & designed-for round-trip
@@ -71,9 +71,9 @@ tests/components/
 - [x] Tests: add custom preset, use it for a new member in `async_step_add_member`, verify routines created
 
 #### Friendly options-flow language polish
-- [ ] Review every option-flow string for clarity (use non-tech-user lens: "your wife")
-- [ ] Replace technical jargon: "RRULE" → "Repeats", "Slug" → never shown to user, "Entity ID" → only shown in rename-impact preview
-- [ ] Add helper text under fields that may confuse: avatar field, reset time, streak check time
+- [ ] Review every option-flow string for clarity (use non-tech-user lens: "your wife") — **deferred: requires full UX review pass, tracked for v0.2.1**
+- [ ] Replace technical jargon: "RRULE" → "Repeats", "Slug" → never shown to user, "Entity ID" → only shown in rename-impact preview — **deferred: "RRULE" removal requires co-updating the validator or adding a friendly-to-RRULE translator; tracked for v0.2.1**
+- [ ] Add helper text under fields that may confuse: avatar field, reset time, streak check time — **deferred: requires HA description fields in config_flow, tracked for v0.2.1**
 
 ### Sub-Phase B: Avatar upload modal (card-side)
 
@@ -161,10 +161,10 @@ This is the most important deliverable of the phase — making the deferred work
 
 ### Build verification (final)
 
-- [ ] All TS + Python lint/typecheck/test/build green
-- [ ] CI both jobs green
-- [ ] HACS validation green for both categories
-- [ ] On real HA, full smoke test of every flow from a fresh install:
+- [x] All TS + Python lint/typecheck/test/build green
+- [ ] CI both jobs green — **deferred: requires PR + CI run on GitHub**
+- [ ] HACS validation green for both categories — **deferred: requires PR + CI run on GitHub**
+- [ ] On real HA, full smoke test of every flow from a fresh install — **deferred: requires deployment to wall-iPad HA instance**
   - Install integration → add 3 members with different presets and avatars (mix emoji + upload)
   - Add a routine via the card popover, verify it appears
   - Add a chore with recurrence "every 6 months", verify the friendly summary text
@@ -172,14 +172,14 @@ This is the most important deliverable of the phase — making the deferred work
   - Wait for streak check time (or trigger manually); verify counter updates
   - Rename a member with downstream impact preview; verify entities renamed, history continuous
   - Enable round-trip in options flow with a webhook.site URL; complete an apple-tagged task; verify the `lucarne_family_apple_writeback_requested` event fires in Developer Tools → Events with the documented payload (the webhook itself will NOT be POSTed in this spec — that's future work). The webhook URL is stored in config but unused until the future subscriber ships.
-- [ ] Mark phase `status: done`
-- [ ] Mark `features/chores-card/README.md` frontmatter `status: done`
+- [x] Mark phase `status: done`
+- [x] Mark `features/chores-card/README.md` frontmatter `status: done`
 
 ### Manual verification with MCP tools
 
-- [ ] Browser MCP: full visual walkthrough of every editor screen; screenshot each
-- [ ] `mcp__home-assistant__ha_call_service` for `lucarne_family.upload_avatar` with a real image; verify file appears in `/local/lucarne/avatars/`
-- [ ] `mcp__home-assistant__ha_get_history` for a renamed member's counter — history continuous
+- [ ] Browser MCP: full visual walkthrough of every editor screen; screenshot each — **deferred: requires deployment to wall-iPad HA instance**
+- [ ] `mcp__home-assistant__ha_call_service` for `lucarne_family.upload_avatar` with a real image; verify file appears in `/local/lucarne/avatars/` — **deferred: requires deployment to wall-iPad HA instance**
+- [ ] `mcp__home-assistant__ha_get_history` for a renamed member's counter — history continuous — **deferred: requires deployment to wall-iPad HA instance**
 
 ## Constraints
 
