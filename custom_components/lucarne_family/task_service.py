@@ -21,10 +21,10 @@ _TASK_TYPES = ("routine", "chore")
 
 
 def _get_store(hass: HomeAssistant, entry_id: str) -> LucarneFamilyStore:
-    return hass.data[DOMAIN][entry_id]["store"]
+    return hass.data[DOMAIN][entry_id]["store"]  # type: ignore[no-any-return]
 
 
-def _get_todo_entity(hass: HomeAssistant, entity_id: str):
+def _get_todo_entity(hass: HomeAssistant, entity_id: str) -> Any:
     """Return the todo entity, raising HomeAssistantError if unavailable."""
     todo_component = hass.data.get(DATA_COMPONENT)
     if todo_component is None:

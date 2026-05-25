@@ -13,6 +13,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ServiceValidationError
 
 from .const import AVATAR_ALLOWED_MIME, AVATAR_MAX_BYTES, AVATAR_MAX_PIXELS, DOMAIN
+from .models import Member
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -165,10 +166,8 @@ def _cleanup_old_avatar(avatar_dir: Path, slug: str, new_ext: str) -> None:
                 pass
 
 
-def _with_avatar(member, avatar_url: str):
+def _with_avatar(member: Member, avatar_url: str) -> Member:
     """Return a new Member with the avatar field updated."""
-    from .models import Member
-
     d = member.to_dict()
     d["avatar"] = avatar_url
     return Member.from_dict(d)
