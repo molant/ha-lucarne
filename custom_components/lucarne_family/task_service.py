@@ -126,6 +126,7 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
                 icon=icon,
                 source=source,
                 assignee_slug=assignee,
+                summary=summary,
             )
         except Exception:
             # Best-effort rollback: remove the orphaned todo item.

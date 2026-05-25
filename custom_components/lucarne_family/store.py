@@ -28,6 +28,15 @@ def _init_db(db_path: str, schema_sql: str) -> None:
             "INSERT OR IGNORE INTO schema_version (version, applied_at) VALUES (?, ?)",
             (STORAGE_VERSION, datetime.now(UTC).isoformat()),
         )
+        # Migration: add summary column if it doesn't exist (added in v0.2.0)
+        existing_cols = {
+            row[1]
+            for row in con.execute("PRAGMA table_info(task_metadata)").fetchall()
+        }
+        if "summary" not in existing_cols:
+            con.execute(
+                "ALTER TABLE task_metadata ADD COLUMN summary TEXT NOT NULL DEFAULT ''"
+            )
         con.commit()
     finally:
         con.close()
@@ -91,6 +100,7 @@ class LucarneFamilyStore:
         source: str = "manual",
         apple_uid: str = "",
         assignee_slug: str = "",
+        summary: str = "",
     ) -> None:
         """INSERT a new task_metadata row."""
 
@@ -100,12 +110,12 @@ class LucarneFamilyStore:
                     """
                     INSERT INTO task_metadata
                       (item_uid, member_slug, assignee_slug, type, recurrence,
-                       icon, source, apple_uid, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       icon, source, apple_uid, summary, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         item_uid, member_slug, assignee_slug, type, recurrence,
-                        icon, source, apple_uid, datetime.now(UTC).isoformat(),
+                        icon, source, apple_uid, summary, datetime.now(UTC).isoformat(),
                     ),
                 )
 

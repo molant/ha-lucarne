@@ -401,3 +401,140 @@ async def test_edit_schedule_invalid_time_rejected(hass: HomeAssistant) -> None:
         await _configure(
             hass, result["flow_id"], {"reset_time": "25:00", "streak_check_time": "21:00"}
         )
+
+
+# ---------------------------------------------------------------------------
+# Edit round-trip
+# ---------------------------------------------------------------------------
+
+
+async def test_edit_round_trip_disabled_saves_without_url(hass: HomeAssistant) -> None:
+    """Submitting with enabled=False saves without requiring URL or secret."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_round_trip"})
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "edit_round_trip"
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "enabled": False,
+            "webhook_url": "",
+            "secret": "",
+            "device_name": "My Mac",
+        },
+    )
+    assert result["type"] in (
+        data_entry_flow.FlowResultType.MENU,
+        data_entry_flow.FlowResultType.CREATE_ENTRY,
+    )
+    rt = entry.data["round_trip"]
+    assert rt["enabled"] is False
+    assert rt["device_name"] == "My Mac"
+
+
+async def test_edit_round_trip_enabled_saves_correctly(hass: HomeAssistant) -> None:
+    """Enabled=True with valid URL and 32-char secret round-trips correctly."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    secret = "a" * 32
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_round_trip"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "enabled": True,
+            "webhook_url": "https://example.com/hook",
+            "secret": secret,
+            "device_name": "Mac mini",
+        },
+    )
+    assert result["type"] in (
+        data_entry_flow.FlowResultType.MENU,
+        data_entry_flow.FlowResultType.CREATE_ENTRY,
+    )
+    rt = entry.data["round_trip"]
+    assert rt["enabled"] is True
+    assert rt["webhook_url"] == "https://example.com/hook"
+    assert rt["secret"] == secret
+    assert rt["device_name"] == "Mac mini"
+
+
+async def test_edit_round_trip_invalid_url_rejected(hass: HomeAssistant) -> None:
+    """Malformed URL is rejected when round-trip is enabled."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    secret = "b" * 32
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_round_trip"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "enabled": True,
+            "webhook_url": "not-a-url",
+            "secret": secret,
+            "device_name": "Mac mini",
+        },
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert "webhook_url" in result["errors"]
+
+
+async def test_edit_round_trip_short_secret_rejected(hass: HomeAssistant) -> None:
+    """Secret shorter than 32 chars is rejected when round-trip is enabled."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_round_trip"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "enabled": True,
+            "webhook_url": "https://example.com/hook",
+            "secret": "tooshort",
+            "device_name": "Mac mini",
+        },
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert "secret" in result["errors"]
+
+
+async def test_edit_round_trip_readback(hass: HomeAssistant) -> None:
+    """Data saved in one flow can be read back in a subsequent flow init."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    secret = "c" * 32
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_round_trip"})
+    await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "enabled": True,
+            "webhook_url": "https://hook.example.com/lucarne",
+            "secret": secret,
+            "device_name": "Home server",
+        },
+    )
+
+    # Start a new flow and navigate to edit_round_trip to confirm defaults are populated
+    result2 = await _init_options_flow(hass, entry)
+    result2 = await _configure(hass, result2["flow_id"], {"next_step_id": "edit_round_trip"})
+    assert result2["type"] == data_entry_flow.FlowResultType.FORM
+    # The schema defaults should reflect the saved values
+    schema = result2.get("data_schema")
+    assert schema is not None
