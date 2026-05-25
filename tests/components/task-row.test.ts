@@ -1,0 +1,169 @@
+import { describe, it, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+import type { LucarneTaskRow } from '../../src/components/task-row.js';
+import type { RenderableTask } from '../../src/shared/types.js';
+
+await import('../../src/components/task-row.js');
+
+function makeTask(overrides: Partial<RenderableTask> = {}): RenderableTask {
+  return {
+    uid: 'uid-1',
+    summary: 'Brush teeth',
+    status: 'needs_action',
+    due: null,
+    description: '',
+    metadata: {
+      item_uid: 'uid-1',
+      member_slug: 'anna',
+      assignee_slug: '',
+      type: 'routine',
+      recurrence: 'FREQ=DAILY',
+      icon: '🪥',
+      source: 'template',
+    },
+    ...overrides,
+  };
+}
+
+function makeEl(task: RenderableTask, memberColor = '#f5c89c'): LucarneTaskRow {
+  const el = document.createElement('lucarne-task-row') as LucarneTaskRow;
+  el.task = task;
+  el.memberColor = memberColor;
+  document.body.appendChild(el);
+  return el;
+}
+
+function shadow(el: LucarneTaskRow, sel: string) {
+  return el.shadowRoot?.querySelector(sel) ?? null;
+}
+
+afterEach(() => {
+  document.querySelectorAll('lucarne-task-row').forEach((el) => el.remove());
+});
+
+describe('lucarne-task-row', () => {
+  it('renders task summary', async () => {
+    const el = makeEl(makeTask({ summary: 'Make bed' }));
+    await el.updateComplete;
+
+    const label = shadow(el, '.label');
+    assert.ok(label, '.label rendered');
+    assert.equal(label!.textContent, 'Make bed');
+  });
+
+  it('renders icon when metadata.icon is set', async () => {
+    const el = makeEl(makeTask({ metadata: { ...makeTask().metadata, icon: '🛏️' } }));
+    await el.updateComplete;
+
+    const iconSpan = shadow(el, '.icon');
+    assert.ok(iconSpan, '.icon span rendered');
+    assert.equal(iconSpan!.textContent, '🛏️');
+  });
+
+  it('does not render icon when metadata.icon is empty', async () => {
+    const el = makeEl(makeTask({ metadata: { ...makeTask().metadata, icon: '' } }));
+    await el.updateComplete;
+
+    const iconSpan = shadow(el, '.icon');
+    assert.equal(iconSpan, null, 'no icon span for empty icon');
+  });
+
+  it('renders due time when due is set', async () => {
+    const el = makeEl(makeTask({ due: '2026-05-25T09:00:00' }));
+    await el.updateComplete;
+
+    const dueSpan = shadow(el, '.due');
+    assert.ok(dueSpan, '.due span rendered');
+    assert.ok((dueSpan!.textContent ?? '').trim().length > 0, 'due text non-empty');
+  });
+
+  it('shows strikethrough class when completed', async () => {
+    const el = makeEl(makeTask({ status: 'completed' }));
+    await el.updateComplete;
+
+    const label = shadow(el, '.label.done');
+    assert.ok(label, '.label.done present when completed');
+
+    const check = shadow(el, '.check.done');
+    assert.ok(check, '.check.done present when completed');
+  });
+
+  it('does not show done class when needs_action', async () => {
+    const el = makeEl(makeTask({ status: 'needs_action' }));
+    await el.updateComplete;
+
+    const label = shadow(el, '.label.done');
+    assert.equal(label, null, '.label.done absent when needs_action');
+  });
+
+  it('fires task-toggle on click', async () => {
+    const task = makeTask();
+    const el = makeEl(task);
+    await el.updateComplete;
+
+    const events: CustomEvent[] = [];
+    el.addEventListener('task-toggle', (e) => events.push(e as CustomEvent));
+
+    const row = shadow(el, '.row') as HTMLElement;
+    row.click();
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0].detail.task.uid, task.uid);
+  });
+
+  it('fires task-long-press after 500ms hold', async () => {
+    const task = makeTask();
+    const el = makeEl(task);
+    await el.updateComplete;
+
+    const events: CustomEvent[] = [];
+    el.addEventListener('task-long-press', (e) => events.push(e as CustomEvent));
+
+    const row = shadow(el, '.row') as HTMLElement;
+
+    // Simulate pointerdown — long press timer starts
+    row.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }));
+
+    // Before 500ms — no event
+    assert.equal(events.length, 0);
+
+    // Wait >500ms
+    await new Promise((r) => setTimeout(r, 550));
+
+    assert.equal(events.length, 1, 'task-long-press fired after 500ms');
+    assert.equal(events[0].detail.task.uid, task.uid);
+
+    // Cleanup
+    row.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+  });
+
+  it('does not fire task-toggle after a long press', async () => {
+    const task = makeTask();
+    const el = makeEl(task);
+    await el.updateComplete;
+
+    const toggleEvents: CustomEvent[] = [];
+    const longPressEvents: CustomEvent[] = [];
+    el.addEventListener('task-toggle', (e) => toggleEvents.push(e as CustomEvent));
+    el.addEventListener('task-long-press', (e) => longPressEvents.push(e as CustomEvent));
+
+    const row = shadow(el, '.row') as HTMLElement;
+    row.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }));
+    await new Promise((r) => setTimeout(r, 550));
+    row.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    row.click();
+
+    assert.equal(longPressEvents.length, 1, 'long-press fired');
+    assert.equal(toggleEvents.length, 0, 'toggle NOT fired after long press');
+  });
+
+  it('has minimum 44px height touch target', async () => {
+    const el = makeEl(makeTask());
+    await el.updateComplete;
+
+    const row = shadow(el, '.row') as HTMLElement;
+    const styles = window.getComputedStyle(row);
+    // min-height is set to 44px in the CSS
+    assert.equal(styles.minHeight, '44px');
+  });
+});
