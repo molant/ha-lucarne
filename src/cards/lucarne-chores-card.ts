@@ -1,23 +1,21 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
-import { isAllDone } from '../shared/chore-helpers.js';
-import type { HomeAssistant } from '../shared/types.js';
+import type { HomeAssistant, MemberSummary, RenderableTask } from '../shared/types.js';
+import { subscribeFamilyState, SYNTHETIC_HOUSEHOLD } from '../shared/family-subscription.js';
+import type { FamilyState } from '../shared/family-subscription.js';
 
-import '../components/kid-column.js';
-
-interface KidConfig {
-  name: string;
-  color: string;
-  avatar?: string;
-  streak: string;
-  chores: { name: string; entity: string }[];
-}
+import '../components/member-column.js';
+import '../components/add-task-popover.js';
+import '../components/edit-task-popover.js';
 
 export interface LucarneChoresCardConfig {
   type: 'custom:lucarne-chores-card';
   title?: string;
-  kids: KidConfig[];
+  members: string[];
+  show_routines?: boolean;
+  show_tasks?: boolean;
+  show_streak?: boolean;
 }
 
 (window as Window & typeof globalThis & { customCards?: object[] }).customCards =
@@ -25,7 +23,7 @@ export interface LucarneChoresCardConfig {
 (window as Window & typeof globalThis & { customCards?: object[] }).customCards!.push({
   type: 'lucarne-chores-card',
   name: 'Lucarne Chores',
-  description: 'Kid chore grid with streaks and celebration',
+  description: 'Family chore grid with streaks and celebration',
   preview: true,
 });
 
@@ -54,28 +52,48 @@ export class LucarneChoresCard extends LitElement {
         color: var(--lucarne-on-surface);
         margin: 0;
       }
-      .kids-grid {
+      .members-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       }
-      .kid-cell {
+      .member-cell {
         border-right: 1px solid rgba(0, 0, 0, 0.07);
         position: relative;
       }
-      .kid-cell:last-child {
+      .member-cell:last-child {
         border-right: none;
       }
       @media (max-width: 600px) {
-        .kids-grid {
+        .members-grid {
           grid-template-columns: 1fr;
         }
-        .kid-cell {
+        .member-cell {
           border-right: none;
           border-bottom: 1px solid rgba(0, 0, 0, 0.07);
         }
-        .kid-cell:last-child {
+        .member-cell:last-child {
           border-bottom: none;
         }
+      }
+      .error-block {
+        padding: var(--lucarne-spacing-xl);
+        color: var(--lucarne-on-surface-muted);
+        font-size: var(--lucarne-fs-sm);
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--lucarne-spacing-sm);
+      }
+      .error-block strong {
+        color: var(--lucarne-on-surface);
+        font-size: var(--lucarne-fs-md);
+      }
+      .loading {
+        padding: var(--lucarne-spacing-xl);
+        color: var(--lucarne-on-surface-muted);
+        font-size: var(--lucarne-fs-sm);
+        text-align: center;
       }
     `,
   ];
@@ -83,24 +101,20 @@ export class LucarneChoresCard extends LitElement {
   @property({ attribute: false }) hass!: HomeAssistant;
 
   @state() private _config?: LucarneChoresCardConfig;
+  @state() private _familyState: FamilyState | null = null;
+  @state() private _addTaskMember: MemberSummary | null = null;
+  @state() private _editTask: RenderableTask | null = null;
 
-  private _lastAllDoneByKid: Map<string, boolean> = new Map();
-  private _celebratingKids: Set<string> = new Set();
-  private _celebrationTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private _unsubFamily?: () => void;
 
   setConfig(config: LucarneChoresCardConfig) {
-    if (!config.kids || config.kids.length === 0) {
-      throw new Error('lucarne-chores-card: kids must be a non-empty array');
+    // Legacy shape — pass through so render() can show the upgrade banner
+    if ('kids' in config) {
+      this._config = config;
+      return;
     }
-    for (const kid of config.kids) {
-      if (!kid.chores || kid.chores.length === 0) {
-        throw new Error(`lucarne-chores-card: kid "${kid.name}" must have at least 1 chore`);
-      }
-    }
-    const slugs = config.kids.map((k) => k.name.toLowerCase().replace(/\s+/g, '_'));
-    const uniqueSlugs = new Set(slugs);
-    if (uniqueSlugs.size !== slugs.length) {
-      throw new Error('lucarne-chores-card: kid names must be unique (two names produce the same slug)');
+    if (!Array.isArray(config.members)) {
+      throw new Error('lucarne-chores-card: members must be an array');
     }
     this._config = config;
   }
@@ -121,140 +135,176 @@ export class LucarneChoresCard extends LitElement {
     return {
       type: 'custom:lucarne-chores-card',
       title: 'Chores',
-      kids: [
-        {
-          name: 'Kid 1',
-          color: '#f5c89c',
-          streak: 'counter.kid_1_streak',
-          chores: [
-            { name: 'Brush teeth', entity: 'input_boolean.kid_1_brush_teeth' },
-            { name: 'Make bed', entity: 'input_boolean.kid_1_make_bed' },
-            { name: 'Put away toys', entity: 'input_boolean.kid_1_put_away_toys' },
-            { name: 'School bag ready', entity: 'input_boolean.kid_1_school_bag_ready' },
-            { name: 'Kindness act', entity: 'input_boolean.kid_1_kindness_act' },
-          ],
-        },
-        {
-          name: 'Kid 2',
-          color: '#b8e0d2',
-          streak: 'counter.kid_2_streak',
-          chores: [
-            { name: 'Brush teeth', entity: 'input_boolean.kid_2_brush_teeth' },
-            { name: 'Make bed', entity: 'input_boolean.kid_2_make_bed' },
-            { name: 'Put away toys', entity: 'input_boolean.kid_2_put_away_toys' },
-            { name: 'School bag ready', entity: 'input_boolean.kid_2_school_bag_ready' },
-            { name: 'Kindness act', entity: 'input_boolean.kid_2_kindness_act' },
-          ],
-        },
-        {
-          name: 'Kid 3',
-          color: '#f0b8c8',
-          streak: 'counter.kid_3_streak',
-          chores: [
-            { name: 'Brush teeth', entity: 'input_boolean.kid_3_brush_teeth' },
-            { name: 'Make bed', entity: 'input_boolean.kid_3_make_bed' },
-            { name: 'Put away toys', entity: 'input_boolean.kid_3_put_away_toys' },
-            { name: 'School bag ready', entity: 'input_boolean.kid_3_school_bag_ready' },
-            { name: 'Kindness act', entity: 'input_boolean.kid_3_kindness_act' },
-          ],
-        },
-      ],
+      members: [],
     };
   }
 
   updated(changedProps: PropertyValues) {
     super.updated(changedProps);
-    if (!changedProps.has('hass') || !this._config || !this.hass) return;
-
-    for (const kid of this._config.kids) {
-      const kidSlug = kid.name.toLowerCase().replace(/\s+/g, '_');
-      const choreStates = kid.chores.map((c) => ({
-        state: this.hass.states[c.entity]?.state ?? 'unavailable',
-      }));
-      const current = isAllDone(choreStates);
-      const previous = this._lastAllDoneByKid.get(kidSlug) ?? null;
-
-      if (previous === null) {
-        this._lastAllDoneByKid.set(kidSlug, current);
-        continue;
-      }
-
-      if (previous === false && current === true) {
-        this._lastAllDoneByKid.set(kidSlug, true);
-        this._triggerCelebration(kidSlug, kid);
-      } else if (previous === true && current === false) {
-        this._lastAllDoneByKid.set(kidSlug, false);
-      }
+    if (changedProps.has('hass') && this.hass && !this._unsubFamily) {
+      this._unsubFamily = subscribeFamilyState(this.hass, (state) => {
+        this._familyState = state;
+      });
     }
   }
 
-  private _triggerCelebration(kidSlug: string, kid: KidConfig) {
-    this._celebratingKids = new Set(this._celebratingKids).add(kidSlug);
-    this.requestUpdate();
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._unsubFamily?.();
+    this._unsubFamily = undefined;
+  }
 
-    const existing = this._celebrationTimers.get(kidSlug);
-    if (existing) clearTimeout(existing);
+  private _resolveMembers(): Array<{ member: MemberSummary; tasks: RenderableTask[]; streak: number }> {
+    if (!this._config || !this._familyState) return [];
+    const { members: slugs } = this._config;
+    const showRoutines = this._config.show_routines ?? true;
+    const showTasks = this._config.show_tasks ?? true;
 
-    const timer = setTimeout(() => {
-      this._celebratingKids = new Set(
-        [...this._celebratingKids].filter((k) => k !== kidSlug),
-      );
-      this._celebrationTimers.delete(kidSlug);
-      this.requestUpdate();
-    }, 2200);
-    this._celebrationTimers.set(kidSlug, timer);
+    const now = new Date();
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 
-    const streakState = this.hass?.states[kid.streak];
-    const streak = streakState ? parseInt(streakState.state, 10) : 0;
-    const _d = new Date();
-    const today = `${_d.getFullYear()}-${String(_d.getMonth() + 1).padStart(2, '0')}-${String(_d.getDate()).padStart(2, '0')}`;
+    const result: Array<{ member: MemberSummary; tasks: RenderableTask[]; streak: number }> = [];
+    for (const slug of slugs) {
+      const member =
+        slug === 'household'
+          ? SYNTHETIC_HOUSEHOLD
+          : (this._familyState.members.find((m) => m.slug === slug) ?? null);
 
-    this.hass.connection.sendMessagePromise({
-      type: 'fire_event',
-      event_type: 'ha_lucarne_chores_all_done',
-      event_data: {
-        kid_slug: kidSlug,
-        kid_name: kid.name,
-        date: today,
-        chores_completed: kid.chores.length,
-        streak: isNaN(streak) ? 0 : streak,
-      },
-    });
+      if (!member) continue;
+
+      const allTasks = this._familyState.tasksByMember.get(slug) ?? [];
+      const tasks = allTasks.filter((t) => {
+        if (t.metadata.type === 'routine') return showRoutines;
+        if (t.metadata.type === 'chore') {
+          if (!showTasks) return false;
+          if (t.due === null) return true;
+          // Date-only strings (no 'T') must be parsed as local midnight to avoid UTC off-by-one in non-UTC timezones
+          const dueDate = t.due.includes('T') ? new Date(t.due) : new Date(t.due + 'T00:00:00');
+          return dueDate <= endOfToday;
+        }
+        return false;
+      });
+
+      const streak = this._familyState.streakByMember.get(slug) ?? 0;
+      result.push({ member, tasks, streak });
+    }
+    return result;
+  }
+
+  private async _handleTaskToggle(e: Event) {
+    const { task } = (e as CustomEvent<{ task: RenderableTask }>).detail;
+    if (!this.hass || !this._familyState) return;
+
+    const newStatus = task.status === 'completed' ? 'needs_action' : 'completed';
+    const ownerEntityId =
+      task.metadata.member_slug === 'household'
+        ? 'todo.lucarne_household'
+        : (this._familyState.members.find((m) => m.slug === task.metadata.member_slug)?.todo_entity_id ?? '');
+
+    if (!ownerEntityId) return;
+    await this.hass.callService('todo', 'update_item', { item: task.uid, status: newStatus }, { entity_id: ownerEntityId });
+  }
+
+  private _handleAddTask(e: Event) {
+    const { memberSlug } = (e as CustomEvent<{ memberSlug: string }>).detail;
+    if (!this._familyState) return;
+    const member =
+      memberSlug === 'household'
+        ? SYNTHETIC_HOUSEHOLD
+        : (this._familyState.members.find((m) => m.slug === memberSlug) ?? null);
+    if (member) this._addTaskMember = member;
+  }
+
+  private _handleLongPress(e: Event) {
+    const { task } = (e as CustomEvent<{ task: RenderableTask }>).detail;
+    this._editTask = task;
   }
 
   render() {
     if (!this._config) return html``;
+
+    // Old config detection (kids key)
+    if ('kids' in this._config) {
+      return html`
+        <ha-card>
+          <div class="error-block">
+            <strong>Card upgraded</strong>
+            This card was upgraded. Install the Lucarne Family integration and update your YAML.
+          </div>
+        </ha-card>
+      `;
+    }
+
     const title = this._config.title ?? 'Chores';
-    const kids = this._config.kids ?? [];
+    const showRoutines = this._config.show_routines ?? true;
+    const showTasks = this._config.show_tasks ?? true;
+    const showStreak = this._config.show_streak ?? true;
+
+    if (this._familyState === null) {
+      return html`<ha-card><div class="loading">Loading…</div></ha-card>`;
+    }
+
+    if (this._familyState.integrationError !== null) {
+      return html`
+        <ha-card>
+          <div class="error-block">
+            <strong>Lucarne Family integration not set up</strong>
+            Install it in Settings → Devices &amp; Services.
+          </div>
+        </ha-card>
+      `;
+    }
+
+    const resolvedMembers = this._resolveMembers();
+    const allMembers = [...this._familyState.members, SYNTHETIC_HOUSEHOLD];
 
     return html`
       <ha-card>
         <div class="card-header">
           <h2 class="card-title">${title}</h2>
         </div>
-        <div class="kids-grid">
-          ${kids.map((kid) => {
-            const kidSlug = kid.name.toLowerCase().replace(/\s+/g, '_');
-            const streakState = this.hass?.states[kid.streak];
-            const streak = streakState ? parseInt(streakState.state, 10) : 0;
-            const choreStates = kid.chores.map((c) => ({
-              state: this.hass?.states[c.entity]?.state ?? 'unavailable',
-            }));
-            const allDone = isAllDone(choreStates);
-            return html`
-              <div class="kid-cell">
-                <lucarne-kid-column
-                  .hass=${this.hass}
-                  .kid=${kid}
-                  .streak=${isNaN(streak) ? 0 : streak}
-                  ?celebrating=${this._celebratingKids.has(kidSlug)}
-                  ?all-done=${allDone}
-                ></lucarne-kid-column>
-              </div>
-            `;
-          })}
+        <div
+          class="members-grid"
+          @add-task-clicked=${this._handleAddTask}
+          @task-toggle=${this._handleTaskToggle}
+          @task-long-press=${this._handleLongPress}
+        >
+          ${resolvedMembers.map(({ member, tasks, streak }) => html`
+            <div class="member-cell">
+              <lucarne-member-column
+                .member=${member}
+                .tasks=${tasks}
+                .streak=${streak}
+                ?show-routines=${showRoutines}
+                ?show-tasks=${showTasks}
+                ?show-streak=${showStreak}
+              ></lucarne-member-column>
+            </div>
+          `)}
         </div>
       </ha-card>
+
+      ${this._addTaskMember !== null
+        ? html`
+            <lucarne-add-task-popover
+              .hass=${this.hass}
+              .member=${this._addTaskMember}
+              .members=${allMembers}
+              @popover-close=${() => { this._addTaskMember = null; }}
+            ></lucarne-add-task-popover>
+          `
+        : ''}
+
+      ${this._editTask !== null
+        ? html`
+            <lucarne-edit-task-popover
+              .hass=${this.hass}
+              .task=${this._editTask}
+              .members=${allMembers}
+              @popover-close=${() => { this._editTask = null; }}
+            ></lucarne-edit-task-popover>
+          `
+        : ''}
     `;
   }
 }
