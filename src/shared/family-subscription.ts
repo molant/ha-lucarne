@@ -35,6 +35,8 @@ const TASK_METADATA_EVENTS = [
   'lucarne_family_task_metadata_updated',
   'lucarne_family_task_toggled',
   'lucarne_family_all_routines_done',
+  'lucarne_family_member_updated',
+  'lucarne_family_avatar_uploaded',
 ];
 
 function buildRenderableTasks(

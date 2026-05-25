@@ -151,3 +151,23 @@ upload_avatar:
               label: JPEG
             - value: image/webp
               label: WebP
+
+set_member_avatar:
+  name: Set Member Avatar
+  description: Set a member's avatar to an emoji or an uploaded image path.
+  fields:
+    member:
+      name: Member
+      description: Family member slug.
+      required: true
+      selector:
+        text:
+    avatar:
+      name: Avatar
+      description: >-
+        An emoji or emoji sequence (e.g. 🧒, ❤️, 👨‍👩‍👧‍👦) or a
+        /local/lucarne/avatars/<filename> path from a prior upload_avatar call.
+        Invisible-only strings (bare ZWJ, bare variation-selector) are rejected.
+      required: true
+      selector:
+        text:

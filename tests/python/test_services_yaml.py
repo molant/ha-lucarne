@@ -16,6 +16,7 @@ _EXPECTED_FIELDS: dict[str, set[str]] = {
     "delete_task": {"uid"},
     "toggle_task": {"uid"},
     "upload_avatar": {"member", "image_data", "mime_type"},
+    "set_member_avatar": {"member", "avatar"},
     # Phase 3 internal services — no user-supplied fields.
     "perform_daily_reset": set(),
     "evaluate_all_streaks": set(),
@@ -42,6 +43,7 @@ def test_services_yaml_all_fields_present() -> None:
 
 def test_services_yaml_voluptuous_schema_fields_match() -> None:
     """Verify that Python voluptuous schemas use the same field names as services.yaml."""
+    from custom_components.lucarne_family.member_service import SET_MEMBER_AVATAR_SCHEMA
     from custom_components.lucarne_family.task_service import (
         ADD_TASK_SCHEMA,
         DELETE_TASK_SCHEMA,
@@ -57,6 +59,7 @@ def test_services_yaml_voluptuous_schema_fields_match() -> None:
         "update_task_metadata": _keys(UPDATE_METADATA_SCHEMA),
         "delete_task": _keys(DELETE_TASK_SCHEMA),
         "toggle_task": _keys(TOGGLE_TASK_SCHEMA),
+        "set_member_avatar": _keys(SET_MEMBER_AVATAR_SCHEMA),
     }
 
     data = yaml.safe_load(_SERVICES_YAML.read_text())

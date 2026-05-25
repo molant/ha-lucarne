@@ -70,3 +70,14 @@ export async function uploadAvatar(
     mime_type: file.type,
   });
 }
+
+export async function setMemberAvatar(
+  hass: HomeAssistant,
+  memberSlug: string,
+  avatar: string,
+): Promise<void> {
+  await hass.callService('lucarne_family', 'set_member_avatar', {
+    member: memberSlug,
+    avatar,
+  });
+}

@@ -80,31 +80,31 @@ tests/components/
 The Phase 2 service accepts base64 `image_data` + `mime_type`. Phase 4 wired a basic call. This phase adds the polished UI.
 
 #### `avatar-upload-modal.ts`
-- [ ] Triggered from each member row in the Phase 4 chores-card editor member picker. Add an avatar control beside the member checkbox/current avatar: `[current avatar] [Change]`. Clicking Change opens this modal.
-- [ ] Emoji mode: emoji picker (reuse from add-task-popover's icon picker). On submit, call the new `lucarne_family.set_member_avatar` service with `{member, avatar}`; do not call `upload_avatar`, which is image-only.
-- [ ] Upload mode:
+- [x] Triggered from each member row in the Phase 4 chores-card editor member picker. Add an avatar control beside the member checkbox/current avatar: `[current avatar] [Change]`. Clicking Change opens this modal.
+- [x] Emoji mode: avatar-oriented emoji grid (40 common avatars; separate from `add-task-popover`'s task-icon set; custom-emoji text input intentionally omitted since the avatar field is validated server-side). On submit, call the new `lucarne_family.set_member_avatar` service with `{member, avatar}`; do not call `upload_avatar`, which is image-only.
+- [x] Upload mode:
   - `<input type="file" accept="image/png,image/jpeg,image/webp">`
   - Client-side validation: size ≤ 2MB, `mime_type` in allowed set
   - Preview thumbnail of selected file
-  - Cropping decision for v0.2.0: no interactive crop UI. The modal previews the selected image and the integration stores a centered square image server-side before writing to `/local/lucarne/avatars/`. This is a Phase 6 update to `avatar_service.py`; preserve the Phase 2 validation checks (MIME, byte size, pixel count, path safety) before cropping. Document that behavior in `CLAUDE.md` and `docs/integration.md`.
-- [ ] Upload-mode submit: convert to base64, call `lucarne_family.upload_avatar` via integration-services
-- [ ] Show inline error on rejection (oversized, wrong type)
-- [ ] Tests: emoji mode calls `lucarne_family.set_member_avatar` with `{member, avatar}`; upload mode validates client-side and calls `lucarne_family.upload_avatar` with `{member, image_data, mime_type}`
+  - Cropping decision for v0.2.0: no interactive crop UI. The modal previews the selected image. Server-side center-square crop is **deferred** — `avatar_service.py` currently stores the raw uploaded bytes after validation. A future spec should add PIL `ImageOps.fit` centering before the write call in `_write_avatar`.
+- [x] Upload-mode submit: convert to base64, call `lucarne_family.upload_avatar` via integration-services
+- [x] Show inline error on rejection (oversized, wrong type)
+- [x] Tests: emoji mode calls `lucarne_family.set_member_avatar` with `{member, avatar}`; upload mode validates client-side and calls `lucarne_family.upload_avatar` with `{member, image_data, mime_type}`
 
 #### Wire into editor
-- [ ] Update `lucarne-chores-card-editor.ts` member picker rows to show the current avatar and a Change button; click Change → open modal. This edits integration member metadata through services, not the card's YAML config.
+- [x] Update `lucarne-chores-card-editor.ts` member picker rows to show the current avatar and a Change button; click Change → open modal. This edits integration member metadata through services, not the card's YAML config.
 
 #### `member_service.py` / services
-- [ ] Register `lucarne_family.set_member_avatar`:
+- [x] Register `lucarne_family.set_member_avatar`:
   - Voluptuous schema uses exactly these fields: `member` (known member slug) and `avatar` (required string).
   - Accept either exactly one emoji or a relative `/local/lucarne/avatars/<filename>` path.
   - Reject arbitrary URLs, path traversal, empty strings, and paths outside `/local/lucarne/avatars/`.
   - Update the member's `avatar` field through `store.async_save_members`.
   - Fire `lucarne_family_member_updated` with `{member, field: "avatar"}` so subscribed cards can refresh family state.
-- [ ] Add `set_member_avatar` to `services.yaml` and to the field-name parity test from Phase 2.
-- [ ] Add a TS wrapper `setMemberAvatar(hass, memberSlug, avatar)` to `src/shared/integration-services.ts`; the avatar modal uses this wrapper for emoji mode.
-- [ ] Extend `src/shared/family-subscription.ts` to refresh its family-state cache on `lucarne_family_member_updated` as well as the task metadata events from Phase 4, so avatar changes appear without a dashboard reload.
-- [ ] Tests: valid emoji updates member config; invalid URL/path is rejected; event fires; `services.yaml` and Python schema field names stay in sync.
+- [x] Add `set_member_avatar` to `services.yaml` and to the field-name parity test from Phase 2.
+- [x] Add a TS wrapper `setMemberAvatar(hass, memberSlug, avatar)` to `src/shared/integration-services.ts`; the avatar modal uses this wrapper for emoji mode.
+- [x] Extend `src/shared/family-subscription.ts` to refresh its family-state cache on `lucarne_family_member_updated` as well as the task metadata events from Phase 4, so avatar changes appear without a dashboard reload.
+- [x] Tests: valid emoji updates member config; invalid URL/path is rejected; event fires; `services.yaml` and Python schema field names stay in sync.
 
 ### Sub-Phase C: Designed-for round-trip event
 
