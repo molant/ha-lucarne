@@ -139,6 +139,15 @@ export class LucarneChoresCard extends LitElement {
     };
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    if (this.hass && !this._unsubFamily) {
+      this._unsubFamily = subscribeFamilyState(this.hass, (state) => {
+        this._familyState = state;
+      });
+    }
+  }
+
   updated(changedProps: PropertyValues) {
     super.updated(changedProps);
     if (changedProps.has('hass') && this.hass && !this._unsubFamily) {

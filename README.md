@@ -24,9 +24,10 @@ Three Lovelace cards share a consistent visual language (soft pastels, `clamp()`
 of agenda, today's weather + tomorrow's forecast, and a task-count badge. The **Calendar** card renders a
 rolling N-day window (auto-fits 3–7 days to width) with per-person color coding, visibility toggles, touch-swipe
 navigation, and a tap-to-create flow. The **Chores**
-card shows each kid's daily to-do list, tracks streaks with a `counter.*` helper, and fires a
-`ha_lucarne_chores_all_done` event when a kid completes everything — plug TTS, push notifications, or
-other automations into that event.
+card shows each member's daily routine + chore list, tracks streaks, "+ Add task" and long-press
+edit flow, and the `lucarne_family` integration fires a `lucarne_family_all_routines_done` event
+when all of a member's routines complete — plug TTS, push notifications, or other automations
+into that event.
 
 An optional Mac mini bridge pushes Apple Reminders lists to HA `local_todo` entities every 5 minutes
 via a Shortcuts.app + launchd workflow, so Reminders assigned to family members appear in the cards
@@ -47,8 +48,7 @@ without manual entry.
   tomorrow's forecast, task-count badge, presence pills
 - **`lucarne-calendar-card`** — rolling N-day window with touch swipe (auto-fits 3–7 days to width), per-person color coding, calendar visibility pills,
   event-detail popover, create-event flow (on calendars that support it)
-- **`lucarne-chores-card`** — per-kid chore columns, tap to toggle, streak counter, celebration animation,
-  `ha_lucarne_chores_all_done` custom event
+- **`lucarne-chores-card`** — per-member routine + chore columns (requires `lucarne_family` integration), tap to toggle, streak counter, celebration animation, `+ Add task` popover, long-press edit flow
 - **Apple Reminders bridge** — Mac mini Shortcut + launchd job syncs Reminders to HA todo entities
   every 5 minutes
 - **One blueprint** — `lucarne_reminders_sync` (webhook receiver that upserts Reminders into
@@ -88,14 +88,12 @@ Type: JavaScript Module
 Open your dashboard in edit mode and add the cards via YAML (see [Configuration](#configuration)).
 Each card has a visual editor — click **Visual editor** after adding.
 
-### 5. (Optional) Install the Lucarne Family integration
+### 5. Install the Lucarne Family integration
 
 The `lucarne_family` integration manages family members, tasks, daily routine reset, and streak
-checks against its own `todo.<slug>` model. The chores card currently still reads `input_boolean.*`
-entities directly (full card↔integration wiring lands in a later phase) — see the note under
-`lucarne-chores-card` below for the current state. See [docs/integration.md](docs/integration.md)
-for installation and configuration steps. Once installed, go to Settings → Devices & Services →
-Add Integration → Lucarne Family.
+checks. The `lucarne-chores-card` requires it — without it the card shows an error block.
+See [docs/integration.md](docs/integration.md) for installation and configuration steps.
+Once installed, go to Settings → Devices & Services → Add Integration → Lucarne Family.
 
 ### 6. (Optional) Install the Lucarne theme
 
@@ -182,44 +180,29 @@ show_create_button: true  # optional; shows a + button on empty slots (requires 
 
 ### `lucarne-chores-card`
 
-> **Note on reset/streak**: The chores card reads `input_boolean.*` entities (configured below).
-> The `lucarne_family` integration manages a separate `todo.<slug>` model and owns daily reset +
-> streak for integration members — but the card currently still uses `input_boolean.*` directly.
-> Full card↔integration wiring lands in a later phase. If you use the integration, streak counters
-> are created automatically but are updated from the integration's `todo` completion log, not from
-> `input_boolean` toggles. If you use only the card without the integration, you must write your
-> own HA automations for daily reset and streak — the old `lucarne_chores_daily_reset` and
-> `lucarne_chores_streak_advance` blueprints have been retired.
+> **Requires the Lucarne Family integration.** Install it first (step 5 above). The card
+> subscribes to `todo.<slug>` entities managed by the integration. Mutations are split:
+> summary/due changes go through `todo.update_item` (HA service); add/delete/metadata changes
+> go through `lucarne_family.*` integration services. Without the integration it renders an
+> error block.
 
 ```yaml
 type: custom:lucarne-chores-card
 title: Chores           # optional, default "Chores"
-kids:
-  - name: Kid 1
-    color: "#f5c89c"
-    streak: counter.kid_1_streak   # counter helper (created by the integration or manually)
-    chores:
-      - name: Brush teeth
-        entity: input_boolean.kid_1_brush_teeth
-      - name: Make bed
-        entity: input_boolean.kid_1_make_bed
-      - name: Put away toys
-        entity: input_boolean.kid_1_put_away_toys
-      - name: School bag ready
-        entity: input_boolean.kid_1_school_bag_ready
-      - name: Kindness act
-        entity: input_boolean.kid_1_kindness_act
-  - name: Kid 2
-    color: "#b8e0d2"
-    streak: counter.kid_2_streak
-    chores:
-      - name: Brush teeth
-        entity: input_boolean.kid_2_brush_teeth
-      # … add more chores
+members:                # slugs of members to show — must match integration members
+  - anna
+  - bob
+  - household           # optional; shows the shared todo.lucarne_household list
+show_routines: true     # optional, default true
+show_tasks: true        # optional, default true
+show_streak: true       # optional, default true
 ```
 
-Each `input_boolean.*` and `counter.*` helper must be created in HA first (Settings → Helpers).
-The card's visual editor lets you pick existing helpers from a dropdown once they're created.
+Member slugs are derived from the names you entered in the integration (e.g. "Anna" → `anna`).
+The special slug `household` always resolves to the shared `todo.lucarne_household` list.
+
+The visual editor populates the member list from the integration automatically — open the card
+editor and check the members you want to show.
 
 ---
 
@@ -235,20 +218,19 @@ One automation blueprint lives in `blueprints/automation/`. Import it via HA:
 
 > **Note**: The `lucarne_chores_daily_reset` and `lucarne_chores_streak_advance` blueprints have
 > been retired. Daily routine reset and streak checks are now managed by the `lucarne_family`
-> integration using in-process time-change listeners (for its `todo.<slug>` model only).
-> If you had automation instances of the old blueprints, back them up before deleting:
-> - **Integration users** (chore entities migrated to `todo.<slug>`): no replacement needed —
->   the integration owns reset/streak.
-> - **Card-only users** (`input_boolean.*` chores): you must write replacement automations for
->   daily reset and streak counting — see [docs/config-recipes.md](docs/config-recipes.md) for
->   guidance. The retired blueprints are no longer available.
+> integration using in-process time-change listeners. The `lucarne-chores-card` requires the
+> integration as of Phase 4 — the old `input_boolean.*`-only workflow is no longer supported.
+> If you had automation instances of the old blueprints, delete them — no replacement needed
+> when using the integration. The retired blueprints are no longer available.
 
 ---
 
 ## Custom events
 
-The chores card fires `ha_lucarne_chores_all_done` when a kid completes all their chores. See
-[docs/events.md](docs/events.md) for the full schema and a TTS example automation.
+The `lucarne_family` integration fires `lucarne_family_all_routines_done` when all of a member's
+routines complete for the day. The legacy `ha_lucarne_chores_all_done` event is also fired during
+v0.x for backwards compatibility. See [docs/events.md](docs/events.md) for the full schema and a
+TTS example automation.
 
 ---
 

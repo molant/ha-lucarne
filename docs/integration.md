@@ -165,6 +165,45 @@ the integration process.
 Edit schedule, enter the new times, and submit. The listeners are re-registered immediately — no
 HA restart required.
 
+## Card usage
+
+Once the integration is installed and at least one member is added, drop the
+`lucarne-chores-card` onto your dashboard:
+
+```yaml
+type: custom:lucarne-chores-card
+title: Chores           # optional, default "Chores"
+members:
+  - anna                # member slug (derived from member name: "Anna" → "anna")
+  - bob
+  - household           # optional; shows todo.lucarne_household
+show_routines: true     # optional, default true; show routine-type tasks
+show_tasks: true        # optional, default true; show chore-type tasks due today or overdue
+show_streak: true       # optional, default true; show streak counter in column footer
+```
+
+The visual editor (click **Visual editor** after adding the card) populates the member
+checkbox list from the integration automatically.
+
+### What the card does
+
+- **Subscribes** to each member's `todo.<slug>` entity and to `counter.<slug>_streak` via
+  the HA WebSocket — no polling.
+- **Filters tasks** per column: routines are always shown (if `show_routines: true`); chores
+  are shown only if their `due` date is today or earlier, or has no due date.
+- **+ Add task**: opens an inline popover that calls `lucarne_family.add_task`.
+- **Tap a task**: calls `todo.update_item` to toggle `needs_action ↔ completed`.
+- **Long-press a task**: opens the edit popover (update summary, type, recurrence, due date,
+  assignee for household tasks; or delete with confirmation).
+
+### Household column
+
+The special slug `household` resolves to `todo.lucarne_household`, the shared todo list
+created at integration setup. Household tasks may have an optional `assignee` (a member
+slug) stored as metadata. The assignee is stored and surfaced in the edit popover but is not
+displayed in the task row (planned for a future phase). The household column has no streak
+subscription; if `show_streak` is enabled, it renders 0.
+
 ## Troubleshooting
 
 - **Integration not visible in Add Integration**: Verify `custom_components/lucarne_family/` is in the right location and `manifest.json` is present.

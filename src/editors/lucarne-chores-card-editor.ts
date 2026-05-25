@@ -89,6 +89,15 @@ export class LucarneChoresCardEditor extends LitElement {
     this._config = config;
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    if (this.hass && !this._unsubFamily) {
+      this._unsubFamily = subscribeFamilyState(this.hass, (s) => {
+        this._familyState = s;
+      });
+    }
+  }
+
   updated(changedProps: PropertyValues) {
     super.updated(changedProps);
     if (changedProps.has('hass') && this.hass && !this._unsubFamily) {

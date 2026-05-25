@@ -79,10 +79,10 @@ Each card manages its own HA subscriptions independently.
 `LucarneCalendarDayPan` (`src/components/calendar-day-pan.ts`) is a thin Lit element that wraps `<lucarne-calendar-grid>` via a `<slot>` and translates Pointer Events into a `pan-snap` CustomEvent carrying a `deltaDays` count. It uses the Pointer Events API (`pointerdown / pointermove / pointerup / pointercancel`) so that mouse, pen, and touch are handled uniformly without fighting the browser's native scroll. Direction lock: the first 10 px of movement decide the axis — if vertical movement dominates, pointer capture is released immediately and the browser's native vertical scroll takes over. During a horizontal pan the slotted grid's inner `.day-cols-track` elements receive a `transform: translateX(...)`, while the time-column gutter (grid column 1, outside `.day-cols-track`) remains stationary. When the pointer is released, `snapToDay(dx, dayWidthPx, velocity)` (from `pan-math.ts`) computes the day count with a flick-velocity bias (≥500 px/s overcomes the half-column threshold), and `rubberBand(dx, 0)` provides resistance when panning into a disabled direction. The snap-back animation uses the `--lucarne-pan-easing` and `--lucarne-pan-duration` tokens; under `prefers-reduced-motion: reduce`, the transform is applied instantly.
 
 **lucarne-chores-card**
-- No subscriptions — reads `hass.states` reactively via Lit's `@property` mechanism
-- HA pushes state updates over the existing WebSocket; Lovelace propagates them down as prop changes
-- Fires `ha_lucarne_chores_all_done` via `hass.connection.sendMessagePromise` on `not-all-done →
-  all-done` transition
+- Subscribes to `subscribeFamilyState` (`src/shared/family-subscription.ts`) on first `hass` set; unsubscribes in `disconnectedCallback`
+- `subscribeFamilyState` calls `lucarne_family/get_family` (WebSocket) to fetch member list + task metadata, then subscribes to each member's `todo.<slug>` via `subscribeTodoItems` and to `counter.<slug>_streak` via `subscribeEntityState`
+- Refreshes task metadata on any `lucarne_family_task_*` or `lucarne_family_all_routines_done` event (debounced ≤ 1/sec)
+- Mutations go through `todo.update_item` (HA service) and `lucarne_family.*` services (integration)
 
 ## Design-token layer
 

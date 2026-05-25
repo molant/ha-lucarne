@@ -77,69 +77,30 @@ them vertically. Each card has its own title ("Morning Chores — Group A", etc.
 **Option C — use a wider display**: iPad Pro 12.9" at 1366 CSS px wide shows 6 columns of 200 px
 each comfortably, so 6 kids fit on one row.
 
-### Example: 5-kid split layout
+### Example: 5-member split layout
+
+> **Requires the Lucarne Family integration.** Add members via Settings → Devices & Services →
+> Lucarne Family → Configure. The integration creates `todo.<slug>` entities and manages
+> daily reset + streak automatically. Member slugs are derived from names (e.g. "Kid A" → `kid_a`).
 
 ```yaml
 - type: custom:lucarne-chores-card
   title: "Chores — A B C"
-  kids:
-    - name: Kid A
-      color: "#f5c89c"
-      streak: counter.kid_a_streak
-      chores:
-        - name: Brush teeth
-          entity: input_boolean.kid_a_brush_teeth
-        - name: Make bed
-          entity: input_boolean.kid_a_make_bed
-        - name: School bag
-          entity: input_boolean.kid_a_school_bag
-    - name: Kid B
-      color: "#b8e0d2"
-      streak: counter.kid_b_streak
-      chores:
-        - { name: Brush teeth, entity: input_boolean.kid_b_brush_teeth }
-        - { name: Make bed,    entity: input_boolean.kid_b_make_bed }
-        - { name: School bag,  entity: input_boolean.kid_b_school_bag }
-    - name: Kid C
-      color: "#f0b8c8"
-      streak: counter.kid_c_streak
-      chores:
-        - { name: Brush teeth, entity: input_boolean.kid_c_brush_teeth }
-        - { name: Make bed,    entity: input_boolean.kid_c_make_bed }
-        - { name: School bag,  entity: input_boolean.kid_c_school_bag }
+  members:
+    - kid_a
+    - kid_b
+    - kid_c
 
 - type: custom:lucarne-chores-card
   title: "Chores — D E"
-  kids:
-    - name: Kid D
-      color: "#d4cfc4"
-      streak: counter.kid_d_streak
-      chores:
-        - { name: Brush teeth, entity: input_boolean.kid_d_brush_teeth }
-        - { name: Make bed,    entity: input_boolean.kid_d_make_bed }
-    - name: Kid E
-      color: "#f0dca0"
-      streak: counter.kid_e_streak
-      chores:
-        - { name: Brush teeth, entity: input_boolean.kid_e_brush_teeth }
-        - { name: Make bed,    entity: input_boolean.kid_e_make_bed }
+  members:
+    - kid_d
+    - kid_e
 ```
 
-For each new kid, create the corresponding `input_boolean.*` helpers (one per chore) and a
-`counter.*` helper for the streak.
-
-If you are using the `lucarne_family` integration, add the new member via Settings → Devices &
-Services → Lucarne Family → Configure. The integration manages its own `todo.<slug>` model with
-daily reset and streak — but note that its streak counter is computed from `todo` task completions,
-not from `input_boolean` toggles. Until the card↔integration wiring lands in a later phase, you
-still need your own automations for daily `input_boolean` reset and streak on the card side.
-
-If you are using the legacy card-only setup (no integration), you must write your own HA automations
-for daily reset (flip `input_boolean.*` helpers back to `off`) and streak counting (increment
-`counter.*` on full completion). The `lucarne_chores_daily_reset` and
-`lucarne_chores_streak_advance` blueprints that previously handled this have been retired and are
-no longer available. Update the `lucarne_reminders_sync` blueprint instance's `list_mappings` if
-the new kid has an Apple Reminders list.
+Add tasks (routines and chores) via the "+ Add task" button in each column, or via
+Settings → Devices & Services → Lucarne Family → Configure. Update the `lucarne_reminders_sync`
+blueprint instance's `list_mappings` if a member has an Apple Reminders list.
 
 ---
 

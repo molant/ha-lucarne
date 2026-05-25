@@ -28,9 +28,9 @@ touch targets):
 - **Calendar card** — rolling N-day window (auto-fits 3–7 days to the available width) with
   per-person color coding, calendar visibility toggle pills, touch-swipe day navigation,
   tap-to-see-details popover, tap-to-create-event flow
-- **Chores card** — per-kid chore columns (each backed by `input_boolean` helpers), tap to toggle,
-  streak counter, a 2-second celebration animation, and a custom `ha_lucarne_chores_all_done` event
-  you can hook into for TTS / push notifications
+- **Chores card** — per-member chore columns (requires the `lucarne_family` integration), tap to
+  toggle, streak counter, a 2-second celebration animation, and a `lucarne_family_all_routines_done`
+  event you can hook into for TTS / push notifications
 
 Plus an optional **Apple Reminders bridge**: a Mac mini running a Shortcuts.app workflow + launchd
 job that pushes Reminders lists to HA `local_todo` entities every 5 minutes. My wife's Family list
