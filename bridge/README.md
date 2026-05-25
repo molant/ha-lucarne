@@ -48,7 +48,7 @@ After building, update the list names if they differ from "Family" / "Groceries"
 
 ## 3. Test the Shortcut manually
 
-In Shortcuts.app, click the Play (▶) button next to `ha-lucarne-sync`. Check HA — items should appear in `todo.ingrid_tasks` and `todo.groceries` within a few seconds.
+In Shortcuts.app, click the Play (▶) button next to `ha-lucarne-sync`. Check HA — items should appear in the target `todo.*` entities within a few seconds.
 
 Also test from Terminal:
 
@@ -84,7 +84,7 @@ Should show the label with exit code `0` (or `-` if not yet fired).
 tail -f ~/Library/Logs/ha-lucarne-sync.log
 ```
 
-Successful runs are silent — the Shortcut only logs on HTTP non-200 errors. An empty or quiet log means the bridge is running correctly. To confirm syncs are firing: check HA's automation traces (`Developer Tools → Traces → automation.lucarne_reminders_sync`) or watch the `last_changed` timestamp on `todo.ingrid_tasks` after a sync cycle.
+Successful runs are silent — the Shortcut only logs on HTTP non-200 errors. An empty or quiet log means the bridge is running correctly. To confirm syncs are firing: check HA's automation traces (`Developer Tools → Traces → automation.lucarne_reminders_sync`) or watch the `last_changed` timestamp on the target todo entity after a sync cycle.
 
 ## Troubleshooting
 
@@ -95,6 +95,28 @@ Successful runs are silent — the Shortcut only logs on HTTP non-200 errors. An
 | Shortcut runs but Reminders list is empty | Confirm iCloud account is signed in on this Mac and the list is synced |
 | launchd agent not firing | Check `launchctl list | grep ha-lucarne-sync` — non-zero exit code means the Shortcut errored. Check the log. |
 | After macOS major upgrade | Re-launch Shortcuts.app manually — the `shortcuts run` CLI requires it |
+
+---
+
+## When using the Lucarne Family integration
+
+The Lucarne Family integration creates `todo.<slug>` entities for each member (e.g. `todo.anna`,
+`todo.bob`) and a shared `todo.lucarne_household`. The bridge can target these entities directly —
+update the **List Mappings** in the `lucarne_reminders_sync` automation instance to point to the
+integration-managed entities:
+
+```json
+{"Family": "todo.anna", "Groceries": "todo.lucarne_household"}
+```
+
+The key must exactly match the `apple_list_name` value the Shortcut sends. The integration's
+Apple-sentinel backfill (`apple_sentinel_backfill.py`) reads `[apple:UUID]` sentinels from item
+descriptions and writes `source=apple` metadata rows — so synced Reminders appear with integration
+metadata in the chores card.
+
+**Assigning Reminders to the chores card**: for a Reminder to surface in the chores card under a
+specific member's column, it must land in that member's `todo.<slug>` entity. For it to appear in
+the household column, map its Reminders list to `todo.lucarne_household`.
 
 ---
 
@@ -109,7 +131,7 @@ The Shortcut contains one "Get Reminders" + "Repeat with Each" step pair per lis
 5. In the HA automation backed by `lucarne_reminders_sync`, open its instance and edit the
    **List Mappings** field — add a new key/value pair, e.g.:
    ```json
-   {"Family": "todo.ingrid_tasks", "Groceries": "todo.groceries", "NewList": "todo.new_list"}
+   {"Family": "todo.anna", "Groceries": "todo.lucarne_household", "NewList": "todo.new_list"}
    ```
    The key must exactly match the `apple_list_name` value the Shortcut sends in the payload.
 
@@ -137,6 +159,6 @@ If you want per-person filtering on a shared list (e.g. only items assigned to "
 | Shortcut runs but list is empty | iCloud not synced on this Mac | Open Reminders.app and confirm lists appear |
 | HTTP 401 from HA | Wrong webhook secret in Keychain | Re-run `security add-generic-password` with correct secret |
 | HTTP 400 from HA | Malformed JSON in Shortcut | Check the Dictionary step in Shortcuts.app for typos |
-| Items sync but wrong todo entity | Mismatched key in List Mappings JSON | Open automation instance → check **List Mappings** key matches the Shortcut's `apple_list_name` exactly |
+| Items sync but wrong todo entity | Mismatched key in List Mappings JSON | Open automation instance → check **List Mappings** key matches the Shortcut's `apple_list_name` exactly. When using the Lucarne Family integration, target entities are `todo.<slug>` or `todo.lucarne_household`. |
 | Shortcut works manually but not via launchd | PATH or Keychain ACL issue | Load the agent with `launchctl load ~/Library/LaunchAgents/com.molant.ha-lucarne-sync.plist` and check log |
 | After macOS major upgrade | `shortcuts run` CLI reset | Re-launch Shortcuts.app manually then test `shortcuts run "ha-lucarne-sync"` |
