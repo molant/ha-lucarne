@@ -14,12 +14,14 @@ browser session. The event does NOT replay on page load if a kid was already all
   the event fires again. State is held in the card instance, so a full page reload resets
   the tracking.
 - The `streak` field reflects the counter value at the moment of the transition, **before** the
-  nightly streak-advance automation has run. The nightly automation may increment the
-  streak further at `streak_check_time` (21:00 by default).
+  nightly streak check has run. The `lucarne_family` integration runs
+  `lucarne_family.evaluate_all_streaks` at the configured `streak_check_time` (21:00 by default)
+  and may set the streak to a different value (increment, leave unchanged, or reset to zero).
+  The recompute reads the integration's completion log, not the card's `input_boolean` state.
 - The event fires for any not-all-done → all-done transition observed **while the card is
   rendered**, regardless of whether the chore was toggled via the card's tap target or an
   external source (developer tools, another automation, etc.). If the card is not loaded,
-  no event fires. The nightly streak-advance automation always runs from HA state,
+  no event fires. The streak-advance check always runs against the integration's completion log,
   independent of whether the card is loaded.
 
 ### Schema

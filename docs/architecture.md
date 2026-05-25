@@ -181,12 +181,13 @@ See [features/chores-card/README.md](../features/chores-card/README.md) for the 
 
 ## Blueprints
 
-Three automations ship as blueprints under `blueprints/automation/`:
+One automation blueprint ships under `blueprints/automation/`:
 
 - **lucarne_reminders_sync** — webhook receiver, diffs by Apple UID, upserts into `local_todo`
-- **lucarne_chores_daily_reset** — midnight reset of all chore `input_boolean` entities
-- **lucarne_chores_streak_advance** — 21:00 nightly check; increments `counter.*` on full
-  completion, resets on any miss
+
+Daily routine reset and streak checks are now managed by the `lucarne_family` integration via
+in-process time-change listeners (configured via the integration's Options Flow). The former
+`lucarne_chores_daily_reset` and `lucarne_chores_streak_advance` blueprints have been retired.
 
 ## Build
 

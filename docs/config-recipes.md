@@ -126,9 +126,20 @@ each comfortably, so 6 kids fit on one row.
 ```
 
 For each new kid, create the corresponding `input_boolean.*` helpers (one per chore) and a
-`counter.*` helper for the streak. Then update the single `lucarne_chores_streak_advance` automation
-instance: add the new kid to the `kid_configs` JSON array input. Similarly, add the new kid's chore
-entities to the `chore_entities` list in `lucarne_chores_daily_reset`.
+`counter.*` helper for the streak.
+
+If you are using the `lucarne_family` integration, add the new member via Settings → Devices &
+Services → Lucarne Family → Configure. The integration manages its own `todo.<slug>` model with
+daily reset and streak — but note that its streak counter is computed from `todo` task completions,
+not from `input_boolean` toggles. Until the card↔integration wiring lands in a later phase, you
+still need your own automations for daily `input_boolean` reset and streak on the card side.
+
+If you are using the legacy card-only setup (no integration), you must write your own HA automations
+for daily reset (flip `input_boolean.*` helpers back to `off`) and streak counting (increment
+`counter.*` on full completion). The `lucarne_chores_daily_reset` and
+`lucarne_chores_streak_advance` blueprints that previously handled this have been retired and are
+no longer available. Update the `lucarne_reminders_sync` blueprint instance's `list_mappings` if
+the new kid has an Apple Reminders list.
 
 ---
 

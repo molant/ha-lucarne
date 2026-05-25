@@ -45,7 +45,7 @@ shows up on the dashboard without her ever touching the HA app.
 - Designed specifically for iPad 9 landscape (1080×810 CSS px) but scales gracefully to iPad Pro
   via CSS `clamp()` and `auto-fit` grid columns
 - Visual editors for all three cards (no YAML required after initial setup)
-- Three automation blueprints: Apple Reminders sync (webhook receiver), nightly chore reset, and streak tracking
+- One automation blueprint: Apple Reminders sync (webhook receiver). Nightly routine reset and streak tracking are now managed by the `lucarne_family` integration.
 
 ## Inspired by
 
