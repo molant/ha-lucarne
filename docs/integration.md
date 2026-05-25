@@ -42,7 +42,9 @@ Open **Settings → Devices & Services → Lucarne Family → Configure** to man
 3. Update name, color, avatar, or preset.
 4. Click Submit.
 
-> **Note**: The slug is frozen at creation. Renaming "Anna" to "Anna-Maria" does not change the slug (`anna`). A full rename flow (with entity-ID update and downstream-impact preview) will be added in Phase 2.
+**Name-change and slug behavior**: If the new name produces the same slug as the old name (e.g. "Anna" → "ANNA"), only the display name changes — no entity rename occurs. If the slug would change (e.g. "Anna" → "Ana"), the flow shows an impact preview listing automations, scripts, scenes, and dashboards that reference the old entity IDs. You must check "I understand" before proceeding.
+
+On confirm: the todo and streak-counter entity IDs are renamed, all SQLite rows (`task_metadata`, `completion_log`) are migrated to the new slug, and the config entry is updated. If entity rename fails, all SQLite changes are rolled back so member data stays consistent.
 
 ### Remove a member
 
@@ -50,7 +52,86 @@ Open **Settings → Devices & Services → Lucarne Family → Configure** to man
 2. Select the member.
 3. Type the member's exact name to confirm. This is destructive and cannot be undone.
 
-> In Phase 1, no entities are deleted (none were created yet). Phase 2 adds entity lifecycle management.
+Removing a member deletes the `todo.<slug>` config entry (which removes the todo entity and its stored items) and the `counter.<slug>_streak` helper. The member entry is dropped from the config entry.
+
+SQLite `task_metadata` and `completion_log` rows keyed to the removed member's slug are left in place — no member-level cleanup is performed.
+
+> **Known limitation**: if you re-add a member with the same name (same slug), their orphaned task metadata resurfaces. The new todo list will be empty, but the WebSocket API will report the old task metadata, and preset seeding will be skipped if historical `source="template"` rows exist. A clean re-add flow (with explicit old-data cleanup) is deferred to a future phase.
+
+## Task management
+
+### Managed entities
+
+When a member is added, the integration creates two managed helpers:
+
+| Entity | Pattern | Purpose |
+|--------|---------|---------|
+| Todo list | `todo.<slug>` | Holds the member's tasks (routines and chores) |
+| Counter | `counter.<slug>_streak` | Mirror of the computed streak for use in automations (Phase 3 writes the value; Phase 2 only creates/renames/deletes the helper) |
+
+A shared household todo list (`todo.lucarne_household`) is created once at integration setup and is not tied to any specific member.
+
+### Task types
+
+| Type | Description |
+|------|-------------|
+| `routine` | Recurring task tied to an RRULE schedule (e.g. "brush teeth daily") |
+| `chore` | One-off or non-scheduled task (e.g. "clean bathroom") |
+
+### Recurrence rules
+
+Routines use a strict subset of iCalendar RRULE syntax. Only these six modes are accepted:
+
+| Mode | RRULE template | Example |
+|------|---------------|---------|
+| One-off | empty string | `""` |
+| Daily | `FREQ=DAILY[;INTERVAL=N]` | `FREQ=DAILY` |
+| Weekly | `FREQ=WEEKLY;BYDAY=<MO,TU,...>[;INTERVAL=N]` | `FREQ=WEEKLY;BYDAY=MO,WE,FR` |
+| Monthly by date | `FREQ=MONTHLY;BYMONTHDAY=<1-31>[;INTERVAL=N]` | `FREQ=MONTHLY;BYMONTHDAY=15;INTERVAL=6` |
+| Monthly by Nth weekday | `FREQ=MONTHLY;BYDAY=<+/-N><DAY>[;INTERVAL=N]` | `FREQ=MONTHLY;BYDAY=1SA` |
+| Yearly | `FREQ=YEARLY;BYMONTH=<1-12>;BYMONTHDAY=<1-31>[;INTERVAL=N]` | `FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=15` |
+
+Any RRULE outside this set is rejected at schema validation time (before the handler runs).
+
+### Preset seeding
+
+When a new member is added with a non-empty preset, the integration seeds their todo list with the preset's routine templates exactly once. A reload of the integration does not re-seed (the idempotency guard checks for existing `source="template"` metadata rows).
+
+### Streak computation
+
+The streak is computed by walking backward from today:
+- Days where no routines are scheduled are skipped.
+- Days where all scheduled routines are marked completed increment the streak.
+- The first day where any scheduled routine is missing stops the walk.
+- The walk is capped at 365 days.
+
+**Known limitation**: streak computation uses the *current* routine set for all historical days. If a routine is added or removed, historical streak values may shift. This will be addressed in a future phase by snapshotting the routine set at reset time.
+
+### Avatar upload
+
+Avatars are uploaded via the `lucarne_family.upload_avatar` service. The service:
+- Accepts PNG, JPEG, or WebP; max 2 MB; max 16,777,216 total pixels (e.g. 4096 × 4096).
+- Validates the file type via magic-byte check (independent of the declared `mime_type`).
+- Writes to `<config>/www/lucarne/avatars/<slug>.<ext>` (served at `/local/lucarne/avatars/<slug>.<ext>`).
+- Rejects path traversal — the filename is always derived from the member slug, never from user input.
+
+### Rename behavior
+
+**Display-name-only rename** (slug unchanged): only `member.name` is updated. No entity rename, no downstream impact.
+
+**Slug-changing rename**: The options flow shows an impact preview before proceeding. Impact lists:
+- YAML-based automations/scripts/scenes that reference the old entity ID.
+- Lovelace dashboards (`.storage/lovelace*`) that reference the old entity ID.
+
+> **Limitation (v1)**: UI-created automations stored in `.storage/` are not scanned. Only YAML-based resources are detected. This will be addressed in a future phase.
+
+On confirm:
+1. SQLite rows (task_metadata, completion_log) migrated to new slug atomically.
+2. Todo entity renamed in entity registry (`todo.<old_slug>` → `todo.<new_slug>`).
+3. Streak counter deleted and recreated under new slug (preserving current streak value in initial).
+4. Config entry member data updated.
+
+If the SQLite migration (step 1) or entity rename (step 2–3) fails, the partial changes are rolled back before returning. If the final config-entry save (step 4) fails after the entities have already been renamed, the entities remain under the new slug — the config entry will reflect the old slug until the next successful options-flow submission.
 
 ## Schedule settings
 

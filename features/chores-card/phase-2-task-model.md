@@ -302,9 +302,9 @@ This is the read API the cards subscribe to. Without it, Phase 4 cannot build th
 
 ### Documentation (end of phase)
 
-- [ ] `docs/integration.md` — fill task management, services, avatar upload, rename behavior sections
-- [ ] `docs/services.md` — new doc; reference table of every `lucarne_family.*` service with payload + example call
-- [ ] Update `docs/architecture.md` — fill the data-flow diagram with the entity-manager + task-service flow
+- [x] `docs/integration.md` — fill task management, services, avatar upload, rename behavior sections
+- [x] `docs/services.md` — new doc; reference table of every `lucarne_family.*` service with payload + example call
+- [x] Update `docs/architecture.md` — fill the data-flow diagram with the entity-manager + task-service flow
 
 ### Build verification (required before marking phase complete)
 
