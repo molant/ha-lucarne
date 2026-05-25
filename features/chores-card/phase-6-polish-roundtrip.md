@@ -126,8 +126,8 @@ The integration in Phase 3 only logged completions internally. This phase adds a
 This is the most important deliverable of the phase — making the deferred work doable by anyone (including a future LLM session) from a cold start.
 
 #### `docs/reminders-bridge.md` major update
-- [ ] Add section "Round-trip writeback (designed; deferred to future spec)"
-- [ ] Document the full protocol:
+- [x] Add section "Round-trip writeback (designed; deferred to future spec)"
+- [x] Document the full protocol:
   - **Trigger**: HA event `lucarne_family_apple_writeback_requested` with payload `{apple_uid, status, timestamp, device_name}` — `webhook_url` and `secret` are NOT in the event payload (see Sub-Phase C for the rationale). The future-spec subscriber must look them up by calling the exported accessor `lucarne_family.get_round_trip_config(hass)` (defined in Sub-Phase C) — NOT by reading `entry.data` directly.
   - **Receiver**: a generic "sync device" — Mac mini in the current bridge, but could be any device with Apple Reminders write access (e.g., another Mac, an iCloud-connected automation server)
   - **Webhook contract**: POST to `webhook_url` with JSON body:
@@ -142,15 +142,15 @@ This is the most important deliverable of the phase — making the deferred work
   - **Authentication**: HMAC-SHA256 of body using `secret` from config, sent as `X-Lucarne-Signature` header. Receiver verifies before acting.
   - **Idempotency**: receiver must handle duplicate webhooks (HA may retry on network failure). Use `apple_uid + status + timestamp` as dedup key.
   - **Failure modes**: if webhook is unreachable, HA logs an error and does not retry in v0.2.0. Retry queues are out of scope for this design and must be a separate future spec.
-  - **Implementation hint for the future spec**: subscribe to `lucarne_family_apple_writeback_requested` in a new HA automation OR build a small Python subscriber in the integration itself. Mac mini side needs a corresponding Shortcut that takes `apple_uid + status` and calls `EKEventStore.fetchReminderForLocalUID` + sets `completed`.
-- [ ] Add a "Why this design" subsection: webhook + secret is symmetric to the inbound bridge; generic "sync device" naming keeps it portable; HMAC vs shared-secret-in-URL trade-off (HMAC chosen because it survives URL logging)
+  - **Implementation hint for the future spec**: subscribe to `lucarne_family_apple_writeback_requested` in a new HA automation OR build a small Python subscriber in the integration itself. Mac mini side needs a corresponding Shortcut that takes `apple_uid + status` and calls `EKEventStore.calendarItem(withIdentifier:)` (cast to `EKReminder`) + sets `completed`.
+- [x] Add a "Why this design" subsection: webhook + secret is symmetric to the inbound bridge; generic "sync device" naming keeps it portable; HMAC vs shared-secret-in-URL trade-off (HMAC chosen because it survives URL logging)
 
 #### `docs/integration.md` update
-- [ ] Add "Round-trip readiness" section: explains the integration is ready to fire round-trip events; how to enable via Options Flow; what's missing (the receiver — not built in this spec)
+- [x] Add "Round-trip readiness" section: explains the integration is ready to fire round-trip events; how to enable via Options Flow; what's missing (the receiver — not built in this spec)
 
 #### `docs/events.md` update
-- [ ] Add `lucarne_family_apple_writeback_requested` to the event reference with payload `{apple_uid, status, timestamp, device_name}` and an explicit note that `webhook_url` and `secret` are never included in HA events.
-- [ ] Add `lucarne_family_member_updated` with payload `{member, field}`; this event is used by cards to refresh member-level metadata such as avatar changes.
+- [x] Add `lucarne_family_apple_writeback_requested` to the event reference with payload `{apple_uid, status, timestamp, device_name}` and an explicit note that `webhook_url` and `secret` are never included in HA events.
+- [x] Add `lucarne_family_member_updated` with payload `{member, field}`; this event is used by cards to refresh member-level metadata such as avatar changes.
 
 ### Sub-Phase E: Misc polish
 

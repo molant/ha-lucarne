@@ -135,6 +135,51 @@ event_data:
 
 ---
 
+### lucarne_family_member_updated
+
+Fired when a member's metadata field is changed via a service call. Currently fired by
+`lucarne_family.set_member_avatar` after the avatar is updated.
+
+**Payload:**
+
+```yaml
+event_type: lucarne_family_member_updated
+event_data:
+  member: anna    # member slug
+  field: avatar   # which field changed (currently always "avatar")
+```
+
+The frontend `family-subscription.ts` subscribes to this event to refresh member state in cards
+(avatar changes appear without a dashboard reload).
+
+---
+
+### lucarne_family_apple_writeback_requested
+
+Fired when a task with `source == "apple"` **and a non-empty `apple_uid`** (set by the Apple
+sentinel backfill when the item first appeared) flips to `completed` **and**
+`round_trip.enabled == true` in the Options Flow config. A future subscriber is responsible for
+the POST to the Reminders bridge. See
+[`docs/reminders-bridge.md`](reminders-bridge.md#round-trip-writeback) for the full protocol,
+accessor contract, and why `webhook_url`/`secret` are excluded from the payload.
+
+**Payload:**
+
+```yaml
+event_type: lucarne_family_apple_writeback_requested
+event_data:
+  apple_uid: "Apple-UUID-string"   # from [apple:UUID] sentinel embedded by the bridge
+  status: "completed"
+  timestamp: "2026-05-25T14:30:00+00:00"   # UTC ISO-8601
+  device_name: "Mac mini"          # from Options Flow config (for receiver identification)
+```
+
+> **Security note**: `webhook_url` and `secret` are intentionally absent. HA bus events are
+> visible to all integrations and any user with Developer Tools access. Secrets stay in
+> `entry.data` only; retrieve them via `get_round_trip_config(hass)`.
+
+---
+
 ## Legacy event — ha_lucarne_chores_all_done
 
 > **Deprecated (Phase 3+)**: This event is no longer fired by the card. As of Phase 4 the
@@ -220,23 +265,3 @@ lock. It will be removed in the first stable release (v1.0.0).
 |---|---|---|---|
 | `ha_lucarne_chores_all_done` | Phase 3 | `lucarne_family_all_routines_done` | Payload changed: legacy had `kid_slug`, `kid_name`, `streak`, `chores_completed`; compat shim only has `member` |
 
----
-
-## Planned events (Phase 6)
-
-The following event is **designed but not yet implemented**. Do not build consumers until Phase 6 ships.
-
-### lucarne_family_apple_writeback_requested *(Phase 6)*
-
-Fired when a task with `source == "apple"` flips to `completed`. A future subscriber performs the
-webhook POST to the Reminders bridge device.
-
-**Reserved payload fields (subject to change before Phase 6):**
-```yaml
-event_type: lucarne_family_apple_writeback_requested
-event_data:
-  apple_uid: "Apple-UUID-string"
-  status: completed
-  timestamp: "2026-05-25T14:30:00+00:00"
-  device_name: "Sync device"
-```
