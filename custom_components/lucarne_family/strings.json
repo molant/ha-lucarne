@@ -59,6 +59,13 @@
           "confirm_name": "Member name"
         }
       },
+      "rename_confirm": {
+        "title": "Confirm member rename",
+        "description": "Renaming '{old_name}' to '{new_name}' will change the entity slug.\n\nDownstream impact:\n{impact}\n\nCheck the box to proceed.",
+        "data": {
+          "confirm": "I understand — proceed with rename"
+        }
+      },
       "edit_schedule": {
         "title": "Edit schedule",
         "data": {
@@ -74,7 +81,8 @@
       "slug_conflict": "A member with an equivalent name already exists.",
       "empty_slug": "The name produces an empty identifier. Use letters or numbers.",
       "confirm_mismatch": "Name does not match. Removal cancelled.",
-      "invalid_time": "Time must be in HH:MM format (e.g. 04:00)."
+      "invalid_time": "Time must be in HH:MM format (e.g. 04:00).",
+      "entity_rename_failed": "Failed to rename the member's entities. Check the logs and try again."
     }
   }
 }

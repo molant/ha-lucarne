@@ -3,13 +3,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from homeassistant import data_entry_flow
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
-from unittest.mock import AsyncMock, patch
 
 from custom_components.lucarne_family.const import (
     CONF_MEMBERS,
@@ -18,14 +17,18 @@ from custom_components.lucarne_family.const import (
     DOMAIN,
 )
 from custom_components.lucarne_family.models import Member
+from custom_components.lucarne_family.rename import RenameImpact
 
 
 @pytest.fixture(autouse=True)
 def _patch_entity_ops():
-    """Stub entity creation/deletion so options-flow tests focus on navigation only."""
+    """Stub entity creation/deletion/rename so options-flow tests focus on navigation only."""
 
     async def _create(hass, member):
         return (f"todo.{member.slug}", f"counter.{member.slug}_streak")
+
+    async def _rename(_hass, old_todo, new_slug, old_counter):
+        return (f"todo.{new_slug}", f"counter.{new_slug}_streak")
 
     with (
         patch(
@@ -34,6 +37,19 @@ def _patch_entity_ops():
         ),
         patch(
             "custom_components.lucarne_family.entity_manager.async_delete_member_entities",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "custom_components.lucarne_family.entity_manager.async_rename_member_entities",
+            side_effect=_rename,
+        ),
+        patch(
+            "custom_components.lucarne_family.rename.async_rename_member",
+            new_callable=AsyncMock,
+            return_value=RenameImpact(),
+        ),
+        patch(
+            "custom_components.lucarne_family.store.LucarneFamilyStore.async_rename_member_slug",
             new_callable=AsyncMock,
         ),
         patch(
@@ -245,8 +261,10 @@ async def _add_anna(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     )
 
 
-async def test_edit_member_name_change_preserved(hass: HomeAssistant) -> None:
-    """Editing name is persisted; slug stays the same."""
+async def test_edit_member_slug_changing_name_shows_rename_confirm(
+    hass: HomeAssistant,
+) -> None:
+    """Editing a member's name to one that changes the slug routes to rename_confirm."""
     entry = _make_entry(hass)
     await _setup_entry(hass, entry)
     await _add_anna(hass, entry)
@@ -254,22 +272,29 @@ async def test_edit_member_name_change_preserved(hass: HomeAssistant) -> None:
     result = await _init_options_flow(hass, entry)
     result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
     result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_member"})
-
-    # Step 1: pick the member
     result = await _configure(hass, result["flow_id"], {"member_slug": "anna"})
-    assert result["type"] == data_entry_flow.FlowResultType.FORM
 
-    # Step 2: submit new values
+    # Submit a name whose slug differs: "Anna-Maria" → "anna_maria" ≠ "anna"
     result = await _configure(
         hass,
         result["flow_id"],
         {"name": "Anna-Maria", "color": "#f5c89c", "avatar": "🧒", "preset": "school-age"},
     )
-    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "rename_confirm"
 
-    member = entry.data[CONF_MEMBERS][0]
-    assert member["name"] == "Anna-Maria"
-    assert member["slug"] == "anna"  # slug unchanged
+    # Confirm rename — entities renamed and member record updated with new slug
+    result = await _configure(hass, result["flow_id"], {"confirm": True})
+    assert result["type"] in (
+        data_entry_flow.FlowResultType.MENU,
+        data_entry_flow.FlowResultType.CREATE_ENTRY,
+    )
+    from custom_components.lucarne_family.store import LucarneFamilyStore
+
+    store: LucarneFamilyStore = hass.data[DOMAIN][entry.entry_id]["store"]
+    slugs = [m.slug for m in store.get_members()]
+    assert "anna_maria" in slugs
+    assert "anna" not in slugs
 
 
 async def test_edit_member_slug_unchanged_after_rename(hass: HomeAssistant) -> None:
