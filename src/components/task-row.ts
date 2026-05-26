@@ -22,6 +22,11 @@ export class LucarneTaskRow extends LitElement {
       -webkit-tap-highlight-color: transparent;
       user-select: none;
     }
+    :host([compact]) .row {
+      gap: 8px;
+      min-height: 32px;
+      padding: 4px 2px;
+    }
     .row:hover,
     .row:active {
       background: rgba(0, 0, 0, 0.04);
@@ -36,6 +41,15 @@ export class LucarneTaskRow extends LitElement {
       align-items: center;
       justify-content: center;
       transition: background 0.15s, border-color 0.15s;
+    }
+    :host([compact]) .check {
+      width: 20px;
+      height: 20px;
+      border-width: 2px;
+    }
+    :host([compact]) .check svg {
+      width: 12px;
+      height: 12px;
     }
     .check.done {
       background: var(--member-color, #a8d8b9);
@@ -80,6 +94,8 @@ export class LucarneTaskRow extends LitElement {
 
   @property({ attribute: false }) task!: RenderableTask;
   @property() memberColor = '#a8d8b9';
+  /** Tighter geometry (smaller circle, less padding) for summary contexts. */
+  @property({ type: Boolean, reflect: true }) compact = false;
 
   private _pressTimer: ReturnType<typeof setTimeout> | null = null;
   private _longPressed = false;

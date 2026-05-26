@@ -6,7 +6,7 @@ import { installPreviewColumnOverride, type PreviewOverrideHandle } from '../sha
 import { subscribeFamilyState } from '../shared/family-subscription.js';
 import type { FamilyState } from '../shared/family-subscription.js';
 import { STRINGS } from '../shared/strings.js';
-import type { HomeAssistant, CalendarConfig, CalendarEvent, TodoItem, RenderableTask, MemberSummary } from '../shared/types.js';
+import type { HomeAssistant, CalendarConfig, CalendarEvent, TodoItem, RenderableTask, MemberSummary, TaskMetadata } from '../shared/types.js';
 
 import '../components/agenda-strip.js';
 import '../components/weather-block.js';
@@ -208,7 +208,16 @@ export class LucarneTodayCard extends LitElement {
         this._todoItems = items;
       });
     }
-    if (this._config.household_tasks_from_integration || this._config.show_family_ready_pill) {
+    // Always subscribe to family state when the user has any task surface enabled.
+    // The integration provides task metadata (icons, member ownership) used to
+    // enrich BOTH integration mode and raw mode — without this, raw-mode rows
+    // render with no emoji and no owner avatar even when the entity is actually
+    // a family-member todo the integration tracks.
+    const wantsFamily =
+      this._config.household_tasks_from_integration ||
+      this._config.show_family_ready_pill ||
+      !!this._config.tasks;
+    if (wantsFamily) {
       this._unsubFamily = subscribeFamilyState(this.hass, (state) => {
         this._familyState = state;
       });
@@ -315,6 +324,40 @@ export class LucarneTodayCard extends LitElement {
     return this._familyState?.tasksByMember ?? new Map();
   }
 
+  /**
+   * Raw todo items enriched with integration metadata when available so they
+   * render the same emoji + owner avatar as in chores card. Falls back to the
+   * member whose `todo_entity_id` matches the configured raw entity, so even
+   * tasks added through HA's todo UI (without an integration tag) still pick
+   * up the right owner.
+   */
+  private get _enrichedRawTasks(): RenderableTask[] {
+    if (!this._config?.tasks) return [];
+    const metaByUid = this._familyState?.taskMetadataByUid ?? new Map<string, TaskMetadata>();
+    const fallbackSlug =
+      this._familyState?.members.find((m) => m.todo_entity_id === this._config!.tasks)?.slug ?? '';
+    return this._todoItems.map((item) => {
+      const meta = metaByUid.get(item.uid);
+      const metadata: TaskMetadata = meta ?? {
+        item_uid: item.uid,
+        member_slug: fallbackSlug,
+        assignee_slug: '',
+        type: 'chore',
+        recurrence: '',
+        icon: '',
+        source: 'manual',
+      };
+      return {
+        uid: item.uid,
+        summary: item.summary,
+        status: item.status,
+        due: item.due ?? null,
+        description: item.description ?? '',
+        metadata,
+      };
+    });
+  }
+
   private async _handleTaskToggle(e: Event) {
     const { task } = (e as CustomEvent<{ task: RenderableTask }>).detail;
     if (!this.hass) return;
@@ -386,6 +429,11 @@ export class LucarneTodayCard extends LitElement {
 
   private _renderTasksSection(showRawTasks: boolean, showIntegrationTasks: boolean) {
     if (!showRawTasks && !showIntegrationTasks) return '';
+    // Both modes now flow through the same `renderableTasks` path so emoji + owner
+    // avatar render uniformly. Raw mode enriches items with integration metadata
+    // when available (member_slug, icon); integration mode passes household tasks.
+    const tasks = showIntegrationTasks ? this._householdTasks : this._enrichedRawTasks;
+    const entityId = showIntegrationTasks ? 'todo.lucarne_household' : this._config?.tasks;
     return html`
       <div
         class="section section-tasks"
@@ -393,24 +441,12 @@ export class LucarneTodayCard extends LitElement {
         @task-toggle=${this._handleTaskToggle}
         @task-long-press=${this._handleTaskLongPress}
       >
-        ${showRawTasks
-          ? html`
-              <lucarne-tasks-summary
-                .items=${this._todoItems}
-                .todoEntityId=${this._config?.tasks}
-              ></lucarne-tasks-summary>
-            `
-          : ''}
-        ${showIntegrationTasks
-          ? html`
-              <lucarne-tasks-summary
-                .integrationMode=${true}
-                .renderableTasks=${this._householdTasks}
-                .members=${this._familyMembers}
-                .todoEntityId=${'todo.lucarne_household'}
-              ></lucarne-tasks-summary>
-            `
-          : ''}
+        <lucarne-tasks-summary
+          .integrationMode=${true}
+          .renderableTasks=${tasks}
+          .members=${this._familyMembers}
+          .todoEntityId=${entityId}
+        ></lucarne-tasks-summary>
       </div>
     `;
   }
