@@ -11,7 +11,7 @@ export const STRINGS = {
   dressingTipBoots: 'Boots + heavy coat',
   dressingTipUmbrella: ' + umbrella',
   dressingTipDefault: 'Check the weather',
-  tasksTitle: "Ingrid's Tasks",
+  tasksTitle: 'Tasks',
   moreItems: (n: number) => `+ ${n} more`,
   timePillNow: 'now',
   timePillInMinutes: (m: number) => `in ${m}m`,

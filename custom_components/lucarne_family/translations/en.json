@@ -37,7 +37,7 @@
         "title": "Add member",
         "data": {
           "name": "Name",
-          "color": "Color (hex, e.g. #f5c89c)",
+          "color": "Color",
           "avatar": "Avatar (emoji or photo path)",
           "preset": "Starting routines"
         }
@@ -47,7 +47,7 @@
         "data": {
           "member_slug": "Member to edit",
           "name": "Name",
-          "color": "Color (hex, e.g. #f5c89c)",
+          "color": "Color",
           "avatar": "Avatar (emoji or photo path)",
           "preset": "Routine preset"
         }
@@ -81,11 +81,13 @@
           "enabled": "Enable sync",
           "webhook_url": "Webhook URL (http:// or https://)",
           "secret": "Webhook secret (min 32 characters)",
-          "device_name": "Device name (shown in payloads)"
+          "device_name": "Device name (shown in payloads)",
+          "generate_secret": "Generate a new random secret on submit"
         }
       },
       "edit_templates": {
         "title": "Routine presets",
+        "description": "A preset is a reusable bundle of routines (e.g. \"School-age kid\") that can be applied to a member when they're created. Add a custom preset to define your own.",
         "menu_options": {
           "add_custom_preset": "Add a custom preset"
         }
@@ -98,10 +100,11 @@
       },
       "add_preset_routine": {
         "title": "Add a routine to this preset",
+        "description": "Repeats uses a constrained RRULE subset. Examples:\n- Daily: `FREQ=DAILY`\n- Every other day: `FREQ=DAILY;INTERVAL=2`\n- Weekly on Mon/Wed/Fri: `FREQ=WEEKLY;BYDAY=MO,WE,FR`\n- 15th of the month: `FREQ=MONTHLY;BYMONTHDAY=15`\n- First Saturday every 6 months: `FREQ=MONTHLY;BYDAY=1SA;INTERVAL=6`\n- April 1st every year: `FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=1`\n\nRRULE background: https://dateutil.readthedocs.io/en/stable/rrule.html",
         "data": {
           "summary": "Routine name",
           "icon": "Icon (emoji)",
-          "recurrence": "Repeats (RRULE format, e.g. FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO,WE,FR)",
+          "recurrence": "Repeats (RRULE)",
           "add_another": "Add another routine to this preset"
         }
       }
