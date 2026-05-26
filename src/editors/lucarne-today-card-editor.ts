@@ -1,16 +1,85 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from '../shared/types.js';
-import type { LucarneTodayCardConfig } from '../cards/lucarne-today-card.js';
+import type { LucarneTodayCardConfig, TodaySectionId } from '../cards/lucarne-today-card.js';
+import { normalizeSectionOrder } from '../cards/lucarne-today-card.js';
 import { SYNTHETIC_HOUSEHOLD } from '../shared/family-subscription.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { editorBaseStyles } from '../shared/editor-styles.js';
 import { ensureHaFormElements } from '../shared/ha-elements.js';
 import { fireEvent } from 'custom-card-helpers';
 
+const SECTION_LABELS: Record<TodaySectionId, string> = {
+  calendar: 'Calendar',
+  weather: 'Weather',
+  tasks: 'Tasks',
+};
+
+const sectionOrderStyles = css`
+  .section-order-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.08));
+    border-radius: var(--lucarne-radius-md);
+    overflow: hidden;
+  }
+  .section-order-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: var(--lucarne-spacing-sm);
+    padding: var(--lucarne-spacing-sm) var(--lucarne-spacing-md);
+    background: var(--ha-card-background, var(--card-background-color, #fff));
+  }
+  .section-order-row + .section-order-row {
+    border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.06));
+  }
+  .section-order-row.dragging {
+    opacity: 0.5;
+  }
+  .section-order-row.drag-over {
+    background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
+  }
+  .grab-handle {
+    cursor: grab;
+    color: var(--lucarne-on-surface-muted);
+    font-size: 1.2em;
+    line-height: 1;
+    user-select: none;
+    padding: 0 var(--lucarne-spacing-xs);
+  }
+  .grab-handle:active {
+    cursor: grabbing;
+  }
+  .section-label-cell {
+    font-size: var(--lucarne-fs-md);
+    color: var(--lucarne-on-surface);
+  }
+  .move-btn {
+    background: none;
+    border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.15));
+    border-radius: var(--lucarne-radius-sm);
+    padding: 2px 8px;
+    font-size: 0.9em;
+    color: var(--lucarne-on-surface-muted);
+    cursor: pointer;
+    min-width: 28px;
+  }
+  .move-btn:hover:not(:disabled) {
+    background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
+  }
+  .move-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+`;
+
 @customElement('lucarne-today-card-editor')
 export class LucarneTodayCardEditor extends LitElement {
-  static styles = [lucarneStyles, editorBaseStyles];
+  static styles = [lucarneStyles, editorBaseStyles, sectionOrderStyles];
+
+  @state() private _dragIndex: number | null = null;
+  @state() private _dragOverIndex: number | null = null;
 
   @property({ attribute: false }) hass!: HomeAssistant;
   @state() private _config?: LucarneTodayCardConfig;
@@ -121,6 +190,94 @@ export class LucarneTodayCardEditor extends LitElement {
     this._fire({ ...this._config!, presence: entries });
   }
 
+  private _commitSectionOrder(order: TodaySectionId[]) {
+    this._fire({ ...this._config!, section_order: order });
+  }
+
+  private _moveSection(index: number, delta: number) {
+    const order = normalizeSectionOrder(this._config?.section_order);
+    const target = index + delta;
+    if (target < 0 || target >= order.length) return;
+    const next = [...order];
+    [next[index], next[target]] = [next[target], next[index]];
+    this._commitSectionOrder(next);
+  }
+
+  private _onDragStart(index: number, e: DragEvent) {
+    this._dragIndex = index;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      // Some browsers require data to start a drag.
+      e.dataTransfer.setData('text/plain', String(index));
+    }
+  }
+
+  private _onDragOver(index: number, e: DragEvent) {
+    if (this._dragIndex === null || this._dragIndex === index) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    if (this._dragOverIndex !== index) this._dragOverIndex = index;
+  }
+
+  private _onDrop(index: number, e: DragEvent) {
+    e.preventDefault();
+    const from = this._dragIndex;
+    this._dragIndex = null;
+    this._dragOverIndex = null;
+    if (from === null || from === index) return;
+    const order = normalizeSectionOrder(this._config?.section_order);
+    const next = [...order];
+    const [moved] = next.splice(from, 1);
+    next.splice(index, 0, moved);
+    this._commitSectionOrder(next);
+  }
+
+  private _onDragEnd() {
+    this._dragIndex = null;
+    this._dragOverIndex = null;
+  }
+
+  private _renderSectionOrder() {
+    const order = normalizeSectionOrder(this._config?.section_order);
+    return html`
+      <div class="section-label">Section order</div>
+      <div class="section-order-list" role="list" aria-label="Card sections (drag to reorder)">
+        ${order.map(
+          (id, i) => html`
+            <div
+              class="section-order-row ${this._dragIndex === i ? 'dragging' : ''} ${this._dragOverIndex === i ? 'drag-over' : ''}"
+              role="listitem"
+              draggable="true"
+              data-section=${id}
+              data-index=${i}
+              @dragstart=${(e: DragEvent) => this._onDragStart(i, e)}
+              @dragover=${(e: DragEvent) => this._onDragOver(i, e)}
+              @drop=${(e: DragEvent) => this._onDrop(i, e)}
+              @dragend=${this._onDragEnd}
+            >
+              <span class="grab-handle" aria-hidden="true">≡</span>
+              <span class="section-label-cell">${SECTION_LABELS[id]}</span>
+              <button
+                type="button"
+                class="move-btn"
+                aria-label="Move ${SECTION_LABELS[id]} up"
+                ?disabled=${i === 0}
+                @click=${() => this._moveSection(i, -1)}
+              >↑</button>
+              <button
+                type="button"
+                class="move-btn"
+                aria-label="Move ${SECTION_LABELS[id]} down"
+                ?disabled=${i === order.length - 1}
+                @click=${() => this._moveSection(i, 1)}
+              >↓</button>
+            </div>
+          `,
+        )}
+      </div>
+    `;
+  }
+
   render() {
     if (!this._config) return html``;
     if (!this._haReady) return html`<div class="loading">Loading editor…</div>`;
@@ -149,6 +306,8 @@ export class LucarneTodayCardEditor extends LitElement {
           @change=${this._agendaLimitChanged}
         />
       </label>
+
+      ${this._renderSectionOrder()}
 
       <ha-entity-picker
         label="Weather entity"

@@ -77,6 +77,18 @@ describe('lucarne-task-row', () => {
     assert.ok((dueSpan!.textContent ?? '').trim().length > 0, 'due text non-empty');
   });
 
+  it('formats date-only YYYY-MM-DD dues as "Mon D" (local)', async () => {
+    // Regression: was previously displayed raw (e.g. "2026-05-30"). Date-only strings
+    // must be parsed as local midnight so they don't drift across UTC midnight.
+    const el = makeEl(makeTask({ due: '2026-05-30' }));
+    await el.updateComplete;
+
+    const dueSpan = shadow(el, '.due');
+    assert.ok(dueSpan, '.due span rendered');
+    const text = (dueSpan!.textContent ?? '').trim();
+    assert.equal(text, 'May 30', `expected "May 30", got "${text}"`);
+  });
+
   it('shows strikethrough class when completed', async () => {
     const el = makeEl(makeTask({ status: 'completed' }));
     await el.updateComplete;

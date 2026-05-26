@@ -3,7 +3,31 @@ import { customElement, property } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import { iconCheck } from '../shared/icons.js';
 import { STRINGS } from '../shared/strings.js';
-import type { TodoItem, RenderableTask } from '../shared/types.js';
+import type { MemberSummary, TodoItem, RenderableTask } from '../shared/types.js';
+
+import './task-row.js';
+
+const HOUSEHOLD_SLUG = 'household';
+
+/** Build a synthetic RenderableTask from a raw todo entity item. */
+function toRenderable(item: TodoItem): RenderableTask {
+  return {
+    uid: item.uid,
+    summary: item.summary,
+    status: item.status,
+    due: item.due ?? null,
+    description: item.description ?? '',
+    metadata: {
+      item_uid: item.uid,
+      member_slug: HOUSEHOLD_SLUG,
+      assignee_slug: '',
+      type: 'chore',
+      recurrence: '',
+      icon: '',
+      source: 'manual',
+    },
+  };
+}
 
 @customElement('lucarne-tasks-summary')
 export class LucarneTasksSummary extends LitElement {
@@ -33,30 +57,41 @@ export class LucarneTasksSummary extends LitElement {
         font-size: 0.8em;
         font-weight: 700;
       }
-      .task-row {
+      .task-line {
         display: flex;
         align-items: center;
         gap: var(--lucarne-spacing-sm);
-        padding: var(--lucarne-spacing-xs) 0;
-        font-size: var(--lucarne-fs-md);
-        color: var(--lucarne-on-surface);
-        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
       }
-      .task-row:last-of-type {
-        border-bottom: none;
+      .task-line + .task-line {
+        border-top: 1px solid rgba(0, 0, 0, 0.05);
       }
-      .due-chip {
-        font-size: 0.75em;
-        color: var(--lucarne-on-surface-muted);
-        background: rgba(0, 0, 0, 0.06);
-        padding: 1px 6px;
-        border-radius: var(--lucarne-radius-sm);
-        margin-left: auto;
-        white-space: nowrap;
+      .task-line lucarne-task-row {
+        flex: 1;
+        min-width: 0;
       }
-      .task-icon {
-        font-size: 1em;
+      .owner-avatar {
         flex-shrink: 0;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        font-size: 14px;
+        line-height: 1;
+        color: rgba(0, 0, 0, 0.75);
+      }
+      .owner-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .owner-avatar .initial {
+        font-weight: 700;
+        text-transform: uppercase;
+        font-family: var(--primary-font-family, sans-serif);
+        font-size: 12px;
       }
       .more-row {
         padding: var(--lucarne-spacing-xs) 0 0;
@@ -88,6 +123,8 @@ export class LucarneTasksSummary extends LitElement {
   /** When true, renders integration household tasks from renderableTasks instead of raw items */
   @property({ type: Boolean }) integrationMode = false;
   @property({ attribute: false }) renderableTasks: RenderableTask[] = [];
+  /** Members from the family subscription — used to resolve owner avatars in integration mode. */
+  @property({ attribute: false }) members: MemberSummary[] = [];
 
   private _handleMoreClick() {
     if (this.todoEntityId) {
@@ -102,14 +139,8 @@ export class LucarneTasksSummary extends LitElement {
   }
 
   render() {
-    if (this.integrationMode) {
-      return this._renderIntegrationMode();
-    }
-    return this._renderRawMode();
-  }
-
-  private _renderRawMode() {
-    const active = this.items.filter((i) => i.status === 'needs_action');
+    const source = this.integrationMode ? this.renderableTasks : this.items.map(toRenderable);
+    const active = source.filter((t) => t.status === 'needs_action');
     const count = active.length;
     const visible = active.slice(0, 3);
     const extra = count - visible.length;
@@ -128,14 +159,7 @@ export class LucarneTasksSummary extends LitElement {
         ${STRINGS.tasksTitle}
         <span class="count-badge">${count}</span>
       </div>
-      ${visible.map(
-        (item) => html`
-          <div class="task-row">
-            <span class="summary">${item.summary}</span>
-            ${item.due ? html`<span class="due-chip">${this._formatDue(item.due)}</span>` : ''}
-          </div>
-        `,
-      )}
+      ${visible.map((task) => this._renderTaskLine(task))}
       ${extra > 0
         ? html`<div class="more-row" @click=${this._handleMoreClick}>
             ${STRINGS.moreItems(extra)}
@@ -144,48 +168,48 @@ export class LucarneTasksSummary extends LitElement {
     `;
   }
 
-  private _renderIntegrationMode() {
-    const active = this.renderableTasks.filter((t) => t.status === 'needs_action');
-    const count = active.length;
-    const visible = active.slice(0, 3);
-    const extra = count - visible.length;
+  private _renderTaskLine(task: RenderableTask) {
+    const owner = this._ownerFor(task);
+    return html`
+      <div class="task-line">
+        ${owner ? this._renderOwnerAvatar(owner) : ''}
+        <lucarne-task-row
+          .task=${task}
+          .memberColor=${owner?.color ?? 'var(--primary-color)'}
+        ></lucarne-task-row>
+      </div>
+    `;
+  }
 
-    if (count === 0) {
+  private _renderOwnerAvatar(member: MemberSummary) {
+    const av = member.avatar;
+    if (av && av.startsWith('/local/')) {
       return html`
-        <div class="empty-state">
-          <span class="empty-icon">${iconCheck}</span>
-          ${STRINGS.allDone}
+        <div class="owner-avatar" style="background:${member.color}" title="${member.name}">
+          <img src="${av}" alt="${member.name}" />
         </div>
       `;
     }
-
+    if (av) {
+      return html`
+        <div class="owner-avatar" style="background:${member.color}" title="${member.name}">
+          <span>${av}</span>
+        </div>
+      `;
+    }
+    const initial = member.name.trim().charAt(0) || '?';
     return html`
-      <div class="header">
-        ${STRINGS.tasksTitle}
-        <span class="count-badge">${count}</span>
+      <div class="owner-avatar" style="background:${member.color}" title="${member.name}">
+        <span class="initial">${initial}</span>
       </div>
-      ${visible.map(
-        (task) => html`
-          <div class="task-row">
-            ${task.metadata.icon ? html`<span class="task-icon">${task.metadata.icon}</span>` : ''}
-            <span class="summary">${task.summary}</span>
-            ${task.due ? html`<span class="due-chip">${this._formatDue(task.due)}</span>` : ''}
-          </div>
-        `,
-      )}
-      ${extra > 0
-        ? html`<div class="more-row" @click=${this._handleMoreClick}>
-            ${STRINGS.moreItems(extra)}
-          </div>`
-        : ''}
     `;
   }
 
-  private _formatDue(due: string): string {
-    // Date-only strings (YYYY-MM-DD) must be parsed as local time, not UTC.
-    const d = due.length === 10 ? new Date(due + 'T00:00:00') : new Date(due);
-    if (isNaN(d.getTime())) return due;
-    return d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
+  private _ownerFor(task: RenderableTask): MemberSummary | null {
+    if (!this.integrationMode) return null;
+    const slug = task.metadata.member_slug;
+    if (!slug || slug === HOUSEHOLD_SLUG) return null;
+    return this.members.find((m) => m.slug === slug) ?? null;
   }
 }
 
