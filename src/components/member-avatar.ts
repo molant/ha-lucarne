@@ -1,7 +1,12 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property } from 'lit/decorators.js';
 
-const EMOJI_RE = /^\p{Emoji}+$/u;
+// Match a string composed entirely of emoji-related codepoints (with at
+// least one pictographic glyph). Includes ZWJ (U+200D) and variation
+// selector U+FE0F so multi-codepoint sequences — ZWJ families,
+// skin-tone modifiers, and the `❤️` heart-with-VS16 — are recognised.
+const EMOJI_RE =
+  /^(?=.*[\p{Extended_Pictographic}\p{Regional_Indicator}])[\p{Extended_Pictographic}\p{Emoji_Component}\p{Emoji_Modifier}\p{Regional_Indicator}‍️]+$/u;
 
 @customElement('lucarne-member-avatar')
 export class LucarneMemberAvatar extends LitElement {

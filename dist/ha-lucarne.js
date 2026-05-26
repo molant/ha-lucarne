@@ -899,7 +899,7 @@ const $ = {
   dressingTipBoots: "Boots + heavy coat",
   dressingTipUmbrella: " + umbrella",
   dressingTipDefault: "Check the weather",
-  tasksTitle: "Ingrid's Tasks",
+  tasksTitle: "Tasks",
   moreItems: (e) => `+ ${e} more`,
   timePillNow: "now",
   timePillInMinutes: (e) => `in ${e}m`,
@@ -2089,6 +2089,19 @@ const gr = b`
     flex-direction: column;
     gap: var(--lucarne-spacing-xs);
   }
+  .field-inline {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lucarne-spacing-md);
+  }
+  .field-inline .field-label {
+    flex: 1;
+  }
+  .field-inline input[type='checkbox'] {
+    flex-shrink: 0;
+    margin: 0;
+  }
   .field-label {
     font-size: var(--lucarne-fs-sm);
     color: var(--lucarne-on-surface-muted);
@@ -2380,7 +2393,7 @@ let ve = class extends v {
       ></ha-entity-picker>
 
       <div class="section-label">Lucarne Family integration</div>
-      <label class="field" style="${this._isIntegrationAvailable() ? "" : "opacity:0.5;pointer-events:none"}">
+      <label class="field field-inline" style="${this._isIntegrationAvailable() ? "" : "opacity:0.5;pointer-events:none"}">
         <span class="field-label">Household tasks from integration</span>
         <input
           type="checkbox"
@@ -2390,7 +2403,7 @@ let ve = class extends v {
         />
         ${this._isIntegrationAvailable() ? "" : l`<small> — install Lucarne Family integration first</small>`}
       </label>
-      <label class="field" style="${this._isIntegrationAvailable() ? "" : "opacity:0.5;pointer-events:none"}">
+      <label class="field field-inline" style="${this._isIntegrationAvailable() ? "" : "opacity:0.5;pointer-events:none"}">
         <span class="field-label">Show family ready pill</span>
         <input
           type="checkbox"
@@ -5301,7 +5314,7 @@ var ds = Object.defineProperty, us = Object.getOwnPropertyDescriptor, rt = (e, t
     (i = e[n]) && (a = (s ? i(t, r, a) : i(a)) || a);
   return s && a && ds(t, r, a), a;
 };
-const hs = new RegExp("^\\p{Emoji}+$", "u");
+const hs = /^(?=.*[\p{Extended_Pictographic}\p{Regional_Indicator}])[\p{Extended_Pictographic}\p{Emoji_Component}\p{Emoji_Modifier}\p{Regional_Indicator}‍️]+$/u;
 let _e = class extends v {
   constructor() {
     super(...arguments), this.name = "", this.color = "#a8d8b9", this.avatar = null;

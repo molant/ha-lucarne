@@ -169,7 +169,7 @@ export class LucarneTodayCardEditor extends LitElement {
       ></ha-entity-picker>
 
       <div class="section-label">Lucarne Family integration</div>
-      <label class="field" style="${this._isIntegrationAvailable() ? '' : 'opacity:0.5;pointer-events:none'}">
+      <label class="field field-inline" style="${this._isIntegrationAvailable() ? '' : 'opacity:0.5;pointer-events:none'}">
         <span class="field-label">Household tasks from integration</span>
         <input
           type="checkbox"
@@ -179,7 +179,7 @@ export class LucarneTodayCardEditor extends LitElement {
         />
         ${this._isIntegrationAvailable() ? '' : html`<small> — install Lucarne Family integration first</small>`}
       </label>
-      <label class="field" style="${this._isIntegrationAvailable() ? '' : 'opacity:0.5;pointer-events:none'}">
+      <label class="field field-inline" style="${this._isIntegrationAvailable() ? '' : 'opacity:0.5;pointer-events:none'}">
         <span class="field-label">Show family ready pill</span>
         <input
           type="checkbox"

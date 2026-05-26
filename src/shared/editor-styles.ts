@@ -25,6 +25,19 @@ export const editorBaseStyles = css`
     flex-direction: column;
     gap: var(--lucarne-spacing-xs);
   }
+  .field-inline {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lucarne-spacing-md);
+  }
+  .field-inline .field-label {
+    flex: 1;
+  }
+  .field-inline input[type='checkbox'] {
+    flex-shrink: 0;
+    margin: 0;
+  }
   .field-label {
     font-size: var(--lucarne-fs-sm);
     color: var(--lucarne-on-surface-muted);

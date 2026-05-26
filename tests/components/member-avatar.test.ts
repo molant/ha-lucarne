@@ -77,6 +77,54 @@ describe('lucarne-member-avatar', () => {
     assert.equal(emojiSpan, null, 'no emoji for /local/ avatar');
   });
 
+  it('renders emoji for ZWJ family sequence', async () => {
+    const el = makeEl({ name: 'Anna', avatar: '👨‍👩‍👧' });
+    await el.updateComplete;
+
+    const emojiSpan = shadow(el, '.emoji');
+    assert.ok(emojiSpan, '.emoji span rendered for ZWJ family');
+    assert.equal(emojiSpan!.textContent, '👨‍👩‍👧');
+
+    const initialSpan = shadow(el, '.initial');
+    assert.equal(initialSpan, null, 'no initial fallback for ZWJ family');
+  });
+
+  it('renders emoji for skin-tone-modified glyph', async () => {
+    const el = makeEl({ name: 'Anna', avatar: '👋🏻' });
+    await el.updateComplete;
+
+    const emojiSpan = shadow(el, '.emoji');
+    assert.ok(emojiSpan, '.emoji span rendered for modifier sequence');
+    assert.equal(emojiSpan!.textContent, '👋🏻');
+  });
+
+  it('renders emoji for variation-selector heart', async () => {
+    const el = makeEl({ name: 'Anna', avatar: '❤️' });
+    await el.updateComplete;
+
+    const emojiSpan = shadow(el, '.emoji');
+    assert.ok(emojiSpan, '.emoji span rendered for ❤️ (with VS16)');
+    assert.equal(emojiSpan!.textContent, '❤️');
+  });
+
+  it('renders emoji for regional-indicator flag', async () => {
+    const el = makeEl({ name: 'Anna', avatar: '🇺🇸' });
+    await el.updateComplete;
+
+    const emojiSpan = shadow(el, '.emoji');
+    assert.ok(emojiSpan, '.emoji span rendered for flag');
+    assert.equal(emojiSpan!.textContent, '🇺🇸');
+  });
+
+  it('falls back to initial for plain text avatar', async () => {
+    const el = makeEl({ name: 'Anna', avatar: 'hello' });
+    await el.updateComplete;
+
+    const initialSpan = shadow(el, '.initial');
+    assert.ok(initialSpan, '.initial rendered for plain text');
+    assert.equal(initialSpan!.textContent, 'A');
+  });
+
   it('has aria-label on the avatar div', async () => {
     const el = makeEl({ name: 'Charlie', avatar: null });
     await el.updateComplete;

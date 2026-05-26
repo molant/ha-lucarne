@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import re
+import secrets
 from typing import Any
 from urllib.parse import urlparse
 
@@ -53,6 +54,34 @@ def _validate_color(color: str) -> str | None:
     if not _HEX_COLOR_RE.match(color):
         return "invalid_color"
     return None
+
+
+def _normalize_color(color: Any) -> str:
+    """Convert a color submission to lower-case `#rrggbb`.
+
+    ColorRGBSelector hands us `[r, g, b]` (ints 0-255). Existing callers
+    (and most tests) still pass hex strings — accept both. Anything else
+    (or out-of-range ints) returns `""` so `_validate_color` produces the
+    user-facing "invalid_color" error instead of silently clamping.
+    """
+    if isinstance(color, (list, tuple)) and len(color) == 3:
+        try:
+            channels = [int(c) for c in color]
+        except (TypeError, ValueError):
+            return ""
+        if not all(0 <= c <= 255 for c in channels):
+            return ""
+        return "#{:02x}{:02x}{:02x}".format(*channels)
+    if isinstance(color, str):
+        return color.strip().lower()
+    return ""
+
+
+def _hex_to_rgb(hex_color: str) -> list[int]:
+    """Convert `#rrggbb` to `[r, g, b]`; falls back to `[74, 144, 226]`."""
+    if not _HEX_COLOR_RE.match(hex_color or ""):
+        return [74, 144, 226]
+    return [int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)]
 
 
 
@@ -157,6 +186,12 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             secret = (user_input.get(CONF_ROUND_TRIP_SECRET) or "").strip()
             device_name = (user_input.get(CONF_ROUND_TRIP_DEVICE_NAME) or "Sync device").strip()
 
+            # Rotate the secret in place before validation so a generated value
+            # both passes the >=32-char check and survives alongside the user's
+            # other in-flight edits.
+            if user_input.get("generate_secret"):
+                secret = secrets.token_hex(16)
+
             if enabled:
                 if not _validate_url(webhook_url):
                     errors[CONF_ROUND_TRIP_WEBHOOK_URL] = "invalid_url"
@@ -196,6 +231,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                     CONF_ROUND_TRIP_DEVICE_NAME,
                     default=current_rt.get(CONF_ROUND_TRIP_DEVICE_NAME, "Sync device"),
                 ): str,
+                vol.Optional("generate_secret", default=False): bool,
             }
         )
         return self.async_show_form(
@@ -307,7 +343,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             name = user_input.get("name", "").strip()
-            color = user_input.get("color", "").strip()
+            color = _normalize_color(user_input.get("color"))
             avatar = user_input.get("avatar", "").strip() or None
             preset = user_input.get("preset", PRESET_SCHOOL_AGE)
 
@@ -402,7 +438,9 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         schema = vol.Schema(
             {
                 vol.Required("name"): str,
-                vol.Required("color", default="#4a90e2"): str,
+                vol.Required("color", default=_hex_to_rgb("#4a90e2")): vol.Any(
+                    selector.ColorRGBSelector(), str
+                ),
                 vol.Optional("avatar", default=""): str,
                 vol.Required("preset", default=PRESET_SCHOOL_AGE): vol.In(preset_options),
             }
@@ -422,7 +460,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                 return await self.async_step_edit_member()
 
             name = user_input.get("name", "").strip()
-            color = user_input.get("color", "").strip()
+            color = _normalize_color(user_input.get("color"))
             avatar = user_input.get("avatar", "").strip() or None
             preset = user_input.get("preset", PRESET_SCHOOL_AGE)
 
@@ -487,7 +525,9 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         schema = vol.Schema(
             {
                 vol.Required("name", default=target.name): str,
-                vol.Required("color", default=target.color): str,
+                vol.Required("color", default=_hex_to_rgb(target.color)): vol.Any(
+                    selector.ColorRGBSelector(), str
+                ),
                 vol.Optional("avatar", default=target.avatar or ""): str,
                 vol.Required("preset", default=target.preset): vol.In(preset_options),
             }

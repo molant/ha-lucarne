@@ -131,7 +131,8 @@ async def test_add_member_happy_path(hass: HomeAssistant) -> None:
     result = await _configure(
         hass,
         result["flow_id"],
-        {"name": "Anna", "color": "#f5c89c", "avatar": "🧒", "preset": "school-age"},
+        # HA's ColorRGBSelector submits RGB triplets; integration normalises to hex.
+        {"name": "Anna", "color": [245, 200, 156], "avatar": "🧒", "preset": "school-age"},
     )
     # Should return to manage_members menu after success
     assert result["type"] == data_entry_flow.FlowResultType.MENU
@@ -156,7 +157,7 @@ async def test_add_member_slug_generated_correctly(hass: HomeAssistant) -> None:
     await _configure(
         hass,
         result["flow_id"],
-        {"name": "Mary Jane", "color": "#aabbcc", "avatar": "", "preset": "toddler"},
+        {"name": "Mary Jane", "color": [170, 187, 204], "avatar": "", "preset": "toddler"},
     )
 
     slug = entry.data[CONF_MEMBERS][0]["slug"]
@@ -510,6 +511,61 @@ async def test_edit_round_trip_short_secret_rejected(hass: HomeAssistant) -> Non
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert "secret" in result["errors"]
+
+
+async def test_edit_round_trip_generate_secret_replaces_existing(
+    hass: HomeAssistant,
+) -> None:
+    """generate_secret=True rotates the secret and saves the form atomically.
+
+    Other in-flight fields (URL, device name) must be preserved alongside
+    the new secret — they're not silently discarded.
+    """
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    old_secret = "a" * 32
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_round_trip"})
+    await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "enabled": True,
+            "webhook_url": "https://example.com/hook",
+            "secret": old_secret,
+            "device_name": "Mac mini",
+        },
+    )
+    assert entry.data["round_trip"]["secret"] == old_secret
+
+    # Re-open and submit with generate_secret + a changed device_name.
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_round_trip"})
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "enabled": True,
+            "webhook_url": "https://example.com/hook",
+            "secret": old_secret,
+            "device_name": "New Mac",
+            "generate_secret": True,
+        },
+    )
+    # Save flow completes successfully — both the new secret and the
+    # device_name update are persisted in one atomic write.
+    assert result["type"] in (
+        data_entry_flow.FlowResultType.MENU,
+        data_entry_flow.FlowResultType.CREATE_ENTRY,
+    )
+
+    rt = entry.data["round_trip"]
+    new_secret = rt["secret"]
+    assert new_secret != old_secret
+    assert len(new_secret) >= 32
+    assert all(c in "0123456789abcdef" for c in new_secret)
+    assert rt["device_name"] == "New Mac"
 
 
 async def test_edit_round_trip_readback(hass: HomeAssistant) -> None:
