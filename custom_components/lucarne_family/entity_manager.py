@@ -67,7 +67,11 @@ async def _create_local_todo(hass: HomeAssistant, name: str) -> ConfigEntry:
         raise HomeAssistantError(
             f"Failed to create local_todo for {name!r}: flow returned {result.get('type')!r}"
         )
-    await hass.async_block_till_done()
+    # flow.async_init for a CREATE_ENTRY result already awaits the new entry's
+    # async_setup_entry (and platform entity registration). Do NOT call
+    # hass.async_block_till_done() here: when this helper runs inside our own
+    # async_setup_entry, it would wait on the HTTP/WS task that is itself
+    # awaiting us, producing a stall that gets cancelled by HA setup timeout.
     ce: ConfigEntry | None = result.get("result")
     if ce is None:
         raise HomeAssistantError(
@@ -160,7 +164,9 @@ async def async_create_member_entities(
             f"Failed to create counter entity for member {member.slug!r}: {exc}"
         ) from exc
 
-    await hass.async_block_till_done()
+    # sc.async_create_item awaits the storage collection's change-set listeners,
+    # which awaits EntityComponent.async_add_entities -> entity registration.
+    # No async_block_till_done here — see _create_local_todo for why.
 
     # Verify entity registry assigned the canonical entity_id (not a _2 suffix from collision)
     registry_counter_id = er.async_get_entity_id("counter", "counter", item["id"])
@@ -269,7 +275,9 @@ async def async_rename_member_entities(
             }
         )
         new_item_id = str(new_item["id"])
-        await hass.async_block_till_done()
+        # sc.async_create_item already awaits entity registration via the
+        # collection change-set listeners; see _create_local_todo for why we
+        # must not call async_block_till_done here.
 
         registry_counter_id = er.async_get_entity_id("counter", "counter", new_item_id)
         if registry_counter_id != new_counter_id:
@@ -330,16 +338,22 @@ async def async_ensure_household_entity(hass: HomeAssistant) -> str:
     if er.async_get(_HOUSEHOLD_ENTITY_ID) is not None:
         return _HOUSEHOLD_ENTITY_ID
 
-    # Check if a local_todo entry for this name already exists (e.g. after a reload)
+    # If a local_todo entry for this name already exists (e.g. after a reload),
+    # adopt the entity it owns rather than creating a duplicate. The local_todo
+    # config entry is fully set up by the time we get here (HA awaits all entry
+    # setups before our async_setup_entry runs), so its entity is in the registry.
     existing = [
         e
         for e in hass.config_entries.async_entries("local_todo")
         if e.data.get("todo_list_name") == _HOUSEHOLD_NAME
     ]
     if existing:
-        # Entry exists but entity may not have been registered yet; wait and retry
-        await hass.async_block_till_done()
-        if er.async_get(_HOUSEHOLD_ENTITY_ID) is not None:
+        for ce in existing:
+            existing_id = _find_todo_entity_id(hass, ce.entry_id)
+            if existing_id is None:
+                continue
+            if existing_id != _HOUSEHOLD_ENTITY_ID:
+                er.async_update_entity(existing_id, new_entity_id=_HOUSEHOLD_ENTITY_ID)
             return _HOUSEHOLD_ENTITY_ID
 
     todo_entry = await _create_local_todo(hass, _HOUSEHOLD_NAME)
