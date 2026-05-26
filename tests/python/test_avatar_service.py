@@ -123,7 +123,7 @@ async def test_upload_avatar_png(
     )
     await hass.async_block_till_done()
 
-    dest = tmp_path / "www" / "lucarne" / "avatars" / "anna.png"
+    dest = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "anna.png"
     assert dest.exists()
     assert dest.read_bytes() == raw
 
@@ -151,7 +151,7 @@ async def test_upload_avatar_jpeg(
         blocking=True,
     )
 
-    dest = tmp_path / "www" / "lucarne" / "avatars" / "anna.jpg"
+    dest = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "anna.jpg"
     assert dest.exists()
     anna = next(m for m in store.get_members() if m.slug == "anna")
     assert anna.avatar == "/local/lucarne/avatars/anna.jpg"
@@ -173,7 +173,7 @@ async def test_upload_avatar_webp(
         blocking=True,
     )
 
-    dest = tmp_path / "www" / "lucarne" / "avatars" / "anna.webp"
+    dest = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "anna.webp"
     assert dest.exists()
     anna = next(m for m in store.get_members() if m.slug == "anna")
     assert anna.avatar == "/local/lucarne/avatars/anna.webp"
@@ -291,7 +291,7 @@ async def test_upload_avatar_replaces_previous_extension(
 ) -> None:
     """Uploading WebP after a PNG removes the old PNG file."""
     _entry, _store, _member = await _setup(hass, tmp_path)
-    avatar_dir = tmp_path / "www" / "lucarne" / "avatars"
+    avatar_dir = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars"
 
     await hass.services.async_call(
         DOMAIN,

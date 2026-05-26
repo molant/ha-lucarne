@@ -11,20 +11,25 @@ import pytest
 
 
 @pytest.fixture
-def hass_config_dir(hass_tmp_config_dir: str) -> str:
-    """Give every `hass` test its own isolated config dir.
+def hass_config_dir(tmp_path: Path) -> str:
+    """Per-test config dir, overriding the upstream shared default.
 
-    pytest-homeassistant-custom-component defaults `hass.config.config_dir`
-    to its bundled `testing_config/`, which means integrations like
-    local_todo write ICS files into a directory shared across the whole
-    test session. Reused entity slugs (anna, ben, lucarne_household)
-    would then leak state between tests. Overriding `hass_config_dir`
-    routes config_dir through `hass_tmp_config_dir`, which copies the
-    bundled config into a per-test `tmp_path`. `.storage/` is created
-    here because the bundled config doesn't ship it.
+    The upstream `hass_config_dir` fixture in pytest-homeassistant-custom-
+    component defaults to a single bundled `testing_config/` directory in
+    site-packages. Anything a test (or the integration) writes there via
+    `hass.config.path()` leaks into later tests in the same session, and
+    reused entity slugs (anna, ben, lucarne_household) surface as phantom
+    rename-impact refs.
+
+    Returns `tmp_path` directly rather than going through the upstream
+    `hass_tmp_config_dir` (which copies the bundle in) — the bundle ships
+    yaml fixtures with leftover entity references that would re-pollute
+    each copy. `.storage/` is seeded so local_todo can write its ICS
+    files. The override fires before HA bootstrap so registries/recorder
+    land in the per-test dir from the start.
     """
-    (Path(hass_tmp_config_dir) / ".storage").mkdir(parents=True, exist_ok=True)
-    return hass_tmp_config_dir
+    (tmp_path / ".storage").mkdir(parents=True, exist_ok=True)
+    return str(tmp_path)
 
 
 @pytest.fixture(autouse=True)
