@@ -296,7 +296,7 @@ async def test_rename_confirm_step_shown_on_slug_change(
     result = await _configure(
         hass,
         result["flow_id"],
-        {"name": "Annabelle", "color": "#ff0000", "avatar": "", "preset": "school-age"},
+        {"name": "Annabelle", "color": [255, 0, 0], "avatar": "", "preset": "school-age"},
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["step_id"] == "rename_confirm"
@@ -318,7 +318,7 @@ async def test_rename_confirm_confirmed_renames_member(
     result = await _configure(
         hass,
         result["flow_id"],
-        {"name": "Annabelle", "color": "#ff0000", "avatar": "", "preset": "school-age"},
+        {"name": "Annabelle", "color": [255, 0, 0], "avatar": "", "preset": "school-age"},
     )
     assert result["step_id"] == "rename_confirm"
 
@@ -387,7 +387,7 @@ async def test_rename_confirm_entity_rename_failure_rolls_back_sqlite(
         result = await _configure(
             hass,
             result["flow_id"],
-            {"name": "Annabelle", "color": "#ff0000", "avatar": "", "preset": "school-age"},
+            {"name": "Annabelle", "color": [255, 0, 0], "avatar": "", "preset": "school-age"},
         )
         assert result["step_id"] == "rename_confirm"
 
@@ -425,7 +425,7 @@ async def test_rename_confirm_cancel_discards_change(
     result = await _configure(
         hass,
         result["flow_id"],
-        {"name": "Annabelle", "color": "#ff0000", "avatar": "", "preset": "school-age"},
+        {"name": "Annabelle", "color": [255, 0, 0], "avatar": "", "preset": "school-age"},
     )
     assert result["step_id"] == "rename_confirm"
 

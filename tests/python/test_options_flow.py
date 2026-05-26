@@ -184,7 +184,7 @@ async def test_add_member_slug_conflict(hass: HomeAssistant) -> None:
     result = await _configure(
         hass,
         result["flow_id"],
-        {"name": "Anna", "color": "#123456", "avatar": "", "preset": "toddler"},
+        {"name": "Anna", "color": [18, 52, 86], "avatar": "", "preset": "toddler"},
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert "name" in result["errors"]
@@ -205,13 +205,22 @@ async def test_add_member_empty_name_rejected(hass: HomeAssistant) -> None:
     result = await _configure(
         hass,
         result["flow_id"],
-        {"name": "", "color": "#f5c89c", "avatar": "", "preset": "school-age"},
+        {"name": "", "color": [245, 200, 156], "avatar": "", "preset": "school-age"},
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert "name" in result["errors"]
 
 
 async def test_add_member_invalid_color_rejected(hass: HomeAssistant) -> None:
+    """Regression guard: ColorRGBSelector must validate strictly, not vol.Any-wrapped.
+
+    Wrapping the selector in `vol.Any(selector.ColorRGBSelector(), str)` once
+    seemed convenient but crashes HA's frontend (voluptuous_serialize can't
+    convert `Any(Selector, ...)`). This test pins the strict-selector contract
+    by asserting an out-of-range RGB triplet raises at the schema layer.
+    """
+    from homeassistant.data_entry_flow import InvalidData
+
     entry = _make_entry(hass)
     await _setup_entry(hass, entry)
 
@@ -219,13 +228,14 @@ async def test_add_member_invalid_color_rejected(hass: HomeAssistant) -> None:
     result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
     result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
 
-    result = await _configure(
-        hass,
-        result["flow_id"],
-        {"name": "Bob", "color": "notacolor", "avatar": "", "preset": "toddler"},
-    )
-    assert result["type"] == data_entry_flow.FlowResultType.FORM
-    assert "color" in result["errors"]
+    # ColorRGBSelector validates 0-255 per channel via cv.byte; a 300 channel
+    # fails schema validation before the step handler runs.
+    with pytest.raises(InvalidData):
+        await _configure(
+            hass,
+            result["flow_id"],
+            {"name": "Bob", "color": [300, 0, 0], "avatar": "", "preset": "toddler"},
+        )
 
 
 async def test_add_member_emoji_only_name_produces_empty_slug(hass: HomeAssistant) -> None:
@@ -240,7 +250,7 @@ async def test_add_member_emoji_only_name_produces_empty_slug(hass: HomeAssistan
     result = await _configure(
         hass,
         result["flow_id"],
-        {"name": "🎉🎊🥳", "color": "#123456", "avatar": "", "preset": "school-age"},
+        {"name": "🎉🎊🥳", "color": [18, 52, 86], "avatar": "", "preset": "school-age"},
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["errors"].get("name") == "empty_slug"
@@ -258,7 +268,7 @@ async def _add_anna(hass: HomeAssistant, entry: MockConfigEntry) -> None:
     await _configure(
         hass,
         result["flow_id"],
-        {"name": "Anna", "color": "#f5c89c", "avatar": "🧒", "preset": "school-age"},
+        {"name": "Anna", "color": [245, 200, 156], "avatar": "🧒", "preset": "school-age"},
     )
 
 
@@ -279,7 +289,7 @@ async def test_edit_member_slug_changing_name_shows_rename_confirm(
     result = await _configure(
         hass,
         result["flow_id"],
-        {"name": "Anna-Maria", "color": "#f5c89c", "avatar": "🧒", "preset": "school-age"},
+        {"name": "Anna-Maria", "color": [245, 200, 156], "avatar": "🧒", "preset": "school-age"},
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["step_id"] == "rename_confirm"
@@ -315,7 +325,7 @@ async def test_edit_member_slug_unchanged_after_rename(hass: HomeAssistant) -> N
         result["flow_id"],
         {
             "name": "Completely Different Name",
-            "color": "#000000",
+            "color": [0, 0, 0],
             "avatar": "",
             "preset": "adult-none",
         },
