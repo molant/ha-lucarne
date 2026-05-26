@@ -108,7 +108,7 @@ async def test_compute_impact_no_files_returns_empty(hass: HomeAssistant) -> Non
 
 
 async def test_compute_impact_automation_reference(
-    hass: HomeAssistant, tmp_path: Path
+    hass: HomeAssistant,
 ) -> None:
     """automations.yaml referencing the entity_id is included in impact."""
     automations = [
@@ -125,7 +125,7 @@ async def test_compute_impact_automation_reference(
             "action": [],
         },
     ]
-    (tmp_path / "automations.yaml").write_text(yaml.dump(automations))
+    (Path(hass.config.config_dir) / "automations.yaml").write_text(yaml.dump(automations))
 
     impact = await async_compute_rename_impact(hass, "todo.anna")
     assert impact.automations == ["morning_routine"]
@@ -135,7 +135,7 @@ async def test_compute_impact_automation_reference(
 
 
 async def test_compute_impact_script_reference(
-    hass: HomeAssistant, tmp_path: Path
+    hass: HomeAssistant,
 ) -> None:
     """scripts.yaml referencing the entity_id is included in impact."""
     scripts = {
@@ -146,31 +146,31 @@ async def test_compute_impact_script_reference(
         },
         "other_script": {"sequence": []},
     }
-    (tmp_path / "scripts.yaml").write_text(yaml.dump(scripts))
+    (Path(hass.config.config_dir) / "scripts.yaml").write_text(yaml.dump(scripts))
 
     impact = await async_compute_rename_impact(hass, "todo.anna")
     assert impact.scripts == ["script.check_anna_tasks"]
 
 
 async def test_compute_impact_scene_reference(
-    hass: HomeAssistant, tmp_path: Path
+    hass: HomeAssistant,
 ) -> None:
     """scenes.yaml referencing the entity_id is included in impact."""
     scenes = [
         {"name": "Evening", "entities": {"todo.anna": {"state": "in_progress"}}},
         {"name": "Morning", "entities": {}},
     ]
-    (tmp_path / "scenes.yaml").write_text(yaml.dump(scenes))
+    (Path(hass.config.config_dir) / "scenes.yaml").write_text(yaml.dump(scenes))
 
     impact = await async_compute_rename_impact(hass, "todo.anna")
     assert impact.scenes == ["Evening"]
 
 
 async def test_compute_impact_dashboard_reference(
-    hass: HomeAssistant, tmp_path: Path
+    hass: HomeAssistant,
 ) -> None:
     """lovelace storage referencing the entity_id is included in impact."""
-    storage_dir = tmp_path / ".storage"
+    storage_dir = Path(hass.config.config_dir) / ".storage"
     storage_dir.mkdir(exist_ok=True)
     dashboard = {
         "key": "lovelace",
@@ -199,13 +199,13 @@ async def test_compute_impact_dashboard_reference(
 
 
 async def test_rename_member_noop_same_slug(
-    hass: HomeAssistant, tmp_path: Path
+    hass: HomeAssistant,
 ) -> None:
     """Renaming to a name with the same slug returns empty impact without scanning."""
     automations = [
         {"id": "ref_anna", "alias": "ref", "action": [{"entity_id": "todo.anna"}]}
     ]
-    (tmp_path / "automations.yaml").write_text(yaml.dump(automations))
+    (Path(hass.config.config_dir) / "automations.yaml").write_text(yaml.dump(automations))
 
     member = _make_member("anna", "Anna")
     # "Anna" and "anna" produce the same slug "anna"
@@ -221,7 +221,7 @@ async def test_rename_member_slug_changes_no_refs(hass: HomeAssistant) -> None:
 
 
 async def test_rename_member_slug_changes_with_refs(
-    hass: HomeAssistant, tmp_path: Path
+    hass: HomeAssistant,
 ) -> None:
     """Slug-changing rename returns automation refs from both todo and counter entities."""
     automations = [
@@ -232,7 +232,7 @@ async def test_rename_member_slug_changes_with_refs(
             "action": [],
         }
     ]
-    (tmp_path / "automations.yaml").write_text(yaml.dump(automations))
+    (Path(hass.config.config_dir) / "automations.yaml").write_text(yaml.dump(automations))
 
     member = _make_member("anna", "Anna")
     impact = await async_rename_member(hass, member, "Annabelle")
@@ -340,7 +340,6 @@ async def test_rename_confirm_confirmed_renames_member(
 
 async def test_rename_confirm_entity_rename_failure_rolls_back_sqlite(
     hass: HomeAssistant,
-    tmp_path: Path,
 ) -> None:
     """Entity rename fails after SQLite migration → SQLite rolled back, form re-renders."""
     anna = _make_member("anna", "Anna")
@@ -412,7 +411,6 @@ async def test_rename_confirm_entity_rename_failure_rolls_back_sqlite(
 
 async def test_rename_confirm_cancel_discards_change(
     hass: HomeAssistant,
-    tmp_path: Path,
     _patch_entity_ops_rename: None,
 ) -> None:
     """Declining rename confirm discards the name change."""
