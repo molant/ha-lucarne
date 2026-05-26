@@ -438,9 +438,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         schema = vol.Schema(
             {
                 vol.Required("name"): str,
-                vol.Required("color", default=_hex_to_rgb("#4a90e2")): vol.Any(
-                    selector.ColorRGBSelector(), str
-                ),
+                vol.Required("color", default=_hex_to_rgb("#4a90e2")): selector.ColorRGBSelector(),
                 vol.Optional("avatar", default=""): str,
                 vol.Required("preset", default=PRESET_SCHOOL_AGE): vol.In(preset_options),
             }
@@ -525,9 +523,9 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         schema = vol.Schema(
             {
                 vol.Required("name", default=target.name): str,
-                vol.Required("color", default=_hex_to_rgb(target.color)): vol.Any(
-                    selector.ColorRGBSelector(), str
-                ),
+                vol.Required(
+                    "color", default=_hex_to_rgb(target.color)
+                ): selector.ColorRGBSelector(),
                 vol.Optional("avatar", default=target.avatar or ""): str,
                 vol.Required("preset", default=target.preset): vol.In(preset_options),
             }

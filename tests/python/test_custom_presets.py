@@ -271,7 +271,7 @@ async def test_custom_preset_appears_in_add_member_form(hass: HomeAssistant) -> 
             result["flow_id"],
             {
                 "name": "Charlie",
-                "color": "#aabbcc",
+                "color": [170, 187, 204],
                 "avatar": "",
                 "preset": "custom-test",
             },
