@@ -163,11 +163,19 @@ export class LucarneTaskRow extends LitElement {
   }
 
   private _formatDue(due: string): string {
-    // Show time if ISO datetime, otherwise show date
+    // ISO datetime → time of day
     if (due.includes('T')) {
       const d = new Date(due);
       if (!isNaN(d.getTime())) {
         return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+      return due;
+    }
+    // Date-only YYYY-MM-DD → "May 30" (parsed as local midnight to avoid UTC drift).
+    if (due.length === 10) {
+      const d = new Date(due + 'T00:00:00');
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleDateString('en', { month: 'short', day: 'numeric' });
       }
     }
     return due;

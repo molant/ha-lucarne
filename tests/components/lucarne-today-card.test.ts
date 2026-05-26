@@ -1,6 +1,7 @@
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import type { LucarneTodayCard, LucarneTodayCardConfig } from '../../src/cards/lucarne-today-card.js';
+import { normalizeSectionOrder } from '../../src/cards/lucarne-today-card.js';
 import type { HomeAssistant } from '../../src/shared/types.js';
 import { makeFakeHass } from '../setup/ha-mock.mjs';
 
@@ -22,19 +23,36 @@ const GET_FAMILY_RESPONSE = {
       streak_counter_id: 'counter.anna_streak',
     },
   ],
-  task_metadata: [],
+  task_metadata: [
+    {
+      item_uid: 'household-task-1',
+      member_slug: 'household',
+      assignee_slug: '',
+      type: 'chore',
+      recurrence: '',
+      icon: '🧹',
+      source: 'manual',
+    },
+  ],
   reset_time: '04:00',
   streak_check_time: '21:00',
   household_entity_id: 'todo.lucarne_household',
 };
 
-function makeFakeHassWithFamily() {
+function makeFakeHassWithFamily(householdItems: Array<{ uid: string; summary: string; status: 'needs_action' | 'completed' }> = []) {
   const base = makeFakeHass();
   const conn = {
     ...base.connection,
     async sendMessagePromise(payload: Record<string, unknown>) {
       if (payload['type'] === 'lucarne_family/get_family') return GET_FAMILY_RESPONSE;
-      if (payload['type'] === 'call_service') return { response: {} };
+      if (payload['type'] === 'call_service') {
+        const target = (payload['target'] as { entity_id?: string } | undefined)?.entity_id;
+        const service = payload['service'];
+        if (service === 'get_items' && target === 'todo.lucarne_household') {
+          return { response: { 'todo.lucarne_household': { items: householdItems } } };
+        }
+        return { response: {} };
+      }
       return undefined;
     },
   };
@@ -150,5 +168,210 @@ describe('lucarne-today-card — flag combinations', () => {
       () => el.setConfig({ type: 'custom:lucarne-today-card', calendars: [] }),
       /calendars/,
     );
+  });
+});
+
+describe('lucarne-today-card — section_order', () => {
+  it('defaults to calendar → weather → tasks', async () => {
+    const el = await makeCard(
+      { weather: 'weather.forecast_home', household_tasks_from_integration: true },
+      makeFakeHassWithFamily() as unknown as HomeAssistant,
+    );
+    const sections = Array.from(
+      el.shadowRoot!.querySelectorAll<HTMLElement>('[data-section]'),
+    ).map((s) => s.dataset.section);
+    assert.deepEqual(sections, ['calendar', 'weather', 'tasks']);
+  });
+
+  it('respects a custom section_order', async () => {
+    const el = await makeCard(
+      {
+        weather: 'weather.forecast_home',
+        household_tasks_from_integration: true,
+        section_order: ['tasks', 'calendar', 'weather'],
+      },
+      makeFakeHassWithFamily() as unknown as HomeAssistant,
+    );
+    const sections = Array.from(
+      el.shadowRoot!.querySelectorAll<HTMLElement>('[data-section]'),
+    ).map((s) => s.dataset.section);
+    assert.deepEqual(sections, ['tasks', 'calendar', 'weather']);
+  });
+
+  it('appends missing sections from a partial order', async () => {
+    const el = await makeCard(
+      {
+        weather: 'weather.forecast_home',
+        household_tasks_from_integration: true,
+        section_order: ['tasks'] as LucarneTodayCardConfig['section_order'],
+      },
+      makeFakeHassWithFamily() as unknown as HomeAssistant,
+    );
+    const sections = Array.from(
+      el.shadowRoot!.querySelectorAll<HTMLElement>('[data-section]'),
+    ).map((s) => s.dataset.section);
+    assert.deepEqual(sections, ['tasks', 'calendar', 'weather']);
+  });
+
+  it('ignores unknown ids in section_order', async () => {
+    const el = await makeCard(
+      {
+        weather: 'weather.forecast_home',
+        household_tasks_from_integration: true,
+        section_order: ['bogus', 'weather'] as unknown as LucarneTodayCardConfig['section_order'],
+      },
+      makeFakeHassWithFamily() as unknown as HomeAssistant,
+    );
+    const sections = Array.from(
+      el.shadowRoot!.querySelectorAll<HTMLElement>('[data-section]'),
+    ).map((s) => s.dataset.section);
+    assert.deepEqual(sections, ['weather', 'calendar', 'tasks']);
+  });
+});
+
+describe('normalizeSectionOrder', () => {
+  it('returns default order when input is undefined', () => {
+    assert.deepEqual(normalizeSectionOrder(undefined), ['calendar', 'weather', 'tasks']);
+  });
+  it('returns default order when input is empty', () => {
+    assert.deepEqual(normalizeSectionOrder([]), ['calendar', 'weather', 'tasks']);
+  });
+  it('preserves valid order untouched', () => {
+    assert.deepEqual(
+      normalizeSectionOrder(['weather', 'tasks', 'calendar']),
+      ['weather', 'tasks', 'calendar'],
+    );
+  });
+  it('appends missing sections in default order', () => {
+    assert.deepEqual(normalizeSectionOrder(['tasks']), ['tasks', 'calendar', 'weather']);
+  });
+  it('drops duplicates and unknowns', () => {
+    assert.deepEqual(
+      normalizeSectionOrder(['tasks', 'tasks', 'bogus', 'weather']),
+      ['tasks', 'weather', 'calendar'],
+    );
+  });
+});
+
+describe('lucarne-today-card — task interaction', () => {
+  it('clicking a task in integration mode calls todo.update_item against the owner entity', async () => {
+    const hass = makeFakeHassWithFamily([
+      { uid: 'household-task-1', summary: 'Take out trash', status: 'needs_action' },
+    ]);
+    const el = await makeCard(
+      { household_tasks_from_integration: true },
+      hass as unknown as HomeAssistant,
+    );
+    // The family subscription kicks off async refreshes; wait for them.
+    // Family subscription kicks off two async fetches (get_family + per-entity todo.get_items)
+    // and only re-renders the card once both resolve.
+    await new Promise((r) => setTimeout(r, 50));
+    await el.updateComplete;
+    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    assert.ok(summary, 'lucarne-tasks-summary mounted');
+    await summary!.updateComplete;
+    const taskRow = summary!.shadowRoot!.querySelector('lucarne-task-row') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    assert.ok(taskRow, 'lucarne-task-row mounted');
+    await taskRow!.updateComplete;
+    const row = taskRow!.shadowRoot?.querySelector('.row') as HTMLElement | null;
+    assert.ok(row, 'task row rendered');
+
+    row!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const updateCalls = hass.calls.callService.filter(
+      (c) => c.domain === 'todo' && c.service === 'update_item',
+    );
+    assert.equal(updateCalls.length, 1, 'one todo.update_item call dispatched');
+    assert.equal(updateCalls[0].payload?.item, 'household-task-1');
+    assert.equal(updateCalls[0].payload?.status, 'completed');
+    assert.equal(updateCalls[0].target?.entity_id, 'todo.lucarne_household');
+  });
+
+  it('raw-mode click + show_family_ready_pill routes to the configured raw entity (not household)', async () => {
+    // Regression: previously _resolveTaskEntityId gated on _familyState presence;
+    // show_family_ready_pill also populates _familyState, so raw-mode clicks were
+    // mis-routed to todo.lucarne_household. Must use the user-configured tasks: entity.
+    const baseHass = makeFakeHassWithFamily();
+    const hass = {
+      ...baseHass,
+      connection: {
+        ...baseHass.connection,
+        async sendMessagePromise(payload: Record<string, unknown>) {
+          if (payload['type'] === 'lucarne_family/get_family') return GET_FAMILY_RESPONSE;
+          if (payload['type'] === 'call_service') {
+            const target = (payload['target'] as { entity_id?: string } | undefined)?.entity_id;
+            const service = payload['service'];
+            if (service === 'get_items' && target === 'todo.my_list') {
+              return {
+                response: {
+                  'todo.my_list': {
+                    items: [{ uid: 'raw-1', summary: 'Pick up milk', status: 'needs_action' }],
+                  },
+                },
+              };
+            }
+            return { response: {} };
+          }
+          return undefined;
+        },
+      },
+    };
+    const el = await makeCard(
+      { tasks: 'todo.my_list', show_family_ready_pill: true },
+      hass as unknown as HomeAssistant,
+    );
+    await new Promise((r) => setTimeout(r, 1100));
+    await el.updateComplete;
+
+    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    assert.ok(summary, 'lucarne-tasks-summary mounted');
+    await summary!.updateComplete;
+    const taskRow = summary!.shadowRoot!.querySelector('lucarne-task-row') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    assert.ok(taskRow, 'task-row mounted');
+    await taskRow!.updateComplete;
+    const row = taskRow!.shadowRoot?.querySelector('.row') as HTMLElement | null;
+    assert.ok(row, 'task row rendered');
+
+    row!.click();
+    await new Promise((r) => setTimeout(r, 10));
+
+    const updateCalls = hass.calls.callService.filter(
+      (c) => c.domain === 'todo' && c.service === 'update_item',
+    );
+    assert.equal(updateCalls.length, 1);
+    assert.equal(updateCalls[0].target?.entity_id, 'todo.my_list', 'routed to raw entity, NOT household');
+  });
+
+  it('long-press on a task fires hass-more-info with the owning entity id', async () => {
+    const hass = makeFakeHassWithFamily([
+      { uid: 'household-task-1', summary: 'Take out trash', status: 'needs_action' },
+    ]);
+    const el = await makeCard(
+      { household_tasks_from_integration: true },
+      hass as unknown as HomeAssistant,
+    );
+    await new Promise((r) => setTimeout(r, 50));
+    await el.updateComplete;
+
+    const events: CustomEvent[] = [];
+    el.addEventListener('hass-more-info', (e) => events.push(e as CustomEvent));
+
+    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    assert.ok(summary, 'lucarne-tasks-summary mounted');
+    await summary!.updateComplete;
+    const taskRow = summary!.shadowRoot!.querySelector('lucarne-task-row') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    assert.ok(taskRow, 'lucarne-task-row mounted');
+    await taskRow!.updateComplete;
+    const row = taskRow!.shadowRoot?.querySelector('.row') as HTMLElement | null;
+    assert.ok(row, 'task row rendered');
+
+    row!.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 }));
+    await new Promise((r) => setTimeout(r, 550));
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0].detail.entityId, 'todo.lucarne_household');
+
+    row!.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
   });
 });
