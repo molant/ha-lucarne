@@ -18,7 +18,7 @@ const GET_FAMILY_RESPONSE = {
       slug: 'anna',
       name: 'Anna',
       color: '#f5c89c',
-      avatar: null,
+      avatar: '🦊',
       todo_entity_id: 'todo.anna',
       streak_counter_id: 'counter.anna_streak',
     },
@@ -33,13 +33,25 @@ const GET_FAMILY_RESPONSE = {
       icon: '🧹',
       source: 'manual',
     },
+    {
+      item_uid: 'anna-routine-1',
+      member_slug: 'anna',
+      assignee_slug: '',
+      type: 'routine',
+      recurrence: 'FREQ=DAILY',
+      icon: '🪥',
+      source: 'template',
+    },
   ],
   reset_time: '04:00',
   streak_check_time: '21:00',
   household_entity_id: 'todo.lucarne_household',
 };
 
-function makeFakeHassWithFamily(householdItems: Array<{ uid: string; summary: string; status: 'needs_action' | 'completed' }> = []) {
+function makeFakeHassWithFamily(
+  householdItems: Array<{ uid: string; summary: string; status: 'needs_action' | 'completed' }> = [],
+  perEntityItems: Record<string, Array<{ uid: string; summary: string; status: 'needs_action' | 'completed' }>> = {},
+) {
   const base = makeFakeHass();
   const conn = {
     ...base.connection,
@@ -50,6 +62,9 @@ function makeFakeHassWithFamily(householdItems: Array<{ uid: string; summary: st
         const service = payload['service'];
         if (service === 'get_items' && target === 'todo.lucarne_household') {
           return { response: { 'todo.lucarne_household': { items: householdItems } } };
+        }
+        if (service === 'get_items' && target && perEntityItems[target]) {
+          return { response: { [target]: { items: perEntityItems[target] } } };
         }
         return { response: {} };
       }
@@ -373,5 +388,87 @@ describe('lucarne-today-card — task interaction', () => {
     assert.equal(events[0].detail.entityId, 'todo.lucarne_household');
 
     row!.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+  });
+});
+
+describe('lucarne-today-card — raw-mode metadata enrichment', () => {
+  it('renders icon from integration metadata for a raw todo item', async () => {
+    // tasks: todo.anna is a per-member entity tracked by the integration;
+    // task_metadata in the family response should colour the matching uid.
+    const hass = makeFakeHassWithFamily([], {
+      'todo.anna': [{ uid: 'anna-routine-1', summary: 'Brush teeth', status: 'needs_action' }],
+    });
+    const el = await makeCard(
+      { tasks: 'todo.anna' },
+      hass as unknown as HomeAssistant,
+    );
+    await new Promise((r) => setTimeout(r, 1100));
+    await el.updateComplete;
+
+    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    assert.ok(summary, 'tasks-summary mounted');
+    await summary!.updateComplete;
+    const taskRow = summary!.shadowRoot!.querySelector('lucarne-task-row') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    assert.ok(taskRow, 'task-row mounted');
+    await taskRow!.updateComplete;
+    const iconSpan = taskRow!.shadowRoot!.querySelector('.icon');
+    assert.ok(iconSpan, 'icon span rendered from integration metadata');
+    assert.equal(iconSpan!.textContent, '🪥');
+  });
+
+  it('renders owner avatar for a raw entity that matches a known member', async () => {
+    const hass = makeFakeHassWithFamily([], {
+      'todo.anna': [{ uid: 'anna-routine-1', summary: 'Brush teeth', status: 'needs_action' }],
+    });
+    const el = await makeCard(
+      { tasks: 'todo.anna' },
+      hass as unknown as HomeAssistant,
+    );
+    await new Promise((r) => setTimeout(r, 1100));
+    await el.updateComplete;
+
+    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    assert.ok(summary, 'tasks-summary mounted');
+    await summary!.updateComplete;
+    const avatar = summary!.shadowRoot!.querySelector('.owner-avatar') as HTMLElement | null;
+    assert.ok(avatar, 'owner avatar rendered');
+    assert.equal(avatar!.getAttribute('title'), 'Anna');
+    assert.ok((avatar!.textContent ?? '').includes('🦊'), 'avatar emoji rendered');
+  });
+
+  it('falls back to entity→member mapping when metadata is missing for an item', async () => {
+    // Item uid that the integration has NOT tagged — should still get
+    // member_slug='anna' because the entity (todo.anna) matches Anna's member.
+    const hass = makeFakeHassWithFamily([], {
+      'todo.anna': [{ uid: 'untagged-uid', summary: 'Ad-hoc task', status: 'needs_action' }],
+    });
+    const el = await makeCard(
+      { tasks: 'todo.anna' },
+      hass as unknown as HomeAssistant,
+    );
+    await new Promise((r) => setTimeout(r, 1100));
+    await el.updateComplete;
+    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    await summary!.updateComplete;
+    const avatar = summary!.shadowRoot!.querySelector('.owner-avatar') as HTMLElement | null;
+    assert.ok(avatar, 'owner avatar still rendered via entity-fallback');
+    assert.equal(avatar!.getAttribute('title'), 'Anna');
+  });
+
+  it('passes compact attribute to task-row in tasks-summary', async () => {
+    const hass = makeFakeHassWithFamily([], {
+      'todo.anna': [{ uid: 'anna-routine-1', summary: 'Brush teeth', status: 'needs_action' }],
+    });
+    const el = await makeCard(
+      { tasks: 'todo.anna' },
+      hass as unknown as HomeAssistant,
+    );
+    await new Promise((r) => setTimeout(r, 1100));
+    await el.updateComplete;
+    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
+    await summary!.updateComplete;
+    const taskRow = summary!.shadowRoot!.querySelector('lucarne-task-row');
+    assert.ok(taskRow, 'task-row mounted');
+    assert.ok(taskRow!.hasAttribute('compact'), 'compact attribute reflected on task-row');
   });
 });

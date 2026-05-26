@@ -178,4 +178,11 @@ describe('lucarne-task-row', () => {
     // min-height is set to 44px in the CSS
     assert.equal(styles.minHeight, '44px');
   });
+
+  it('compact attribute reflects on the host so :host([compact]) CSS rules apply', async () => {
+    const el = makeEl(makeTask());
+    el.compact = true;
+    await el.updateComplete;
+    assert.equal(el.hasAttribute('compact'), true, 'compact attribute reflected on host');
+  });
 });

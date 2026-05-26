@@ -6,6 +6,12 @@ export interface FamilyState {
   members: MemberSummary[];
   tasksByMember: Map<string, RenderableTask[]>;
   streakByMember: Map<string, number>;
+  /**
+   * Integration-tracked metadata keyed by todo item uid. Use this to enrich
+   * tasks fetched from a raw todo entity that the integration also tracks
+   * (e.g. a per-member list shown directly in another card).
+   */
+  taskMetadataByUid: Map<string, TaskMetadata>;
   resetTime: string;
   streakCheckTime: string;
   integrationError: Error | null;
@@ -92,7 +98,15 @@ export function subscribeFamilyState(
     // Always include household tasks regardless of whether household is a configured column
     const householdItems = todoItemsByEntity.get('todo.lucarne_household') ?? [];
     tasksByMember.set('household', buildRenderableTasks(householdItems, 'household', metadataByUid));
-    callback({ members: allMembers, tasksByMember, streakByMember: new Map(streakBySlug), resetTime, streakCheckTime, integrationError: currentError });
+    callback({
+      members: allMembers,
+      tasksByMember,
+      streakByMember: new Map(streakBySlug),
+      taskMetadataByUid: new Map(metadataByUid),
+      resetTime,
+      streakCheckTime,
+      integrationError: currentError,
+    });
   }
 
   async function refreshMetadata() {
@@ -157,7 +171,10 @@ export function subscribeFamilyState(
 
       emitState();
     } catch (err) {
-      console.warn('[lucarne] get_family failed — integration may not be installed:', err);
+      // Debug, not warn: the Today card subscribes for metadata enrichment even
+      // in raw-only mode (no integration), so this firing on every reconnect is
+      // an expected fallback path — not an actionable problem for the user.
+      console.debug('[lucarne] get_family failed — integration may not be installed:', err);
       if (!cancelled) {
         currentError = err instanceof Error ? err : new Error(String(err));
         unsubFns.forEach((fn) => fn());

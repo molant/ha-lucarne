@@ -71,14 +71,14 @@ export class LucarneTasksSummary extends LitElement {
       }
       .owner-avatar {
         flex-shrink: 0;
-        width: 24px;
-        height: 24px;
+        width: 22px;
+        height: 22px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
-        font-size: 14px;
+        font-size: 13px;
         line-height: 1;
         color: rgba(0, 0, 0, 0.75);
       }
@@ -91,7 +91,7 @@ export class LucarneTasksSummary extends LitElement {
         font-weight: 700;
         text-transform: uppercase;
         font-family: var(--primary-font-family, sans-serif);
-        font-size: 12px;
+        font-size: 11px;
       }
       .more-row {
         padding: var(--lucarne-spacing-xs) 0 0;
@@ -174,6 +174,7 @@ export class LucarneTasksSummary extends LitElement {
       <div class="task-line">
         ${owner ? this._renderOwnerAvatar(owner) : ''}
         <lucarne-task-row
+          compact
           .task=${task}
           .memberColor=${owner?.color ?? 'var(--primary-color)'}
         ></lucarne-task-row>
