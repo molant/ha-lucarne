@@ -109,7 +109,12 @@ echo -e "${GREEN}=========================================${NC}"
 #   -z  compress in transit
 #   --delete                     prune files on remote that no longer exist locally
 #   --exclude='.DS_Store'        macOS metadata files
-RSYNC_ARGS=(-avz --delete --exclude='.DS_Store')
+#   --exclude='avatars/'         protect user-uploaded avatars. avatar_service.py
+#                                writes to <config>/www/lucarne/avatars/, which
+#                                lives inside HA_REMOTE_PATH. Without this exclude,
+#                                --delete prunes the whole directory on every deploy
+#                                because dist/ does not contain avatars/.
+RSYNC_ARGS=(-avz --delete --exclude='.DS_Store' --exclude='avatars/')
 if [ "$DRY_RUN" = "1" ]; then
   RSYNC_ARGS+=(--dry-run)
 fi
