@@ -1,7 +1,7 @@
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import type { LucarneMemberColumn } from '../../src/components/member-column.js';
-import type { MemberSummary, RenderableTask } from '../../src/shared/types.js';
+import type { MemberSummary, RenderableTask, TimeOfDay } from '../../src/shared/types.js';
 
 await import('../../src/components/member-column.js');
 
@@ -236,12 +236,15 @@ describe('lucarne-member-column', () => {
     const routine = makeTask({
       uid: 'r1',
       summary: 'Imported routine',
-      // Cast through unknown because the type narrows to the enum; the
-      // runtime payload from the WebSocket is structurally typed.
+      // Cast through unknown because the static type is the TimeOfDay
+      // union, but the runtime payload from the WebSocket is structurally
+      // typed and could carry an out-of-band value (typo, future enum
+      // extension, legacy import). The cast preserves the unknown-string
+      // intent at runtime.
       metadata: {
         ...makeTask().metadata,
         type: 'routine',
-        time_of_day: 'evening' as unknown as undefined,
+        time_of_day: 'evening' as unknown as TimeOfDay,
       },
     });
     const el = makeEl([routine]);

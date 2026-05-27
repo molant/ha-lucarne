@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { MemberSummary, RenderableTask, TimeOfDay } from '../shared/types.js';
+import { coerceTimeOfDay } from '../shared/types.js';
 
 import './member-avatar.js';
 import './task-row.js';
@@ -20,14 +21,10 @@ const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
 function bucketRoutines(tasks: RenderableTask[]): Array<{ bucket: TimeOfDay; tasks: RenderableTask[] }> {
   const byBucket = new Map<TimeOfDay, RenderableTask[]>();
   for (const t of tasks) {
-    // Coerce unrecognized values (typos, future enum extensions, legacy
-    // imports that bypassed the voluptuous validator) to 'anytime' rather
-    // than silently dropping the routine from the card.
-    const raw = t.metadata.time_of_day;
-    const bucket: TimeOfDay =
-      raw && (TIME_OF_DAY_ORDER as readonly string[]).includes(raw)
-        ? (raw as TimeOfDay)
-        : 'anytime';
+    // coerceTimeOfDay collapses unrecognized values (typos, future enum
+    // extensions, legacy imports that bypassed the voluptuous validator)
+    // into 'anytime', so a stray value never silently drops the routine.
+    const bucket = coerceTimeOfDay(t.metadata.time_of_day);
     const arr = byBucket.get(bucket) ?? [];
     arr.push(t);
     byBucket.set(bucket, arr);

@@ -12,6 +12,20 @@ export const TIME_OF_DAY_VALUES: readonly TimeOfDay[] = [
   'night',
 ] as const;
 
+/**
+ * Coerce a runtime value into a TimeOfDay. Anything outside the four known
+ * buckets (typos, legacy imports, future enum extensions, payloads that
+ * bypassed the voluptuous validator) collapses to 'anytime' rather than
+ * leaving the UI in a broken state with a dropdown selection the renderer
+ * can't display.
+ */
+export function coerceTimeOfDay(value: unknown): TimeOfDay {
+  return typeof value === 'string'
+    && (TIME_OF_DAY_VALUES as readonly string[]).includes(value)
+    ? (value as TimeOfDay)
+    : 'anytime';
+}
+
 export interface MemberSummary {
   slug: string;
   name: string;
