@@ -70,11 +70,11 @@ describe('lucarne-add-task-popover', () => {
     summaryInput.value = 'Brush teeth';
     summaryInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
 
-    // Select Routine type
-    const routineBtn = Array.from(el.shadowRoot!.querySelectorAll('.type-btn')).find(
-      (b) => b.textContent?.trim() === 'Routine',
-    ) as HTMLButtonElement;
-    routineBtn?.click();
+    // Select Routine type via the Type <select>
+    const typeSelect = shadow(el, '#at-type') as HTMLSelectElement;
+    assert.ok(typeSelect, 'Type select renders');
+    typeSelect.value = 'routine';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
     await el.updateComplete;
 
     const submitBtn = shadow(el, '.btn-submit') as HTMLButtonElement;
@@ -129,24 +129,29 @@ describe('lucarne-add-task-popover', () => {
     assert.equal(events.length, 1);
   });
 
-  it('sends assignee for household task when assignee selected', async () => {
+  it('renders no Assignee field, even for household tasks', async () => {
+    const el = makeEl(HOUSEHOLD);
+    await el.updateComplete;
+
+    assert.equal(shadow(el, '#at-assignee'), null, 'assignee select is gone');
+    const labels = Array.from(el.shadowRoot!.querySelectorAll('label')).map(
+      (l) => l.textContent?.trim() ?? '',
+    );
+    assert.ok(
+      !labels.some((t) => t.toLowerCase().startsWith('assignee')),
+      `no Assignee label (found: ${labels.join(', ')})`,
+    );
+  });
+
+  it('omits assignee from add_task payload for household tasks', async () => {
     const el = makeEl(HOUSEHOLD);
     await el.updateComplete;
 
     const fakeHass = el.hass as unknown as ReturnType<typeof makeFakeHass>;
 
-    // Summary
     const summaryInput = shadow(el, '#at-summary') as HTMLInputElement;
     summaryInput.value = 'Feed dog';
     summaryInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
-    await el.updateComplete;
-
-    // Select assignee
-    const assigneeSelect = shadow(el, '#at-assignee') as HTMLSelectElement;
-    if (assigneeSelect) {
-      assigneeSelect.value = 'anna';
-      assigneeSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    }
     await el.updateComplete;
 
     const submitBtn = shadow(el, '.btn-submit') as HTMLButtonElement;
@@ -155,10 +160,10 @@ describe('lucarne-add-task-popover', () => {
 
     const call = fakeHass.calls.callService[0] as any;
     assert.equal(call.payload.member, 'household');
-    assert.equal(call.payload.assignee, 'anna');
+    assert.ok(!('assignee' in call.payload), 'assignee never sent from Add Task');
   });
 
-  it('does NOT send assignee for non-household task', async () => {
+  it('omits assignee from add_task payload for non-household tasks', async () => {
     const el = makeEl(MEMBER_ANNA);
     await el.updateComplete;
 
@@ -175,5 +180,16 @@ describe('lucarne-add-task-popover', () => {
 
     const call = fakeHass.calls.callService[0] as any;
     assert.ok(!('assignee' in call.payload), 'assignee not sent for non-household member');
+  });
+
+  it('renders Type as a <select> with Routine and Chore options', async () => {
+    const el = makeEl();
+    await el.updateComplete;
+
+    const typeSelect = shadow(el, '#at-type') as HTMLSelectElement;
+    assert.ok(typeSelect, 'Type select exists');
+    const values = Array.from(typeSelect.options).map((o) => o.value).sort();
+    assert.deepEqual(values, ['chore', 'routine']);
+    assert.equal(shadow(el, '.type-btn'), null, 'old type buttons removed');
   });
 });
