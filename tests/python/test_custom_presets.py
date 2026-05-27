@@ -356,6 +356,42 @@ async def test_view_builtin_presets_lists_all_builtins(hass: HomeAssistant) -> N
         assert preset.display_name in placeholder
 
 
+async def _open_preset_edit_menu(
+    hass: HomeAssistant, entry: MockConfigEntry, preset_slug: str
+) -> dict[str, Any]:
+    """Drive the options flow to the per-preset edit menu and return the result."""
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "edit_templates"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "manage_existing_preset"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"preset_slug": preset_slug}
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "edit_custom_preset"
+    return result  # type: ignore[return-value]
+
+
+async def test_edit_custom_preset_menu_lists_actions(hass: HomeAssistant) -> None:
+    """The per-preset edit screen is a menu with rename/add/delete/done options."""
+    entry = _make_entry(
+        hass,
+        custom_presets=[
+            {"slug": "morning", "display_name": "Morning", "routines": []},
+        ],
+    )
+    await _setup_entry(hass, entry)
+    result = await _open_preset_edit_menu(hass, entry, "morning")
+    options = result["menu_options"]
+    assert "rename_custom_preset" in options
+    assert "add_routine_to_preset" in options
+    assert "delete_preset_confirm" in options
+    assert "done_editing_preset" in options
+
+
 async def test_rename_custom_preset_updates_display_name_preserves_slug(
     hass: HomeAssistant,
 ) -> None:
@@ -383,27 +419,20 @@ async def test_rename_custom_preset_updates_display_name_preserves_slug(
         ],
     )
     await _setup_entry(hass, entry)
+    result = await _open_preset_edit_menu(hass, entry, "morning")
 
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    # Pick "Rename preset"
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "edit_templates"}
+        result["flow_id"], {"next_step_id": "rename_custom_preset"}
     )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "manage_existing_preset"}
-    )
-    assert result["step_id"] == "manage_existing_preset"
+    assert result["step_id"] == "rename_custom_preset"
 
-    # Pick the morning preset
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"preset_slug": "morning"}
-    )
-    assert result["step_id"] == "edit_custom_preset"
-
-    # Rename
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"display_name": "Sunrise", "action": "save"}
+        result["flow_id"], {"display_name": "Sunrise"}
     )
     await hass.async_block_till_done()
+    # After save, we land back in the per-preset edit menu.
+    assert result["step_id"] == "edit_custom_preset"
 
     custom_presets = entry.data.get(CONF_CUSTOM_PRESETS, [])
     assert len(custom_presets) == 1
@@ -432,23 +461,64 @@ async def test_rename_to_conflicting_name_shows_error(hass: HomeAssistant) -> No
         ],
     )
     await _setup_entry(hass, entry)
+    result = await _open_preset_edit_menu(hass, entry, "morning")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "rename_custom_preset"}
+    )
+    # Rename "Morning" → "Evening" — would collide with stored slug "evening".
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"display_name": "Evening"}
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "rename_custom_preset"
+    assert result["errors"] == {"display_name": "slug_conflict"}
+
+
+async def test_rename_to_canonically_colliding_builtin_name_shows_error(
+    hass: HomeAssistant,
+) -> None:
+    """Built-in slugs use hyphens; `_make_slug` produces underscores. A rename
+    like "School age" must still be rejected as colliding with built-in
+    `school-age` (`_canonical_slug` strips the hyphen/underscore diff)."""
+    entry = _make_entry(
+        hass,
+        custom_presets=[
+            {"slug": "morning", "display_name": "Morning", "routines": []},
+        ],
+    )
+    await _setup_entry(hass, entry)
+    result = await _open_preset_edit_menu(hass, entry, "morning")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "rename_custom_preset"}
+    )
+    # "School age" → slug "school_age"; built-in slug is "school-age".
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"display_name": "School age"}
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "rename_custom_preset"
+    assert result["errors"] == {"display_name": "slug_conflict"}
+
+
+async def test_add_custom_preset_rejects_canonically_colliding_builtin_name(
+    hass: HomeAssistant,
+) -> None:
+    """`add_custom_preset` applies the same canonical-slug check as rename."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "edit_templates"}
     )
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "manage_existing_preset"}
+        result["flow_id"], {"next_step_id": "add_custom_preset"}
     )
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"preset_slug": "morning"}
-    )
-    # Rename "Morning" → "Evening" — would collide with stored slug "evening".
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"display_name": "Evening", "action": "save"}
+        result["flow_id"], {"display_name": "School age"}
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
-    assert result["step_id"] == "edit_custom_preset"
+    assert result["step_id"] == "add_custom_preset"
     assert result["errors"] == {"display_name": "slug_conflict"}
 
 
@@ -467,20 +537,10 @@ async def test_add_routine_to_existing_preset_appends_via_add_preset_routine(
         ],
     )
     await _setup_entry(hass, entry)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _open_preset_edit_menu(hass, entry, "morning")
+    # Choose "Add a routine"
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "edit_templates"}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "manage_existing_preset"}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"preset_slug": "morning"}
-    )
-    # Choose "add a routine"
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"display_name": "Morning", "action": "add_routine"}
+        result["flow_id"], {"next_step_id": "add_routine_to_preset"}
     )
     assert result["type"] == data_entry_flow.FlowResultType.FORM
     assert result["step_id"] == "add_preset_routine"
@@ -502,6 +562,49 @@ async def test_add_routine_to_existing_preset_appends_via_add_preset_routine(
     assert len(routines) == 2
     summaries = {r["summary"] for r in routines}
     assert summaries == {"Stretch", "Coffee"}
+
+
+async def test_add_routine_when_preset_vanishes_bounces_to_templates_menu(
+    hass: HomeAssistant,
+) -> None:
+    """If the preset under edit is deleted mid-flow, the routine save bounces
+    back to the templates menu (rather than recording a misleading
+    create_entry success on top of stale state)."""
+    entry = _make_entry(
+        hass,
+        custom_presets=[
+            {"slug": "morning", "display_name": "Morning", "routines": []},
+        ],
+    )
+    await _setup_entry(hass, entry)
+    result = await _open_preset_edit_menu(hass, entry, "morning")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_routine_to_preset"}
+    )
+    assert result["step_id"] == "add_preset_routine"
+
+    # Simulate the preset being removed from another window after the user
+    # opened the add-routine form but before they submitted it.
+    new_data = {**entry.data, CONF_CUSTOM_PRESETS: []}
+    hass.config_entries.async_update_entry(entry, data=new_data)
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "summary": "Coffee",
+            "icon": "☕",
+            "recurrence": "FREQ=DAILY",
+            "add_another": False,
+        },
+    )
+    await hass.async_block_till_done()
+
+    # No preset was created (we're in edit mode, not add mode) and the user
+    # is bounced back to the templates menu — input isn't silently lost in
+    # the sense that a "succeeded" create_entry was returned.
+    assert entry.data.get(CONF_CUSTOM_PRESETS, []) == []
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "edit_templates"
 
 
 async def test_delete_custom_preset_removes_and_migrates_members(
@@ -539,20 +642,10 @@ async def test_delete_custom_preset_removes_and_migrates_members(
         ],
     )
     await _setup_entry(hass, entry)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _open_preset_edit_menu(hass, entry, "morning")
+    # Choose "Delete this preset"
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "edit_templates"}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "manage_existing_preset"}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"preset_slug": "morning"}
-    )
-    # Choose "delete this preset"
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"display_name": "Morning", "action": "delete"}
+        result["flow_id"], {"next_step_id": "delete_preset_confirm"}
     )
     assert result["step_id"] == "delete_preset_confirm"
 
@@ -570,6 +663,41 @@ async def test_delete_custom_preset_removes_and_migrates_members(
     assert members_by_slug["anna"]["preset"] == "school-age"
 
 
+async def test_delete_preset_impact_text_derives_fallback_label(
+    hass: HomeAssistant,
+) -> None:
+    """The confirm-delete description uses BUILTIN_PRESETS[adult-none].display_name
+    rather than a hard-coded string."""
+    from custom_components.lucarne_family.const import PRESET_ADULT_NONE
+    from custom_components.lucarne_family.presets import BUILTIN_PRESETS
+
+    entry = _make_entry(
+        hass,
+        custom_presets=[
+            {"slug": "morning", "display_name": "Morning", "routines": []},
+        ],
+        members=[
+            {
+                "slug": "ben",
+                "name": "Ben",
+                "color": "#aabbcc",
+                "avatar": None,
+                "created_at": datetime.now(UTC).isoformat(),
+                "preset": "morning",
+                "todo_entity_id": "todo.ben",
+                "streak_counter_id": "counter.ben_streak",
+            }
+        ],
+    )
+    await _setup_entry(hass, entry)
+    result = await _open_preset_edit_menu(hass, entry, "morning")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "delete_preset_confirm"}
+    )
+    expected_label = BUILTIN_PRESETS[PRESET_ADULT_NONE].display_name
+    assert expected_label in result["description_placeholders"]["impact"]
+
+
 async def test_delete_preset_cancel_keeps_preset(hass: HomeAssistant) -> None:
     """Declining the delete confirmation leaves the preset intact."""
     entry = _make_entry(
@@ -579,19 +707,9 @@ async def test_delete_preset_cancel_keeps_preset(hass: HomeAssistant) -> None:
         ],
     )
     await _setup_entry(hass, entry)
-
-    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await _open_preset_edit_menu(hass, entry, "morning")
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "edit_templates"}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"next_step_id": "manage_existing_preset"}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"preset_slug": "morning"}
-    )
-    result = await hass.config_entries.options.async_configure(
-        result["flow_id"], {"display_name": "Morning", "action": "delete"}
+        result["flow_id"], {"next_step_id": "delete_preset_confirm"}
     )
     # Decline (confirm=False)
     result = await hass.config_entries.options.async_configure(
@@ -603,3 +721,22 @@ async def test_delete_preset_cancel_keeps_preset(hass: HomeAssistant) -> None:
     presets = entry.data.get(CONF_CUSTOM_PRESETS, [])
     assert len(presets) == 1
     assert presets[0]["slug"] == "morning"
+
+
+async def test_done_editing_preset_returns_to_templates_menu(
+    hass: HomeAssistant,
+) -> None:
+    """Selecting 'Done' on the per-preset menu exits back to the templates menu."""
+    entry = _make_entry(
+        hass,
+        custom_presets=[
+            {"slug": "morning", "display_name": "Morning", "routines": []},
+        ],
+    )
+    await _setup_entry(hass, entry)
+    result = await _open_preset_edit_menu(hass, entry, "morning")
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "done_editing_preset"}
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "edit_templates"

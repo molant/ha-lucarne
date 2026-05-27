@@ -114,10 +114,19 @@
       },
       "edit_custom_preset": {
         "title": "Edit '{preset_name}'",
-        "description": "Current routines:\n{routines}\n\nRename by editing the name, or pick an action.",
+        "description": "Current routines:\n{routines}",
+        "menu_options": {
+          "rename_custom_preset": "Rename preset",
+          "add_routine_to_preset": "Add a routine",
+          "delete_preset_confirm": "Delete this preset",
+          "done_editing_preset": "Done"
+        }
+      },
+      "rename_custom_preset": {
+        "title": "Rename '{preset_name}'",
+        "description": "Choose a new display name. Member references to this preset keep working — the internal identifier doesn't change.",
         "data": {
-          "display_name": "Preset name",
-          "action": "Action"
+          "display_name": "Preset name"
         }
       },
       "delete_preset_confirm": {
