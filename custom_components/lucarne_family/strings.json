@@ -91,13 +91,40 @@
         "title": "Routine presets",
         "description": "A preset is a reusable bundle of routines (e.g. \"School-age kid\") that can be applied to a member when they're created. Add a custom preset to define your own.",
         "menu_options": {
-          "add_custom_preset": "Add a custom preset"
+          "add_custom_preset": "Add a custom preset",
+          "manage_existing_preset": "Edit or delete a custom preset",
+          "view_builtin_presets": "View built-in presets"
         }
       },
       "add_custom_preset": {
         "title": "New routine preset",
         "data": {
           "display_name": "Preset name"
+        }
+      },
+      "view_builtin_presets": {
+        "title": "Built-in routine presets",
+        "description": "These presets ship with the integration and can't be edited or removed:\n\n{presets}"
+      },
+      "manage_existing_preset": {
+        "title": "Pick a custom preset",
+        "data": {
+          "preset_slug": "Custom preset"
+        }
+      },
+      "edit_custom_preset": {
+        "title": "Edit '{preset_name}'",
+        "description": "Current routines:\n{routines}\n\nRename by editing the name, or pick an action.",
+        "data": {
+          "display_name": "Preset name",
+          "action": "Action"
+        }
+      },
+      "delete_preset_confirm": {
+        "title": "Delete '{preset_name}'?",
+        "description": "{impact}\n\nCheck the box to confirm deletion.",
+        "data": {
+          "confirm": "I understand — delete this preset"
         }
       },
       "add_preset_routine": {
