@@ -822,3 +822,112 @@ async def test_edit_member_upload_with_slug_changing_rename_saves_under_new_slug
     members = entry.data[CONF_MEMBERS]
     anna_maria = next(m for m in members if m["slug"] == "anna_maria")
     assert anna_maria["avatar"] == "/local/lucarne/avatars/anna_maria.png"
+    # File is retained on confirm.
+    assert new_path.exists()
+
+
+async def test_edit_member_upload_retry_after_rename_failure_does_not_persist_broken_url(
+    hass: HomeAssistant, mock_process_uploaded_file: MagicMock
+) -> None:
+    """If rename fails after the avatar file is written under the new slug,
+    the file is cleaned up. A subsequent retry that succeeds must NOT persist
+    the now-broken `/local/lucarne/avatars/<new_slug>.<ext>` URL into the
+    member record — it should fall back to the member's prior avatar.
+    """
+    mock_process_uploaded_file.content["data"] = _png_bytes()
+
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+    await _add_anna(hass, entry)
+    # Anna's pre-edit avatar is the emoji "🧒" — set by _add_anna.
+    pre_edit_avatar = entry.data[CONF_MEMBERS][0]["avatar"]
+    assert pre_edit_avatar == "🧒"
+
+    # Patch the entity-registry rename to fail once, then succeed.
+    call_count = {"n": 0}
+
+    async def _flaky_rename(_hass, _old_todo, new_slug, _old_counter):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise RuntimeError("transient registry lock")
+        return (f"todo.{new_slug}", f"counter.{new_slug}_streak")
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_member"})
+    result = await _configure(hass, result["flow_id"], {"member_slug": "anna"})
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "name": "Anna-Maria",
+            "color": [245, 200, 156],
+            "avatar": "",
+            "avatar_file": mock_process_uploaded_file.file_id,
+            "preset": "school-age",
+        },
+    )
+    assert result["step_id"] == "rename_confirm"
+    new_path = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "anna_maria.png"
+    assert new_path.exists()
+
+    with patch(
+        "custom_components.lucarne_family.entity_manager.async_rename_member_entities",
+        side_effect=_flaky_rename,
+    ):
+        # First confirm: rename fails, file is removed, form re-renders with error.
+        result = await _configure(hass, result["flow_id"], {"confirm": True})
+        assert result["type"] == data_entry_flow.FlowResultType.FORM
+        assert result["step_id"] == "rename_confirm"
+        assert not new_path.exists()
+
+        # Second confirm: rename succeeds.
+        result = await _configure(hass, result["flow_id"], {"confirm": True})
+
+    members = entry.data[CONF_MEMBERS]
+    anna_maria = next(m for m in members if m["slug"] == "anna_maria")
+    # MUST NOT be the deleted /local/... URL. The pre-edit avatar is preserved.
+    assert anna_maria["avatar"] == pre_edit_avatar
+
+
+async def test_edit_member_upload_orphan_cleaned_when_rename_cancelled(
+    hass: HomeAssistant, mock_process_uploaded_file: MagicMock
+) -> None:
+    """When the user declines rename_confirm, the file written under the new
+    slug must be removed so a future member with that slug doesn't inherit it.
+    """
+    mock_process_uploaded_file.content["data"] = _png_bytes()
+
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+    await _add_anna(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_member"})
+    result = await _configure(hass, result["flow_id"], {"member_slug": "anna"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "name": "Anna-Maria",
+            "color": [245, 200, 156],
+            "avatar": "",
+            "avatar_file": mock_process_uploaded_file.file_id,
+            "preset": "school-age",
+        },
+    )
+    assert result["step_id"] == "rename_confirm"
+    new_path = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "anna_maria.png"
+    assert new_path.exists()
+
+    # User declines: file under new slug must be removed.
+    result = await _configure(hass, result["flow_id"], {"confirm": False})
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert not new_path.exists()
+
+    # Original member is unchanged.
+    members = entry.data[CONF_MEMBERS]
+    assert len(members) == 1
+    assert members[0]["slug"] == "anna"
