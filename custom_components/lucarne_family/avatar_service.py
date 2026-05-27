@@ -71,6 +71,57 @@ def _write_avatar(dest: Path, raw: bytes) -> None:
     dest.write_bytes(raw)
 
 
+def save_avatar_bytes(
+    hass: HomeAssistant,
+    member_slug: str,
+    raw: bytes,
+    declared_mime: str | None = None,
+) -> str:
+    """Validate raw image bytes and write them to the avatar directory.
+
+    Returns the resulting `/local/...` URL. Raises ServiceValidationError on
+    any failure (unsafe slug, oversized, unknown format, mime mismatch,
+    decode error). Synchronous — invoke from async code via
+    `hass.async_add_executor_job`.
+    """
+    if (
+        not member_slug
+        or "/" in member_slug
+        or "\\" in member_slug
+        or ".." in member_slug
+        or member_slug.startswith(".")
+    ):
+        raise ServiceValidationError(f"Member slug is not safe for filenames: {member_slug!r}")
+
+    if len(raw) > AVATAR_MAX_BYTES:
+        raise ServiceValidationError(
+            f"Image size {len(raw)} bytes exceeds maximum {AVATAR_MAX_BYTES} bytes (2 MB)"
+        )
+
+    detected_mime = _detect_image_mime(raw)
+    if detected_mime is None:
+        raise ServiceValidationError(
+            "Could not identify image format from magic bytes. "
+            "Only PNG, JPEG, and WebP are accepted."
+        )
+    if declared_mime is not None and detected_mime != declared_mime:
+        raise ServiceValidationError(
+            f"Declared mime_type {declared_mime!r} does not match "
+            f"detected format {detected_mime!r}"
+        )
+
+    _check_dimensions(raw)
+
+    ext = _MIME_TO_EXT[detected_mime]
+    avatar_dir = Path(hass.config.path("www", "lucarne", "avatars"))
+    dest = avatar_dir / f"{member_slug}.{ext}"
+
+    _cleanup_old_avatar(avatar_dir, member_slug, ext)
+    _write_avatar(dest, raw)
+
+    return f"/local/lucarne/avatars/{member_slug}.{ext}"
+
+
 async def async_setup_avatar_service(hass: HomeAssistant, entry_id: str) -> None:
     """Register the lucarne_family.upload_avatar service."""
 
@@ -87,16 +138,6 @@ async def async_setup_avatar_service(hass: HomeAssistant, entry_id: str) -> None
         if member is None:
             raise ServiceValidationError(f"Unknown member: {member_slug!r}")
 
-        # Slug must be path-safe (enforced by model, but verify defensively).
-        if (
-            not member_slug
-            or "/" in member_slug
-            or "\\" in member_slug
-            or ".." in member_slug
-            or member_slug.startswith(".")
-        ):
-            raise ServiceValidationError(f"Member slug is not safe for filenames: {member_slug!r}")
-
         # Pre-check encoded length to avoid decoding an arbitrarily large payload on the event loop.
         _max_encoded = AVATAR_MAX_BYTES * 4 // 3 + 4
         if len(image_data_b64) > _max_encoded:
@@ -109,34 +150,9 @@ async def async_setup_avatar_service(hass: HomeAssistant, entry_id: str) -> None
         except (binascii.Error, ValueError) as exc:
             raise ServiceValidationError(f"Invalid base64 image data: {exc}") from exc
 
-        if len(raw) > AVATAR_MAX_BYTES:
-            raise ServiceValidationError(
-                f"Image size {len(raw)} bytes exceeds maximum {AVATAR_MAX_BYTES} bytes (2 MB)"
-            )
-
-        detected_mime = _detect_image_mime(raw)
-        if detected_mime is None:
-            raise ServiceValidationError(
-                "Could not identify image format from magic bytes. "
-                "Only PNG, JPEG, and WebP are accepted."
-            )
-        if detected_mime != declared_mime:
-            raise ServiceValidationError(
-                f"Declared mime_type {declared_mime!r} does not match "
-                f"detected format {detected_mime!r}"
-            )
-
-        await hass.async_add_executor_job(_check_dimensions, raw)
-
-        ext = _MIME_TO_EXT[declared_mime]
-        avatar_dir = Path(hass.config.path("www", "lucarne", "avatars"))
-        dest = avatar_dir / f"{member_slug}.{ext}"
-
-        # Remove any stale avatars with a different extension before writing.
-        await hass.async_add_executor_job(_cleanup_old_avatar, avatar_dir, member_slug, ext)
-        await hass.async_add_executor_job(_write_avatar, dest, raw)
-
-        avatar_url = f"/local/lucarne/avatars/{member_slug}.{ext}"
+        avatar_url = await hass.async_add_executor_job(
+            save_avatar_bytes, hass, member_slug, raw, declared_mime
+        )
         # Re-read members immediately before saving to avoid clobbering concurrent edits.
         current = store.get_members()
         if not any(m.slug == member_slug for m in current):

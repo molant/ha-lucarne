@@ -6,7 +6,7 @@
   "integration_type": "service",
   "iot_class": "local_push",
   "requirements": ["python-dateutil>=2.8"],
-  "dependencies": ["counter", "local_todo"],
+  "dependencies": ["counter", "file_upload", "local_todo"],
   "codeowners": ["@molant"],
   "documentation": "https://github.com/molant/ha-lucarne",
   "issue_tracker": "https://github.com/molant/ha-lucarne/issues"

@@ -1,16 +1,23 @@
 """Tests for the options flow (ongoing member management and schedule edits)."""
 from __future__ import annotations
 
+import io
+from collections.abc import Generator
+from contextlib import contextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import uuid4
 
 import pytest
 from homeassistant import data_entry_flow
 from homeassistant.core import HomeAssistant
+from PIL import Image
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.lucarne_family.const import (
+    AVATAR_MAX_BYTES,
     CONF_MEMBERS,
     DEFAULT_RESET_TIME,
     DEFAULT_STREAK_CHECK_TIME,
@@ -604,3 +611,214 @@ async def test_edit_round_trip_readback(hass: HomeAssistant) -> None:
     # The schema defaults should reflect the saved values
     schema = result2.get("data_schema")
     assert schema is not None
+
+
+# ---------------------------------------------------------------------------
+# Add member — FileSelector avatar upload
+# ---------------------------------------------------------------------------
+
+
+def _png_bytes(width: int = 1, height: int = 1) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (width, height), color=(255, 0, 0)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+@pytest.fixture
+def mock_process_uploaded_file(tmp_path: Path) -> Generator[MagicMock]:
+    """Mock the file_upload context manager used by the options flow.
+
+    Tests mutate `mock.content["data"]` to set the bytes seen by the flow,
+    then submit `avatar_file=mock.file_id` to trigger the upload branch.
+    """
+    file_id = str(uuid4())
+    content: dict[str, bytes] = {"data": b""}
+
+    @contextmanager
+    def _ctx(_hass: HomeAssistant, uploaded_file_id: str) -> Generator[Path]:
+        path = tmp_path / uploaded_file_id
+        path.write_bytes(content["data"])
+        try:
+            yield path
+        finally:
+            path.unlink(missing_ok=True)
+
+    with patch(
+        "custom_components.lucarne_family.config_flow.process_uploaded_file",
+        side_effect=_ctx,
+    ) as mock:
+        mock.file_id = file_id
+        mock.content = content
+        yield mock
+
+
+async def test_add_member_uploads_avatar_file_happy_path(
+    hass: HomeAssistant, mock_process_uploaded_file: MagicMock
+) -> None:
+    """Submitting a valid PNG via `avatar_file` writes the file and sets the URL."""
+    mock_process_uploaded_file.content["data"] = _png_bytes()
+
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "name": "Anna",
+            "color": [245, 200, 156],
+            "avatar": "",
+            "avatar_file": mock_process_uploaded_file.file_id,
+            "preset": "school-age",
+        },
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "manage_members"
+
+    members = entry.data[CONF_MEMBERS]
+    assert len(members) == 1
+    assert members[0]["avatar"] == "/local/lucarne/avatars/anna.png"
+
+    dest = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "anna.png"
+    assert dest.exists()
+
+
+async def test_add_member_oversized_avatar_file_rejected(
+    hass: HomeAssistant, mock_process_uploaded_file: MagicMock
+) -> None:
+    """Oversized uploads re-render the form with avatar_invalid and add no member."""
+    mock_process_uploaded_file.content["data"] = (
+        b"\x89PNG\r\n\x1a\n" + b"\x00" * (AVATAR_MAX_BYTES + 1)
+    )
+
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "name": "Bob",
+            "color": [10, 20, 30],
+            "avatar": "",
+            "avatar_file": mock_process_uploaded_file.file_id,
+            "preset": "school-age",
+        },
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["errors"].get("avatar_file") == "avatar_invalid"
+    assert entry.data[CONF_MEMBERS] == []
+
+
+async def test_add_member_non_image_avatar_file_rejected(
+    hass: HomeAssistant, mock_process_uploaded_file: MagicMock
+) -> None:
+    """Non-image bytes are rejected via the magic-byte sniff."""
+    mock_process_uploaded_file.content["data"] = b"this is plainly not an image payload"
+
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "name": "Carol",
+            "color": [10, 20, 30],
+            "avatar": "",
+            "avatar_file": mock_process_uploaded_file.file_id,
+            "preset": "school-age",
+        },
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["errors"].get("avatar_file") == "avatar_invalid"
+    assert entry.data[CONF_MEMBERS] == []
+
+
+async def test_add_member_avatar_file_overrides_text(
+    hass: HomeAssistant, mock_process_uploaded_file: MagicMock
+) -> None:
+    """When both `avatar` text and `avatar_file` are submitted, the file wins."""
+    mock_process_uploaded_file.content["data"] = _png_bytes()
+
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+
+    await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "name": "Dana",
+            "color": [10, 20, 30],
+            "avatar": "🦊",
+            "avatar_file": mock_process_uploaded_file.file_id,
+            "preset": "school-age",
+        },
+    )
+
+    members = entry.data[CONF_MEMBERS]
+    assert len(members) == 1
+    assert members[0]["avatar"] == "/local/lucarne/avatars/dana.png"
+
+
+async def test_edit_member_upload_with_slug_changing_rename_saves_under_new_slug(
+    hass: HomeAssistant, mock_process_uploaded_file: MagicMock
+) -> None:
+    """Regression: when Edit Member combines a rename with an upload, the file
+    must be written under the NEW slug. Saving under the old slug leaves a
+    dangling `/local/lucarne/avatars/<old_slug>.*` URL on the renamed member
+    and risks a future member with the old slug overwriting the file.
+    """
+    mock_process_uploaded_file.content["data"] = _png_bytes()
+
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+    await _add_anna(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_member"})
+    result = await _configure(hass, result["flow_id"], {"member_slug": "anna"})
+
+    # Rename to a name whose slug differs ("anna" → "anna_maria") AND upload.
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "name": "Anna-Maria",
+            "color": [245, 200, 156],
+            "avatar": "",
+            "avatar_file": mock_process_uploaded_file.file_id,
+            "preset": "school-age",
+        },
+    )
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["step_id"] == "rename_confirm"
+
+    # The file MUST be saved under the new slug, not the old one.
+    new_path = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "anna_maria.png"
+    old_path = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "anna.png"
+    assert new_path.exists()
+    assert not old_path.exists()
+
+    # Confirm the rename and verify the persisted avatar URL uses the new slug.
+    result = await _configure(hass, result["flow_id"], {"confirm": True})
+    members = entry.data[CONF_MEMBERS]
+    anna_maria = next(m for m in members if m["slug"] == "anna_maria")
+    assert anna_maria["avatar"] == "/local/lucarne/avatars/anna_maria.png"

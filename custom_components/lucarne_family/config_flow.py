@@ -9,10 +9,13 @@ from urllib.parse import urlparse
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import callback
+from homeassistant.components.file_upload import process_uploaded_file
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import selector
 
 from . import seed_preset_routines
+from .avatar_service import save_avatar_bytes
 from .const import (
     CONF_CUSTOM_PRESETS,
     CONF_FAMILY_NAME,
@@ -83,6 +86,19 @@ def _hex_to_rgb(hex_color: str) -> list[int]:
         return [74, 144, 226]
     return [int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)]
 
+
+
+def _read_and_save_uploaded_avatar(
+    hass: HomeAssistant, member_slug: str, uploaded_file_id: str
+) -> str:
+    """Open the file_upload context, read the bytes, and persist via save_avatar_bytes.
+
+    Synchronous — invoke via `hass.async_add_executor_job` so both the I/O
+    and the validation happen off the event loop in a single hop.
+    """
+    with process_uploaded_file(hass, uploaded_file_id) as path:
+        raw = path.read_bytes()
+    return save_avatar_bytes(hass, member_slug, raw)
 
 
 def _default_entry_data(family_name: str) -> dict[str, Any]:
@@ -345,6 +361,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             name = user_input.get("name", "").strip()
             color = _normalize_color(user_input.get("color"))
             avatar = user_input.get("avatar", "").strip() or None
+            uploaded_file_id = user_input.get("avatar_file") or None
             preset = user_input.get("preset", PRESET_SCHOOL_AGE)
 
             err = _validate_name(name)
@@ -363,6 +380,29 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                     if any(m.slug == slug for m in existing):
                         errors["name"] = "slug_conflict"
                     else:
+                        if uploaded_file_id:
+                            # Process the upload BEFORE creating entities so a bad
+                            # image doesn't leave dangling todo/counter entities behind.
+                            try:
+                                avatar = await self.hass.async_add_executor_job(
+                                    _read_and_save_uploaded_avatar,
+                                    self.hass,
+                                    slug,
+                                    uploaded_file_id,
+                                )
+                            except ServiceValidationError as exc:
+                                _LOGGER.warning(
+                                    "Avatar upload rejected for %r: %s", slug, exc
+                                )
+                                errors["avatar_file"] = "avatar_invalid"
+                            except ValueError as exc:
+                                # file_upload raises ValueError if the file_id is unknown/expired.
+                                _LOGGER.warning(
+                                    "Avatar upload failed for %r: %s", slug, exc
+                                )
+                                errors["avatar_file"] = "avatar_invalid"
+
+                    if not errors:
                         from datetime import UTC, datetime
 
                         from .entity_manager import async_create_member_entities
@@ -440,6 +480,9 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                 vol.Required("name"): str,
                 vol.Required("color", default=_hex_to_rgb("#4a90e2")): selector.ColorRGBSelector(),
                 vol.Optional("avatar", default=""): str,
+                vol.Optional("avatar_file"): selector.FileSelector(
+                    selector.FileSelectorConfig(accept="image/*")
+                ),
                 vol.Required("preset", default=PRESET_SCHOOL_AGE): vol.In(preset_options),
             }
         )
@@ -460,6 +503,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             name = user_input.get("name", "").strip()
             color = _normalize_color(user_input.get("color"))
             avatar = user_input.get("avatar", "").strip() or None
+            uploaded_file_id = user_input.get("avatar_file") or None
             preset = user_input.get("preset", PRESET_SCHOOL_AGE)
 
             err = _validate_name(name)
@@ -469,22 +513,54 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             if color_err:
                 errors["color"] = color_err
 
-            if not errors:
-                target = next(
-                    (m for m in members if m.slug == self._selected_member_slug), None
+            target = next(
+                (m for m in members if m.slug == self._selected_member_slug), None
+            )
+            new_slug = _make_slug(name) if name else ""
+            slug_is_changing = bool(
+                target is not None and new_slug and new_slug != target.slug
+            )
+
+            if not errors and slug_is_changing and target is not None and any(
+                m.slug == new_slug for m in members if m.slug != target.slug
+            ):
+                errors["name"] = "slug_conflict"
+
+            if not errors and uploaded_file_id:
+                # Save the uploaded file under the slug the member will have AFTER
+                # any pending rename. Saving under the old slug would leak a
+                # `/local/lucarne/avatars/<old_slug>.*` URL into the renamed
+                # member's record, and a future member with the old slug could
+                # later overwrite or accidentally inherit the file.
+                slug_for_upload = (
+                    new_slug if slug_is_changing else (self._selected_member_slug or "")
                 )
-                new_slug = _make_slug(name) if name else ""
-                if target is not None and new_slug and new_slug != target.slug:
-                    if any(m.slug == new_slug for m in members if m.slug != target.slug):
-                        errors["name"] = "slug_conflict"
-                    else:
-                        self._pending_rename = {
-                            "name": name,
-                            "color": color,
-                            "avatar": avatar,
-                            "preset": preset,
-                        }
-                        return await self.async_step_rename_confirm()
+                try:
+                    avatar = await self.hass.async_add_executor_job(
+                        _read_and_save_uploaded_avatar,
+                        self.hass,
+                        slug_for_upload,
+                        uploaded_file_id,
+                    )
+                except ServiceValidationError as exc:
+                    _LOGGER.warning(
+                        "Avatar upload rejected for %r: %s", slug_for_upload, exc
+                    )
+                    errors["avatar_file"] = "avatar_invalid"
+                except ValueError as exc:
+                    _LOGGER.warning(
+                        "Avatar upload failed for %r: %s", slug_for_upload, exc
+                    )
+                    errors["avatar_file"] = "avatar_invalid"
+
+            if not errors and slug_is_changing:
+                self._pending_rename = {
+                    "name": name,
+                    "color": color,
+                    "avatar": avatar,
+                    "preset": preset,
+                }
+                return await self.async_step_rename_confirm()
 
             if not errors:
                 updated = [
@@ -527,6 +603,9 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                     "color", default=_hex_to_rgb(target.color)
                 ): selector.ColorRGBSelector(),
                 vol.Optional("avatar", default=target.avatar or ""): str,
+                vol.Optional("avatar_file"): selector.FileSelector(
+                    selector.FileSelectorConfig(accept="image/*")
+                ),
                 vol.Required("preset", default=target.preset): vol.In(preset_options),
             }
         )
