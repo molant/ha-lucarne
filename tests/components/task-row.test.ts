@@ -185,4 +185,14 @@ describe('lucarne-task-row', () => {
     await el.updateComplete;
     assert.equal(el.hasAttribute('compact'), true, 'compact attribute reflected on host');
   });
+
+  it('compact preserves the 44px minimum tap target (a11y)', async () => {
+    const el = makeEl(makeTask());
+    el.compact = true;
+    await el.updateComplete;
+
+    const row = shadow(el, '.row') as HTMLElement;
+    const styles = window.getComputedStyle(row);
+    assert.equal(styles.minHeight, '44px', 'compact mode keeps the 44px hit area');
+  });
 });

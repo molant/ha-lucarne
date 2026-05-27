@@ -4,6 +4,7 @@ import { lucarneStyles } from '../shared/design-tokens.js';
 import { iconCheck } from '../shared/icons.js';
 import { STRINGS } from '../shared/strings.js';
 import type { MemberSummary, TodoItem, RenderableTask } from '../shared/types.js';
+import { EMOJI_RE } from './member-avatar.js';
 
 import './task-row.js';
 
@@ -183,6 +184,9 @@ export class LucarneTasksSummary extends LitElement {
   }
 
   private _renderOwnerAvatar(member: MemberSummary) {
+    // Mirror lucarne-member-avatar's branching so non-emoji strings (URL,
+    // plain text, accidentally-stored markup) don't end up rendered verbatim
+    // in the tiny pill — fall back to the initial instead.
     const av = member.avatar;
     if (av && av.startsWith('/local/')) {
       return html`
@@ -191,7 +195,7 @@ export class LucarneTasksSummary extends LitElement {
         </div>
       `;
     }
-    if (av) {
+    if (av && EMOJI_RE.test(av)) {
       return html`
         <div class="owner-avatar" style="background:${member.color}" title="${member.name}">
           <span>${av}</span>
