@@ -635,6 +635,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             summary = (user_input.get("summary") or "").strip()
             icon = (user_input.get("icon") or "").strip()
             recurrence = (user_input.get("recurrence") or "FREQ=DAILY").strip()
+            time_of_day = (user_input.get("time_of_day") or "anytime").strip()
             add_another = user_input.get("add_another", False)
 
             if not summary:
@@ -644,7 +645,12 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
 
             if not errors:
                 self._pending_preset_routines.append(
-                    {"summary": summary, "icon": icon, "recurrence": recurrence}
+                    {
+                        "summary": summary,
+                        "icon": icon,
+                        "recurrence": recurrence,
+                        "time_of_day": time_of_day,
+                    }
                 )
                 if add_another:
                     return await self.async_step_add_preset_routine()
@@ -704,6 +710,14 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                 vol.Required("summary"): str,
                 vol.Optional("icon", default=""): str,
                 vol.Optional("recurrence", default="FREQ=DAILY"): str,
+                vol.Required("time_of_day", default="anytime"): vol.In(
+                    {
+                        "anytime": "Anytime",
+                        "morning": "Morning",
+                        "afternoon": "Afternoon",
+                        "night": "Night",
+                    }
+                ),
                 vol.Optional("add_another", default=False): bool,
             }
         )

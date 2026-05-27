@@ -1,14 +1,45 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import type { MemberSummary, RenderableTask } from '../shared/types.js';
+import type { MemberSummary, RenderableTask, TimeOfDay } from '../shared/types.js';
 
 import './member-avatar.js';
 import './task-row.js';
 import './streak-display.js';
 import './celebration-overlay.js';
 
-function sortRoutines(tasks: RenderableTask[]): RenderableTask[] {
-  return [...tasks].sort((a, b) => a.summary.localeCompare(b.summary));
+// Display order for the per-bucket sub-sections inside the Routines section.
+// Anytime is last so dated buckets surface first.
+const TIME_OF_DAY_ORDER: readonly TimeOfDay[] = ['morning', 'afternoon', 'night', 'anytime'];
+const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
+  morning: 'Morning',
+  afternoon: 'Afternoon',
+  night: 'Night',
+  anytime: 'Anytime',
+};
+
+function bucketRoutines(tasks: RenderableTask[]): Array<{ bucket: TimeOfDay; tasks: RenderableTask[] }> {
+  const byBucket = new Map<TimeOfDay, RenderableTask[]>();
+  for (const t of tasks) {
+    // Coerce unrecognized values (typos, future enum extensions, legacy
+    // imports that bypassed the voluptuous validator) to 'anytime' rather
+    // than silently dropping the routine from the card.
+    const raw = t.metadata.time_of_day;
+    const bucket: TimeOfDay =
+      raw && (TIME_OF_DAY_ORDER as readonly string[]).includes(raw)
+        ? (raw as TimeOfDay)
+        : 'anytime';
+    const arr = byBucket.get(bucket) ?? [];
+    arr.push(t);
+    byBucket.set(bucket, arr);
+  }
+  const result: Array<{ bucket: TimeOfDay; tasks: RenderableTask[] }> = [];
+  for (const bucket of TIME_OF_DAY_ORDER) {
+    const bucketTasks = byBucket.get(bucket);
+    if (!bucketTasks || bucketTasks.length === 0) continue;
+    bucketTasks.sort((a, b) => a.summary.localeCompare(b.summary));
+    result.push({ bucket, tasks: bucketTasks });
+  }
+  return result;
 }
 
 function sortChores(tasks: RenderableTask[]): RenderableTask[] {
@@ -139,7 +170,7 @@ export class LucarneMemberColumn extends LitElement {
   render() {
     if (!this.member) return html``;
 
-    const routines = sortRoutines(this.tasks.filter((t) => t.metadata.type === 'routine'));
+    const routineBuckets = bucketRoutines(this.tasks.filter((t) => t.metadata.type === 'routine'));
     const chores = sortChores(this.tasks.filter((t) => t.metadata.type === 'chore'));
 
     return html`
@@ -165,17 +196,19 @@ export class LucarneMemberColumn extends LitElement {
           </div>
         </div>
 
-        ${this.showRoutines && routines.length > 0
+        ${this.showRoutines && routineBuckets.length > 0
           ? html`
-              <div class="section">
-                <div class="section-header">Routines</div>
-                ${routines.map((t) => html`
-                  <lucarne-task-row
-                    .task=${t}
-                    .memberColor=${this.member.color}
-                  ></lucarne-task-row>
-                `)}
-              </div>
+              ${routineBuckets.map(({ bucket, tasks }) => html`
+                <div class="section">
+                  <div class="section-header">${TIME_OF_DAY_LABELS[bucket]}</div>
+                  ${tasks.map((t) => html`
+                    <lucarne-task-row
+                      .task=${t}
+                      .memberColor=${this.member.color}
+                    ></lucarne-task-row>
+                  `)}
+                </div>
+              `)}
             `
           : ''}
 

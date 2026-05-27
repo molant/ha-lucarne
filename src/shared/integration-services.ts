@@ -1,4 +1,4 @@
-import type { HomeAssistant, TaskType, TaskSource } from './types.js';
+import type { HomeAssistant, TaskType, TaskSource, TimeOfDay } from './types.js';
 
 export interface AddTaskParams {
   member: string;
@@ -9,6 +9,7 @@ export interface AddTaskParams {
   due?: string;
   source?: TaskSource;
   assignee?: string;
+  time_of_day?: TimeOfDay;
 }
 
 export async function addTask(hass: HomeAssistant, params: AddTaskParams): Promise<void> {
@@ -22,6 +23,7 @@ export async function addTask(hass: HomeAssistant, params: AddTaskParams): Promi
   if (params.due !== undefined) serviceData.due = params.due;
   if (params.source !== undefined) serviceData.source = params.source;
   if (params.assignee !== undefined) serviceData.assignee = params.assignee;
+  if (params.time_of_day !== undefined) serviceData.time_of_day = params.time_of_day;
 
   await hass.callService('lucarne_family', 'add_task', serviceData);
 }
@@ -31,6 +33,7 @@ export interface UpdateTaskMetadataFields {
   recurrence?: string;
   icon?: string;
   assignee?: string;
+  time_of_day?: TimeOfDay;
 }
 
 export async function updateTaskMetadata(
@@ -43,6 +46,7 @@ export async function updateTaskMetadata(
   if (fields.recurrence !== undefined) serviceData.recurrence = fields.recurrence;
   if (fields.icon !== undefined) serviceData.icon = fields.icon;
   if (fields.assignee !== undefined) serviceData.assignee = fields.assignee;
+  if (fields.time_of_day !== undefined) serviceData.time_of_day = fields.time_of_day;
 
   await hass.callService('lucarne_family', 'update_task_metadata', serviceData);
 }

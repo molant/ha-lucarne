@@ -374,6 +374,79 @@ async def test_add_task_assignee_on_non_household_raises(
         )
 
 
+async def test_add_task_persists_time_of_day(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """add_task forwards time_of_day to the store."""
+    _entry, store, _ = await _setup_with_member(hass, tmp_path)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "add_task",
+        {
+            "member": "anna",
+            "summary": "Brush teeth",
+            "type": "routine",
+            "time_of_day": "morning",
+        },
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    tasks = await store.async_get_tasks_for_member("anna")
+    assert len(tasks) == 1
+    assert tasks[0]["time_of_day"] == "morning"
+
+
+async def test_add_task_defaults_time_of_day_to_anytime(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """add_task without time_of_day stores 'anytime' for both routines and chores."""
+    _entry, store, _ = await _setup_with_member(hass, tmp_path)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "add_task",
+        {"member": "anna", "summary": "Clean room", "type": "chore"},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    tasks = await store.async_get_tasks_for_member("anna")
+    assert len(tasks) == 1
+    assert tasks[0]["time_of_day"] == "anytime"
+
+
+async def test_update_task_metadata_can_change_time_of_day(
+    hass: HomeAssistant,
+    tmp_path: Path,
+) -> None:
+    """update_task_metadata accepts time_of_day and persists it."""
+    _entry, store, _ = await _setup_with_member(hass, tmp_path)
+
+    await hass.services.async_call(
+        DOMAIN,
+        "add_task",
+        {"member": "anna", "summary": "Make bed", "type": "routine"},
+        blocking=True,
+    )
+    tasks = await store.async_get_tasks_for_member("anna")
+    uid = tasks[0]["item_uid"]
+
+    await hass.services.async_call(
+        DOMAIN,
+        "update_task_metadata",
+        {"uid": uid, "time_of_day": "night"},
+        blocking=True,
+    )
+
+    updated = await store.async_get_task_metadata(uid)
+    assert updated is not None
+    assert updated["time_of_day"] == "night"
+
+
 async def test_update_task_metadata_changes_only_specified_fields(
     hass: HomeAssistant,
     tmp_path: Path,

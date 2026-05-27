@@ -109,7 +109,7 @@ you check it off, not by how often you do it.
 > **Service contract vs. UI affordance.** The backend `add_task` service
 > accepts `recurrence` *and* `due` for any `type` — there is no schema-level
 > type-gate. (`update_task_metadata` only mutates metadata fields — `icon`,
-> `recurrence`, `type`, `assignee` — and never touches the due date;
+> `recurrence`, `type`, `assignee`, `time_of_day` — and never touches the due date;
 > due-date edits on existing items go through HA's built-in
 > `todo.update_item`, which is what **Edit Task** calls when you change the
 > Due field on a routine.) The differences above are: (a) which fields the
@@ -128,6 +128,17 @@ A `chore` that you also want on a schedule (e.g. "water plants weekly") is
 currently a manual workflow — you'll re-add the chore each time. There is no
 "regenerate chore on RRULE" logic today; the Add Task form intentionally hides
 Recurrence when type is `chore` to avoid implying otherwise.
+
+### Time-of-day buckets
+
+Every task carries an optional `time_of_day` tag with one of four values:
+`anytime` (the default), `morning`, `afternoon`, or `night`. This is purely
+a display attribute — it does not change reset/streak logic or RRULE
+evaluation. The chores card groups a member's routines into per-bucket
+sub-sections (Morning → Afternoon → Night → Anytime, empty buckets hidden).
+Chores currently keep their due-date-first sort; the tag is stored on chores
+too for future filtering. Pre-existing rows from before this column existed
+backfill to `anytime` via the schema migration in `store.py`.
 
 ### Recurrence rules
 

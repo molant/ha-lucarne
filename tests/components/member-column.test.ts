@@ -71,14 +71,14 @@ describe('lucarne-member-column', () => {
     assert.equal(nameEl!.textContent, 'Anna');
   });
 
-  it('renders routine tasks in Routines section', async () => {
+  it('renders routine tasks under the Anytime header by default', async () => {
     const routine = makeTask({ uid: 'r1', summary: 'Brush teeth', metadata: { ...makeTask().metadata, type: 'routine' } });
     const el = makeEl([routine]);
     await el.updateComplete;
 
     const headers = shadowAll(el, '.section-header');
     const headerTexts = headers.map((h) => h.textContent?.trim());
-    assert.ok(headerTexts.includes('Routines'), 'Routines section header present');
+    assert.ok(headerTexts.includes('Anytime'), 'Anytime bucket header present');
 
     const rows = shadowAll(el, 'lucarne-task-row');
     assert.equal(rows.length, 1);
@@ -98,14 +98,22 @@ describe('lucarne-member-column', () => {
     assert.ok(headerTexts.includes('Tasks'), 'Tasks section header present');
   });
 
-  it('hides Routines section when showRoutines=false', async () => {
-    const routine = makeTask({ uid: 'r1', metadata: { ...makeTask().metadata, type: 'routine' } });
+  it('hides all routine bucket sections when showRoutines=false', async () => {
+    const routine = makeTask({
+      uid: 'r1',
+      metadata: { ...makeTask().metadata, type: 'routine', time_of_day: 'morning' },
+    });
     const el = makeEl([routine], { showRoutines: false });
     await el.updateComplete;
 
     const headers = shadowAll(el, '.section-header');
     const headerTexts = headers.map((h) => h.textContent?.trim());
-    assert.ok(!headerTexts.includes('Routines'), 'Routines section hidden');
+    for (const bucket of ['Anytime', 'Morning', 'Afternoon', 'Night']) {
+      assert.ok(!headerTexts.includes(bucket), `${bucket} section hidden`);
+    }
+
+    const rows = shadowAll(el, 'lucarne-task-row');
+    assert.equal(rows.length, 0, 'no task rows rendered');
   });
 
   it('hides Tasks section when showTasks=false', async () => {
@@ -149,7 +157,7 @@ describe('lucarne-member-column', () => {
     assert.equal(events[0].detail.memberSlug, 'anna');
   });
 
-  it('renders separate routines and chores sections for mixed task lists', async () => {
+  it('renders routine bucket section and chores section for mixed task lists', async () => {
     const routine = makeTask({ uid: 'r1', summary: 'Brush teeth', metadata: { ...makeTask().metadata, type: 'routine' } });
     const chore = makeTask({ uid: 'c1', summary: 'Take out trash', metadata: { ...makeTask().metadata, type: 'chore' } });
     const el = makeEl([routine, chore]);
@@ -157,11 +165,96 @@ describe('lucarne-member-column', () => {
 
     const headers = shadowAll(el, '.section-header');
     const headerTexts = headers.map((h) => h.textContent?.trim());
-    assert.ok(headerTexts.includes('Routines'), 'Routines section present');
+    assert.ok(headerTexts.includes('Anytime'), 'Routine Anytime bucket present');
     assert.ok(headerTexts.includes('Tasks'), 'Tasks section present');
 
     const rows = shadowAll(el, 'lucarne-task-row');
     assert.equal(rows.length, 2, 'two task rows rendered');
+  });
+
+  it('groups routines into time-of-day buckets in Morning→Afternoon→Night→Anytime order', async () => {
+    const meta = (tod: 'morning' | 'afternoon' | 'night' | 'anytime') => ({
+      ...makeTask().metadata,
+      type: 'routine' as const,
+      time_of_day: tod,
+    });
+    // Intentionally out of order so we exercise the sort path.
+    const tasks: RenderableTask[] = [
+      makeTask({ uid: 'a', summary: 'Anytime task', metadata: meta('anytime') }),
+      makeTask({ uid: 'n', summary: 'Night task', metadata: meta('night') }),
+      makeTask({ uid: 'm', summary: 'Morning task', metadata: meta('morning') }),
+      makeTask({ uid: 'af', summary: 'Afternoon task', metadata: meta('afternoon') }),
+    ];
+    const el = makeEl(tasks);
+    await el.updateComplete;
+
+    const headers = shadowAll(el, '.section-header');
+    const headerTexts = headers
+      .map((h) => h.textContent?.trim())
+      // Tasks section won't appear (no chores) — but if it does, filter it out
+      // so we only verify the bucket order.
+      .filter((t) => t !== 'Tasks');
+    assert.deepEqual(headerTexts, ['Morning', 'Afternoon', 'Night', 'Anytime']);
+  });
+
+  it('omits bucket headers for empty buckets', async () => {
+    const morning = makeTask({
+      uid: 'm1',
+      summary: 'Brush teeth',
+      metadata: { ...makeTask().metadata, type: 'routine', time_of_day: 'morning' },
+    });
+    const el = makeEl([morning]);
+    await el.updateComplete;
+
+    const headers = shadowAll(el, '.section-header');
+    const headerTexts = headers.map((h) => h.textContent?.trim());
+    assert.ok(headerTexts.includes('Morning'), 'Morning bucket present');
+    assert.ok(!headerTexts.includes('Anytime'), 'Anytime bucket omitted when empty');
+    assert.ok(!headerTexts.includes('Afternoon'), 'Afternoon bucket omitted when empty');
+    assert.ok(!headerTexts.includes('Night'), 'Night bucket omitted when empty');
+  });
+
+  it('falls back to Anytime when a routine has no time_of_day metadata', async () => {
+    // Pre-migration data path: time_of_day is undefined.
+    const routine = makeTask({
+      uid: 'r1',
+      summary: 'Legacy routine',
+      metadata: { ...makeTask().metadata, type: 'routine', time_of_day: undefined },
+    });
+    const el = makeEl([routine]);
+    await el.updateComplete;
+
+    const headers = shadowAll(el, '.section-header');
+    const headerTexts = headers.map((h) => h.textContent?.trim());
+    assert.ok(headerTexts.includes('Anytime'), 'undefined time_of_day buckets into Anytime');
+  });
+
+  it('falls back to Anytime when time_of_day is an unrecognized string', async () => {
+    // Defensive coercion: if a row sneaks past the voluptuous validator
+    // (e.g. an old import, a typo, a future enum extension), the routine
+    // must still render — not silently disappear from the card.
+    const routine = makeTask({
+      uid: 'r1',
+      summary: 'Imported routine',
+      // Cast through unknown because the type narrows to the enum; the
+      // runtime payload from the WebSocket is structurally typed.
+      metadata: {
+        ...makeTask().metadata,
+        type: 'routine',
+        time_of_day: 'evening' as unknown as undefined,
+      },
+    });
+    const el = makeEl([routine]);
+    await el.updateComplete;
+
+    const headers = shadowAll(el, '.section-header');
+    const headerTexts = headers.map((h) => h.textContent?.trim());
+    assert.ok(
+      headerTexts.includes('Anytime'),
+      'unknown time_of_day string buckets into Anytime',
+    );
+    const rows = shadowAll(el, 'lucarne-task-row');
+    assert.equal(rows.length, 1, 'task is still rendered');
   });
 
   it('does not show section header when section has no tasks', async () => {

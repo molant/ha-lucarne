@@ -37,6 +37,15 @@ def _init_db(db_path: str, schema_sql: str) -> None:
             con.execute(
                 "ALTER TABLE task_metadata ADD COLUMN summary TEXT NOT NULL DEFAULT ''"
             )
+        # Migration: add time_of_day column if it doesn't exist (issue #12).
+        # SQLite ALTER TABLE ADD COLUMN can't include a CHECK constraint, so the
+        # CHECK only appears on fresh-install schemas; backfilled rows are still
+        # constrained at write time by the voluptuous validator in task_service.
+        if "time_of_day" not in existing_cols:
+            con.execute(
+                "ALTER TABLE task_metadata ADD COLUMN time_of_day "
+                "TEXT NOT NULL DEFAULT 'anytime'"
+            )
         con.commit()
     finally:
         con.close()
@@ -101,6 +110,7 @@ class LucarneFamilyStore:
         apple_uid: str = "",
         assignee_slug: str = "",
         summary: str = "",
+        time_of_day: str = "anytime",
     ) -> None:
         """INSERT a new task_metadata row."""
 
@@ -110,12 +120,13 @@ class LucarneFamilyStore:
                     """
                     INSERT INTO task_metadata
                       (item_uid, member_slug, assignee_slug, type, recurrence,
-                       icon, source, apple_uid, summary, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                       icon, source, apple_uid, summary, time_of_day, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         item_uid, member_slug, assignee_slug, type, recurrence,
-                        icon, source, apple_uid, summary, datetime.now(UTC).isoformat(),
+                        icon, source, apple_uid, summary, time_of_day,
+                        datetime.now(UTC).isoformat(),
                     ),
                 )
 
@@ -123,7 +134,10 @@ class LucarneFamilyStore:
 
     async def async_update_task_metadata(self, item_uid: str, **fields: Any) -> None:
         """UPDATE allowed fields on a task_metadata row."""
-        allowed = {"type", "recurrence", "icon", "source", "apple_uid", "assignee_slug"}
+        allowed = {
+            "type", "recurrence", "icon", "source", "apple_uid",
+            "assignee_slug", "time_of_day",
+        }
         updates = {k: v for k, v in fields.items() if k in allowed}
         if not updates:
             return

@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
-import type { HomeAssistant, MemberSummary, TaskType } from '../shared/types.js';
+import type { HomeAssistant, MemberSummary, TaskType, TimeOfDay } from '../shared/types.js';
 import { addTask } from '../shared/integration-services.js';
 import { buildRRule, friendlySummary, WEEKDAY_CODES } from '../shared/recurrence.js';
 import type { RecurrenceMode, WeekdayCode } from '../shared/recurrence.js';
@@ -202,6 +202,7 @@ export class LucarneAddTaskPopover extends LitElement {
   @state() private _recurrenceNthDay: WeekdayCode = 'MO';
   @state() private _recurrenceMonth = 1;
   @state() private _due = '';
+  @state() private _timeOfDay: TimeOfDay = 'anytime';
   @state() private _error = '';
   @state() private _saving = false;
 
@@ -290,6 +291,7 @@ export class LucarneAddTaskPopover extends LitElement {
         ...(rrule ? { recurrence: rrule } : {}),
         ...(this._icon ? { icon: this._icon } : {}),
         ...(due ? { due } : {}),
+        time_of_day: this._timeOfDay,
         source: 'manual',
       });
       this._close();
@@ -356,6 +358,20 @@ export class LucarneAddTaskPopover extends LitElement {
           >
             <option value="routine">Routine</option>
             <option value="chore">Chore</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="at-time-of-day">Time of day</label>
+          <select
+            id="at-time-of-day"
+            .value=${this._timeOfDay}
+            @change=${(e: Event) => (this._timeOfDay = (e.target as HTMLSelectElement).value as TimeOfDay)}
+          >
+            <option value="anytime">Anytime</option>
+            <option value="morning">Morning</option>
+            <option value="afternoon">Afternoon</option>
+            <option value="night">Night</option>
           </select>
         </div>
 

@@ -20,6 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 _HOUSEHOLD_SLUG = "household"
 _HOUSEHOLD_ENTITY_ID = "todo.lucarne_household"
 _TASK_TYPES = ("routine", "chore")
+_TIME_OF_DAY_VALUES = ("anytime", "morning", "afternoon", "night")
 
 
 def _get_store(hass: HomeAssistant, entry_id: str) -> LucarneFamilyStore:
@@ -65,6 +66,7 @@ ADD_TASK_SCHEMA = vol.Schema(
         vol.Optional("due"): cv.datetime,
         vol.Optional("source", default="manual"): vol.In(["manual", "template", "apple"]),
         vol.Optional("assignee", default=""): cv.string,
+        vol.Optional("time_of_day", default="anytime"): vol.In(list(_TIME_OF_DAY_VALUES)),
     }
 )
 
@@ -75,6 +77,7 @@ UPDATE_METADATA_SCHEMA = vol.Schema(
         vol.Optional("recurrence"): _rrule_validator,
         vol.Optional("type"): vol.In(list(_TASK_TYPES)),
         vol.Optional("assignee"): cv.string,
+        vol.Optional("time_of_day"): vol.In(list(_TIME_OF_DAY_VALUES)),
     }
 )
 
@@ -97,6 +100,7 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
         due = call.data.get("due")
         source: str = call.data.get("source", "manual")
         assignee: str = call.data.get("assignee", "")
+        time_of_day: str = call.data.get("time_of_day", "anytime")
 
         if member_slug != _HOUSEHOLD_SLUG and member_slug not in known_slugs:
             raise ServiceValidationError(f"Unknown member: {member_slug!r}")
@@ -127,6 +131,7 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
                 source=source,
                 assignee_slug=assignee,
                 summary=summary,
+                time_of_day=time_of_day,
             )
         except Exception:
             # Best-effort rollback: remove the orphaned todo item.
@@ -154,7 +159,7 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
                 raise ServiceValidationError(f"Unknown assignee: {assignee!r}")
 
         update_fields: dict[str, Any] = {}
-        for field_name in ("icon", "recurrence", "type"):
+        for field_name in ("icon", "recurrence", "type", "time_of_day"):
             if field_name in call.data:
                 update_fields[field_name] = call.data[field_name]
         if "assignee" in call.data:

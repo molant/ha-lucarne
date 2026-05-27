@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
-import type { HomeAssistant, MemberSummary, RenderableTask, TaskType } from '../shared/types.js';
+import type { HomeAssistant, MemberSummary, RenderableTask, TaskType, TimeOfDay } from '../shared/types.js';
 import { updateTaskMetadata, deleteTask } from '../shared/integration-services.js';
 import { parseRRule, buildRRule, friendlySummary, WEEKDAY_CODES } from '../shared/recurrence.js';
 import type { RecurrenceMode, WeekdayCode } from '../shared/recurrence.js';
@@ -248,6 +248,7 @@ export class LucarneEditTaskPopover extends LitElement {
   @state() private _recurrenceMonth = 1;
   @state() private _due = '';
   @state() private _assignee = '';
+  @state() private _timeOfDay: TimeOfDay = 'anytime';
   @state() private _isCustomRecurrence = false;
   @state() private _rawRecurrence = '';
   @state() private _error = '';
@@ -268,6 +269,7 @@ export class LucarneEditTaskPopover extends LitElement {
     this._icon = t.metadata.icon;
     this._due = t.due ?? '';
     this._assignee = t.metadata.assignee_slug;
+    this._timeOfDay = t.metadata.time_of_day ?? 'anytime';
     // Reset all recurrence state to defaults before applying task values,
     // so stale values from a previous task don't bleed into the new one.
     this._recurrenceDays = [];
@@ -388,6 +390,7 @@ export class LucarneEditTaskPopover extends LitElement {
         this._type !== this.task.metadata.type ||
         this._icon !== this.task.metadata.icon ||
         this._buildRRule() !== this.task.metadata.recurrence ||
+        this._timeOfDay !== (this.task.metadata.time_of_day ?? 'anytime') ||
         (this.task.metadata.member_slug === 'household' && this._assignee !== this.task.metadata.assignee_slug);
 
       if (summaryChanged || dueChanged) {
@@ -405,6 +408,9 @@ export class LucarneEditTaskPopover extends LitElement {
           ...(this._type !== this.task.metadata.type ? { type: this._type } : {}),
           ...(this._icon !== this.task.metadata.icon ? { icon: this._icon } : {}),
           ...(this._buildRRule() !== this.task.metadata.recurrence ? { recurrence: this._buildRRule() } : {}),
+          ...(this._timeOfDay !== (this.task.metadata.time_of_day ?? 'anytime')
+            ? { time_of_day: this._timeOfDay }
+            : {}),
           ...(isHousehold && this._assignee !== this.task.metadata.assignee_slug ? { assignee: this._assignee } : {}),
         });
       }
@@ -504,6 +510,20 @@ export class LucarneEditTaskPopover extends LitElement {
             <button class="type-btn ${this._type === 'routine' ? 'active' : ''}" @click=${() => (this._type = 'routine')}>Routine</button>
             <button class="type-btn ${this._type === 'chore' ? 'active' : ''}" @click=${() => (this._type = 'chore')}>Chore</button>
           </div>
+        </div>
+
+        <div class="field">
+          <label for="et-time-of-day">Time of day</label>
+          <select
+            id="et-time-of-day"
+            .value=${this._timeOfDay}
+            @change=${(e: Event) => (this._timeOfDay = (e.target as HTMLSelectElement).value as TimeOfDay)}
+          >
+            <option value="anytime">Anytime</option>
+            <option value="morning">Morning</option>
+            <option value="afternoon">Afternoon</option>
+            <option value="night">Night</option>
+          </select>
         </div>
 
         <div class="field">
