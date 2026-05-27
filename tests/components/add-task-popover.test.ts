@@ -248,6 +248,38 @@ describe('lucarne-add-task-popover', () => {
     assert.ok(!('recurrence' in call.payload), 'chore payload has no recurrence');
   });
 
+  it('omits due from payload for routine even if a due date was picked as a chore', async () => {
+    const el = makeEl();
+    await el.updateComplete;
+    const fakeHass = el.hass as unknown as ReturnType<typeof makeFakeHass>;
+
+    // Default is chore — pick a due date (UI shows the datetime-local for chores).
+    const dueInput = shadow(el, '#at-due') as HTMLInputElement;
+    assert.ok(dueInput, 'Due input visible for chore');
+    dueInput.value = '2099-01-15T08:30';
+    dueInput.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    // Switch to routine — Due field becomes hidden but _due state lingers.
+    const typeSelect = shadow(el, '#at-type') as HTMLSelectElement;
+    typeSelect.value = 'routine';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+    assert.equal(shadow(el, '#at-due'), null, 'Due input hidden for routine');
+
+    const summaryInput = shadow(el, '#at-summary') as HTMLInputElement;
+    summaryInput.value = 'Brush teeth';
+    summaryInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await el.updateComplete;
+
+    (shadow(el, '.btn-submit') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const call = fakeHass.calls.callService[0] as any;
+    assert.equal(call.payload.type, 'routine');
+    assert.ok(!('due' in call.payload), `routine must not carry due (got ${JSON.stringify(call.payload)})`);
+  });
+
   it('omits recurrence from payload for chore even if RRULE state lingers', async () => {
     const el = makeEl();
     await el.updateComplete;

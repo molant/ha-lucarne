@@ -6218,14 +6218,14 @@ let M = class extends v {
       }
       this._saving = !0, this._error = "";
       try {
-        const t = this._type === "routine" ? this._buildRRule() : "";
+        const t = this._type === "routine" ? this._buildRRule() : "", e = this._type === "chore" ? this._due : "";
         await Pn(this.hass, {
           member: this._selectedMemberSlug,
           summary: this._summary.trim(),
           type: this._type,
           ...t ? { recurrence: t } : {},
           ...this._icon ? { icon: this._icon } : {},
-          ...this._due ? { due: this._due } : {},
+          ...e ? { due: e } : {},
           source: "manual"
         }), this._close();
       } catch (t) {
