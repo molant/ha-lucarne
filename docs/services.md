@@ -20,6 +20,7 @@ Add a task to a family member's or household todo list.
 | `due` | datetime | no | Optional due date/time |
 | `source` | string | no | Creation source: `"manual"`, `"template"`, or `"apple"` (default: `"manual"`) |
 | `assignee` | string | no | Member slug to assign; only accepted when `member == "household"` |
+| `time_of_day` | string | no | One of `"anytime"`, `"morning"`, `"afternoon"`, `"night"` (default: `"anytime"`). Display attribute only — does not affect reset/streak logic. |
 
 **Fires event**: `lucarne_family_task_added` with `{member, uid, type, summary}`
 
@@ -54,6 +55,7 @@ Update metadata fields on an existing task. Only the fields provided are changed
 | `recurrence` | string | no | New RRULE string |
 | `type` | string | no | New type: `"routine"` or `"chore"` |
 | `assignee` | string | no | New assignee member slug (household tasks only) |
+| `time_of_day` | string | no | New bucket value (`"anytime"`, `"morning"`, `"afternoon"`, `"night"`). |
 
 **Fires event**: `lucarne_family_task_metadata_updated`
 
@@ -191,6 +193,7 @@ Read the full family state in one round-trip. Used by the chores card.
       "icon": "🦷",
       "source": "template",
       "apple_uid": "",
+      "time_of_day": "morning",
       "created_at": "2024-09-01T08:00:00+00:00"
     }
   ],

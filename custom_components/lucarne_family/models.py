@@ -13,9 +13,15 @@ class RoutineTemplate:
     summary: str
     icon: str
     recurrence: str  # RRULE string
+    time_of_day: str = "anytime"  # 'anytime' | 'morning' | 'afternoon' | 'night'
 
     def to_dict(self) -> dict[str, Any]:
-        return {"summary": self.summary, "icon": self.icon, "recurrence": self.recurrence}
+        return {
+            "summary": self.summary,
+            "icon": self.icon,
+            "recurrence": self.recurrence,
+            "time_of_day": self.time_of_day,
+        }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> RoutineTemplate:
@@ -23,6 +29,7 @@ class RoutineTemplate:
             summary=data["summary"],
             icon=data["icon"],
             recurrence=data["recurrence"],
+            time_of_day=data.get("time_of_day", "anytime"),
         )
 
 

@@ -280,6 +280,68 @@ describe('lucarne-add-task-popover', () => {
     assert.ok(!('due' in call.payload), `routine must not carry due (got ${JSON.stringify(call.payload)})`);
   });
 
+  it('exposes the time_of_day dropdown for both routine and chore', async () => {
+    const el = makeEl();
+    await el.updateComplete;
+
+    // Default type is chore — picker must still be visible.
+    let todSelect = shadow(el, '#at-time-of-day') as HTMLSelectElement | null;
+    assert.ok(todSelect, 'time_of_day select visible for chore');
+    const optionValues = Array.from(todSelect!.options).map((o) => o.value);
+    assert.deepEqual(optionValues, ['anytime', 'morning', 'afternoon', 'night']);
+
+    // Switch to routine — picker still visible.
+    const typeSelect = shadow(el, '#at-type') as HTMLSelectElement;
+    typeSelect.value = 'routine';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+    todSelect = shadow(el, '#at-time-of-day') as HTMLSelectElement | null;
+    assert.ok(todSelect, 'time_of_day select still visible for routine');
+  });
+
+  it('sends the picked time_of_day in the add_task payload', async () => {
+    const el = makeEl();
+    await el.updateComplete;
+    const fakeHass = el.hass as unknown as ReturnType<typeof makeFakeHass>;
+
+    const summaryInput = shadow(el, '#at-summary') as HTMLInputElement;
+    summaryInput.value = 'Brush teeth';
+    summaryInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+
+    const typeSelect = shadow(el, '#at-type') as HTMLSelectElement;
+    typeSelect.value = 'routine';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    const todSelect = shadow(el, '#at-time-of-day') as HTMLSelectElement;
+    todSelect.value = 'morning';
+    todSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    (shadow(el, '.btn-submit') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const call = fakeHass.calls.callService[0] as any;
+    assert.equal(call.payload.time_of_day, 'morning');
+  });
+
+  it('defaults time_of_day to anytime in the add_task payload', async () => {
+    const el = makeEl();
+    await el.updateComplete;
+    const fakeHass = el.hass as unknown as ReturnType<typeof makeFakeHass>;
+
+    const summaryInput = shadow(el, '#at-summary') as HTMLInputElement;
+    summaryInput.value = 'Quick chore';
+    summaryInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await el.updateComplete;
+
+    (shadow(el, '.btn-submit') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const call = fakeHass.calls.callService[0] as any;
+    assert.equal(call.payload.time_of_day, 'anytime');
+  });
+
   it('omits recurrence from payload for chore even if RRULE state lingers', async () => {
     const el = makeEl();
     await el.updateComplete;

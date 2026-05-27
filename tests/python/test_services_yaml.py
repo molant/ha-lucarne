@@ -11,8 +11,11 @@ _SERVICES_YAML = (
 
 # Service name → expected field names (public service key, not store key)
 _EXPECTED_FIELDS: dict[str, set[str]] = {
-    "add_task": {"member", "summary", "type", "recurrence", "icon", "due", "source", "assignee"},
-    "update_task_metadata": {"uid", "icon", "recurrence", "type", "assignee"},
+    "add_task": {
+        "member", "summary", "type", "recurrence", "icon",
+        "due", "source", "assignee", "time_of_day",
+    },
+    "update_task_metadata": {"uid", "icon", "recurrence", "type", "assignee", "time_of_day"},
     "delete_task": {"uid"},
     "toggle_task": {"uid"},
     "upload_avatar": {"member", "image_data", "mime_type"},

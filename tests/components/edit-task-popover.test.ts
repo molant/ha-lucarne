@@ -393,6 +393,56 @@ describe('lucarne-edit-task-popover', () => {
     }
   });
 
+  it('prefills time_of_day from task metadata', async () => {
+    const task = makeTask({
+      metadata: {
+        item_uid: 'task-uid-1',
+        member_slug: 'anna',
+        assignee_slug: '',
+        type: 'routine',
+        recurrence: 'FREQ=DAILY',
+        icon: '',
+        source: 'manual',
+        time_of_day: 'night',
+      },
+    });
+    const el = await makeEl(task);
+
+    const todSelect = shadow(el, '#et-time-of-day') as HTMLSelectElement;
+    assert.ok(todSelect, 'time_of_day select rendered');
+    assert.equal(todSelect.value, 'night');
+  });
+
+  it('defaults time_of_day select to anytime when metadata is missing', async () => {
+    // Pre-migration task: no time_of_day in the metadata payload.
+    const task = makeTask();
+    const el = await makeEl(task);
+
+    const todSelect = shadow(el, '#et-time-of-day') as HTMLSelectElement;
+    assert.ok(todSelect, 'time_of_day select rendered');
+    assert.equal(todSelect.value, 'anytime');
+  });
+
+  it('sends time_of_day in update_task_metadata when the user changes it', async () => {
+    const el = await makeEl();
+    const fakeHass = el.hass as unknown as ReturnType<typeof makeFakeHass>;
+
+    const todSelect = shadow(el, '#et-time-of-day') as HTMLSelectElement;
+    todSelect.value = 'morning';
+    todSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    const saveBtn = Array.from(el.shadowRoot!.querySelectorAll('button.btn-save')).pop() as HTMLButtonElement;
+    saveBtn.click();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const metaCall = (fakeHass.calls.callService as any[]).find(
+      (c) => c.service === 'update_task_metadata',
+    );
+    assert.ok(metaCall, 'update_task_metadata called');
+    assert.equal(metaCall.payload.time_of_day, 'morning');
+  });
+
   it('shows custom recurrence as read-only note', async () => {
     const task = makeTask({
       metadata: {

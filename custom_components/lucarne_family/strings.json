@@ -143,6 +143,7 @@
           "summary": "Routine name",
           "icon": "Icon (emoji)",
           "recurrence": "Repeats (RRULE)",
+          "time_of_day": "Time of day",
           "add_another": "Add another routine to this preset"
         }
       }

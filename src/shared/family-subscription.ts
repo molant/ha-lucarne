@@ -60,6 +60,7 @@ function buildRenderableTasks(
       recurrence: '',
       icon: '',
       source: 'manual',
+      time_of_day: 'anytime',
     };
     return {
       uid: item.uid,

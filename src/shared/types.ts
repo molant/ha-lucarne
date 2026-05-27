@@ -3,6 +3,14 @@ export type { HomeAssistant } from 'custom-card-helpers';
 
 export type TaskType = 'routine' | 'chore';
 export type TaskSource = 'manual' | 'template' | 'apple';
+export type TimeOfDay = 'anytime' | 'morning' | 'afternoon' | 'night';
+
+export const TIME_OF_DAY_VALUES: readonly TimeOfDay[] = [
+  'anytime',
+  'morning',
+  'afternoon',
+  'night',
+] as const;
 
 export interface MemberSummary {
   slug: string;
@@ -21,6 +29,7 @@ export interface TaskMetadata {
   recurrence: string;
   icon: string;
   source: TaskSource;
+  time_of_day?: TimeOfDay;
 }
 
 export interface RenderableTask {

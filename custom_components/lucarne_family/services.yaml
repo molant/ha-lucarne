@@ -53,6 +53,21 @@ add_task:
       description: Member slug to assign (household tasks only).
       selector:
         text:
+    time_of_day:
+      name: Time of day
+      description: Bucket the task into a part of the day. Default is "anytime".
+      default: anytime
+      selector:
+        select:
+          options:
+            - value: anytime
+              label: Anytime
+            - value: morning
+              label: Morning
+            - value: afternoon
+              label: Afternoon
+            - value: night
+              label: Night
 
 update_task_metadata:
   name: Update Task Metadata
@@ -89,6 +104,20 @@ update_task_metadata:
       description: New assignee member slug (household tasks only).
       selector:
         text:
+    time_of_day:
+      name: Time of day
+      description: New time-of-day bucket for the task.
+      selector:
+        select:
+          options:
+            - value: anytime
+              label: Anytime
+            - value: morning
+              label: Morning
+            - value: afternoon
+              label: Afternoon
+            - value: night
+              label: Night
 
 delete_task:
   name: Delete Task

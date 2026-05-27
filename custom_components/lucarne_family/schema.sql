@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS task_metadata (
     source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual','template','apple')),
     apple_uid TEXT NOT NULL DEFAULT '',
     summary TEXT NOT NULL DEFAULT '',
+    time_of_day TEXT NOT NULL DEFAULT 'anytime'
+        CHECK (time_of_day IN ('anytime','morning','afternoon','night')),
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_task_metadata_member ON task_metadata(member_slug);

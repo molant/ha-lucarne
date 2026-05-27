@@ -322,3 +322,109 @@ async def test_get_task_metadata_sync(hass: HomeAssistant, tmp_path: Path) -> No
     rows = store.get_task_metadata_sync("anna")
     assert len(rows) == 1
     assert rows[0]["item_uid"] == "uid-sync-1"
+
+
+# ---------------------------------------------------------------------------
+# time_of_day (issue #12)
+# ---------------------------------------------------------------------------
+
+
+async def test_time_of_day_defaults_to_anytime(hass: HomeAssistant, tmp_path: Path) -> None:
+    """A new row written without time_of_day persists as 'anytime'."""
+    store = await _make_store(hass, tmp_path)
+    await store.async_add_task_metadata(
+        member_slug="anna", item_uid="uid-tod-1", type="routine"
+    )
+    row = await store.async_get_task_metadata("uid-tod-1")
+    assert row is not None
+    assert row["time_of_day"] == "anytime"
+
+
+async def test_time_of_day_persisted_when_set(hass: HomeAssistant, tmp_path: Path) -> None:
+    """time_of_day='morning' is stored and returned verbatim."""
+    store = await _make_store(hass, tmp_path)
+    await store.async_add_task_metadata(
+        member_slug="anna",
+        item_uid="uid-tod-2",
+        type="routine",
+        time_of_day="morning",
+    )
+    row = await store.async_get_task_metadata("uid-tod-2")
+    assert row is not None
+    assert row["time_of_day"] == "morning"
+
+
+async def test_update_metadata_can_change_time_of_day(
+    hass: HomeAssistant, tmp_path: Path
+) -> None:
+    """time_of_day is an updatable metadata field."""
+    store = await _make_store(hass, tmp_path)
+    await store.async_add_task_metadata(
+        member_slug="anna", item_uid="uid-tod-3", type="routine", time_of_day="morning"
+    )
+    await store.async_update_task_metadata("uid-tod-3", time_of_day="night")
+    row = await store.async_get_task_metadata("uid-tod-3")
+    assert row is not None
+    assert row["time_of_day"] == "night"
+
+
+async def test_time_of_day_migration_backfills_existing_rows(
+    hass: HomeAssistant, tmp_path: Path
+) -> None:
+    """Pre-existing rows (DB created without time_of_day) get backfilled to 'anytime'."""
+    import sqlite3
+
+    db_path = str(tmp_path / "lucarne.db")
+    # Build the schema as it stood *before* the time_of_day column existed.
+    pre_migration_schema = """
+        CREATE TABLE IF NOT EXISTS schema_version (
+            version INTEGER PRIMARY KEY NOT NULL,
+            applied_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS task_metadata (
+            item_uid TEXT PRIMARY KEY NOT NULL,
+            member_slug TEXT NOT NULL,
+            assignee_slug TEXT NOT NULL DEFAULT '',
+            type TEXT NOT NULL CHECK (type IN ('routine','chore')),
+            recurrence TEXT NOT NULL DEFAULT '',
+            icon TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT 'manual'
+                CHECK (source IN ('manual','template','apple')),
+            apple_uid TEXT NOT NULL DEFAULT '',
+            summary TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS completion_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            member_slug TEXT NOT NULL,
+            item_uid TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            action TEXT NOT NULL CHECK (action IN ('completed','undone','reset')),
+            recurrence_at_time TEXT NOT NULL DEFAULT ''
+        );
+    """
+    con = sqlite3.connect(db_path)
+    try:
+        con.executescript(pre_migration_schema)
+        con.execute(
+            """
+            INSERT INTO task_metadata
+                (item_uid, member_slug, assignee_slug, type, recurrence,
+                 icon, source, apple_uid, summary, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            ("legacy-uid", "anna", "", "routine", "FREQ=DAILY", "🪥", "template", "", "Brush teeth", "2025-01-01T00:00:00+00:00"),
+        )
+        con.commit()
+    finally:
+        con.close()
+
+    # Now run the integration's init logic, which should add the missing column.
+    entry = _make_entry(hass)
+    store = LucarneFamilyStore(hass, entry.entry_id, db_path)
+    await store.async_init()
+
+    row = await store.async_get_task_metadata("legacy-uid")
+    assert row is not None
+    assert row["time_of_day"] == "anytime"

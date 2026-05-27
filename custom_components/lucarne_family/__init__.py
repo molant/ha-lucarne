@@ -357,4 +357,5 @@ async def seed_preset_routines(
             icon=template.icon,
             source="template",
             summary=template.summary,
+            time_of_day=template.time_of_day,
         )
