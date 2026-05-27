@@ -192,4 +192,92 @@ describe('lucarne-add-task-popover', () => {
     assert.deepEqual(values, ['chore', 'routine']);
     assert.equal(shadow(el, '.type-btn'), null, 'old type buttons removed');
   });
+
+  it('hides Recurrence when type is chore (default)', async () => {
+    const el = makeEl();
+    await el.updateComplete;
+
+    assert.equal(shadow(el, '#at-recurrence'), null, 'recurrence select hidden for chore');
+  });
+
+  it('shows Recurrence when type switched to routine', async () => {
+    const el = makeEl();
+    await el.updateComplete;
+
+    const typeSelect = shadow(el, '#at-type') as HTMLSelectElement;
+    typeSelect.value = 'routine';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    assert.ok(shadow(el, '#at-recurrence'), 'recurrence select shown for routine');
+  });
+
+  it('allows chore submit after picking Routine+Weekly with no days, then switching to Chore', async () => {
+    const el = makeEl();
+    await el.updateComplete;
+    const fakeHass = el.hass as unknown as ReturnType<typeof makeFakeHass>;
+
+    // Routine + Weekly (no days picked) → would fail validation if guard isn't type-scoped.
+    const typeSelect = shadow(el, '#at-type') as HTMLSelectElement;
+    typeSelect.value = 'routine';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    const recurSelect = shadow(el, '#at-recurrence') as HTMLSelectElement;
+    recurSelect.value = 'weekly';
+    recurSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    // Switch back to Chore — recurrence picker is now hidden, but state lingers.
+    typeSelect.value = 'chore';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    const summaryInput = shadow(el, '#at-summary') as HTMLInputElement;
+    summaryInput.value = 'Mow lawn';
+    summaryInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await el.updateComplete;
+
+    (shadow(el, '.btn-submit') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 50));
+
+    assert.equal(shadow(el, '.error-msg'), null, 'no validation error for chore');
+    assert.equal(fakeHass.calls.callService.length, 1, 'add_task was called');
+    const call = fakeHass.calls.callService[0] as any;
+    assert.equal(call.payload.type, 'chore');
+    assert.ok(!('recurrence' in call.payload), 'chore payload has no recurrence');
+  });
+
+  it('omits recurrence from payload for chore even if RRULE state lingers', async () => {
+    const el = makeEl();
+    await el.updateComplete;
+    const fakeHass = el.hass as unknown as ReturnType<typeof makeFakeHass>;
+
+    // Simulate the user picking Routine + Daily, then flipping back to Chore.
+    const typeSelect = shadow(el, '#at-type') as HTMLSelectElement;
+    typeSelect.value = 'routine';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    const recurSelect = shadow(el, '#at-recurrence') as HTMLSelectElement;
+    recurSelect.value = 'daily';
+    recurSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    typeSelect.value = 'chore';
+    typeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await el.updateComplete;
+
+    const summaryInput = shadow(el, '#at-summary') as HTMLInputElement;
+    summaryInput.value = 'Clean garage';
+    summaryInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    await el.updateComplete;
+
+    (shadow(el, '.btn-submit') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const call = fakeHass.calls.callService[0] as any;
+    assert.equal(call.payload.type, 'chore');
+    assert.ok(!('recurrence' in call.payload), `chore must not carry recurrence (got ${JSON.stringify(call.payload)})`);
+  });
 });

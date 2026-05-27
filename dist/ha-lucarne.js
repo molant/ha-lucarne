@@ -6212,13 +6212,13 @@ let M = class extends v {
         this._error = "Summary must be 200 characters or less";
         return;
       }
-      if (this._recurrenceMode === "weekly" && this._recurrenceDays.length === 0) {
+      if (this._type === "routine" && this._recurrenceMode === "weekly" && this._recurrenceDays.length === 0) {
         this._error = "Select at least one day for weekly recurrence";
         return;
       }
       this._saving = !0, this._error = "";
       try {
-        const t = this._buildRRule();
+        const t = this._type === "routine" ? this._buildRRule() : "";
         await Pn(this.hass, {
           member: this._selectedMemberSlug,
           summary: this._summary.trim(),
@@ -6311,6 +6311,7 @@ let M = class extends v {
           />
         </div>
 
+        ${this._type === "routine" ? l`
         <div class="field">
           <label for="at-recurrence">Recurrence</label>
           <select
@@ -6468,6 +6469,7 @@ let M = class extends v {
                 <div class="recurrence-summary">${e}</div>
               ` : ""}
         </div>
+        ` : ""}
 
         ${this._type === "chore" ? l`
               <div class="field">
