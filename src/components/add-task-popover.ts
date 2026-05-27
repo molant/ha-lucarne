@@ -96,26 +96,6 @@ export class LucarneAddTaskPopover extends LitElement {
         outline: 2px solid var(--primary-color, #03a9f4);
         outline-offset: 1px;
       }
-      .type-row {
-        display: flex;
-        gap: var(--lucarne-spacing-sm);
-      }
-      .type-btn {
-        flex: 1;
-        padding: 8px;
-        border: 1px solid rgba(0, 0, 0, 0.15);
-        border-radius: var(--lucarne-radius-sm);
-        background: var(--lucarne-surface);
-        cursor: pointer;
-        font-size: var(--lucarne-fs-sm);
-        min-height: 44px;
-        transition: background 0.1s;
-      }
-      .type-btn.active {
-        background: var(--primary-color, #03a9f4);
-        color: #fff;
-        border-color: var(--primary-color, #03a9f4);
-      }
       .emoji-picker {
         display: flex;
         flex-wrap: wrap;
@@ -222,7 +202,6 @@ export class LucarneAddTaskPopover extends LitElement {
   @state() private _recurrenceNthDay: WeekdayCode = 'MO';
   @state() private _recurrenceMonth = 1;
   @state() private _due = '';
-  @state() private _assignee = '';
   @state() private _error = '';
   @state() private _saving = false;
 
@@ -296,7 +275,6 @@ export class LucarneAddTaskPopover extends LitElement {
 
     try {
       const rrule = this._buildRRule();
-      const isHousehold = this._selectedMemberSlug === 'household';
       await addTask(this.hass, {
         member: this._selectedMemberSlug,
         summary: this._summary.trim(),
@@ -305,7 +283,6 @@ export class LucarneAddTaskPopover extends LitElement {
         ...(this._icon ? { icon: this._icon } : {}),
         ...(this._due ? { due: this._due } : {}),
         source: 'manual',
-        ...(isHousehold && this._assignee ? { assignee: this._assignee } : {}),
       });
       this._close();
     } catch (err) {
@@ -323,7 +300,6 @@ export class LucarneAddTaskPopover extends LitElement {
   }
 
   render() {
-    const isHousehold = this._selectedMemberSlug === 'household';
     const rrule = this._buildRRule();
     const summary = rrule ? friendlySummary(rrule) : 'One-off (no repeat)';
 
@@ -350,24 +326,6 @@ export class LucarneAddTaskPopover extends LitElement {
           </select>
         </div>
 
-        ${isHousehold
-          ? html`
-              <div class="field">
-                <label for="at-assignee">Assignee (optional)</label>
-                <select
-                  id="at-assignee"
-                  .value=${this._assignee}
-                  @change=${(e: Event) => (this._assignee = (e.target as HTMLSelectElement).value)}
-                >
-                  <option value="">— None —</option>
-                  ${this.members.filter((m) => m.slug !== 'household').map(
-                    (m) => html`<option value=${m.slug}>${m.name}</option>`,
-                  )}
-                </select>
-              </div>
-            `
-          : ''}
-
         <div class="field">
           <label for="at-summary">Summary *</label>
           <input
@@ -382,17 +340,15 @@ export class LucarneAddTaskPopover extends LitElement {
         </div>
 
         <div class="field">
-          <label>Type</label>
-          <div class="type-row">
-            <button
-              class="type-btn ${this._type === 'routine' ? 'active' : ''}"
-              @click=${() => (this._type = 'routine')}
-            >Routine</button>
-            <button
-              class="type-btn ${this._type === 'chore' ? 'active' : ''}"
-              @click=${() => (this._type = 'chore')}
-            >Chore</button>
-          </div>
+          <label for="at-type">Type</label>
+          <select
+            id="at-type"
+            .value=${this._type}
+            @change=${(e: Event) => (this._type = (e.target as HTMLSelectElement).value as TaskType)}
+          >
+            <option value="routine">Routine</option>
+            <option value="chore">Chore</option>
+          </select>
         </div>
 
         <div class="field">
