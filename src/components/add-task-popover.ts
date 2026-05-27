@@ -278,16 +278,18 @@ export class LucarneAddTaskPopover extends LitElement {
     this._error = '';
 
     try {
-      // Recurrence only applies to routines; chores never carry an RRULE even if
-      // the user toggled type after picking one.
+      // Recurrence applies only to routines; due date applies only to chores
+      // (matching what the UI exposes). Strip the field for the wrong type so a
+      // lingering state from a previous type toggle never ships an invisible value.
       const rrule = this._type === 'routine' ? this._buildRRule() : '';
+      const due = this._type === 'chore' ? this._due : '';
       await addTask(this.hass, {
         member: this._selectedMemberSlug,
         summary: this._summary.trim(),
         type: this._type,
         ...(rrule ? { recurrence: rrule } : {}),
         ...(this._icon ? { icon: this._icon } : {}),
-        ...(this._due ? { due: this._due } : {}),
+        ...(due ? { due } : {}),
         source: 'manual',
       });
       this._close();
