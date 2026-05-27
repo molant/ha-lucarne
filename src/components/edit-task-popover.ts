@@ -2,6 +2,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
 import type { HomeAssistant, MemberSummary, RenderableTask, TaskType, TimeOfDay } from '../shared/types.js';
+import { coerceTimeOfDay } from '../shared/types.js';
 import { updateTaskMetadata, deleteTask } from '../shared/integration-services.js';
 import { parseRRule, buildRRule, friendlySummary, WEEKDAY_CODES } from '../shared/recurrence.js';
 import type { RecurrenceMode, WeekdayCode } from '../shared/recurrence.js';
@@ -269,7 +270,10 @@ export class LucarneEditTaskPopover extends LitElement {
     this._icon = t.metadata.icon;
     this._due = t.due ?? '';
     this._assignee = t.metadata.assignee_slug;
-    this._timeOfDay = t.metadata.time_of_day ?? 'anytime';
+    // Coerce defensively: an out-of-band string (typo, legacy import, future
+    // enum extension) would otherwise set the <select> to a value it can't
+    // render, trapping the user. Mirrors the bucket coercion in member-column.
+    this._timeOfDay = coerceTimeOfDay(t.metadata.time_of_day);
     // Reset all recurrence state to defaults before applying task values,
     // so stale values from a previous task don't bleed into the new one.
     this._recurrenceDays = [];

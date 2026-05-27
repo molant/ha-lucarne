@@ -423,6 +423,33 @@ describe('lucarne-edit-task-popover', () => {
     assert.equal(todSelect.value, 'anytime');
   });
 
+  it('coerces unknown time_of_day values to anytime in the prefilled select', async () => {
+    // Defensive coercion in _prefill: if a stray out-of-band value reaches the
+    // UI, the <select> would otherwise hold a value none of its options can
+    // render, trapping the user with a blank selection they can't fix without
+    // first picking a real option. Coerce to 'anytime' so the dropdown always
+    // shows a valid bucket and a save round-trips a valid value.
+    const task = makeTask({
+      metadata: {
+        item_uid: 'task-uid-1',
+        member_slug: 'anna',
+        assignee_slug: '',
+        type: 'routine',
+        recurrence: 'FREQ=DAILY',
+        icon: '',
+        source: 'manual',
+        // Cast through unknown because the static type narrows to the
+        // TimeOfDay union; the runtime payload is structurally typed.
+        time_of_day: 'evening' as unknown as 'anytime',
+      },
+    });
+    const el = await makeEl(task);
+
+    const todSelect = shadow(el, '#et-time-of-day') as HTMLSelectElement;
+    assert.ok(todSelect, 'time_of_day select rendered');
+    assert.equal(todSelect.value, 'anytime', 'unknown value coerced to anytime');
+  });
+
   it('sends time_of_day in update_task_metadata when the user changes it', async () => {
     const el = await makeEl();
     const fakeHass = el.hass as unknown as ReturnType<typeof makeFakeHass>;

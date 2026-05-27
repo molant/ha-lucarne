@@ -414,7 +414,11 @@ async def test_time_of_day_migration_backfills_existing_rows(
                  icon, source, apple_uid, summary, created_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            ("legacy-uid", "anna", "", "routine", "FREQ=DAILY", "🪥", "template", "", "Brush teeth", "2025-01-01T00:00:00+00:00"),
+            (
+                "legacy-uid", "anna", "", "routine", "FREQ=DAILY",
+                "🪥", "template", "", "Brush teeth",
+                "2025-01-01T00:00:00+00:00",
+            ),
         )
         con.commit()
     finally:
