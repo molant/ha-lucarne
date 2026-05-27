@@ -265,7 +265,11 @@ export class LucarneAddTaskPopover extends LitElement {
       this._error = 'Summary must be 200 characters or less';
       return;
     }
-    if (this._recurrenceMode === 'weekly' && this._recurrenceDays.length === 0) {
+    if (
+      this._type === 'routine' &&
+      this._recurrenceMode === 'weekly' &&
+      this._recurrenceDays.length === 0
+    ) {
       this._error = 'Select at least one day for weekly recurrence';
       return;
     }
@@ -274,7 +278,9 @@ export class LucarneAddTaskPopover extends LitElement {
     this._error = '';
 
     try {
-      const rrule = this._buildRRule();
+      // Recurrence only applies to routines; chores never carry an RRULE even if
+      // the user toggled type after picking one.
+      const rrule = this._type === 'routine' ? this._buildRRule() : '';
       await addTask(this.hass, {
         member: this._selectedMemberSlug,
         summary: this._summary.trim(),
@@ -372,6 +378,7 @@ export class LucarneAddTaskPopover extends LitElement {
           />
         </div>
 
+        ${this._type === 'routine' ? html`
         <div class="field">
           <label for="at-recurrence">Recurrence</label>
           <select
@@ -541,6 +548,7 @@ export class LucarneAddTaskPopover extends LitElement {
               `
             : ''}
         </div>
+        ` : ''}
 
         ${this._type === 'chore'
           ? html`
