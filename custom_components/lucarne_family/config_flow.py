@@ -32,6 +32,7 @@ from .const import (
     DEFAULT_RESET_TIME,
     DEFAULT_STREAK_CHECK_TIME,
     DOMAIN,
+    PRESET_ADULT_NONE,
     PRESET_SCHOOL_AGE,
 )
 from .models import Member, RoutinePreset
@@ -177,6 +178,10 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         self._pending_avatar_path: Path | None = None
         self._pending_preset_name: str | None = None
         self._pending_preset_routines: list[dict[str, Any]] = []
+        # When set, `async_step_add_preset_routine` appends each submitted
+        # routine to the existing custom preset with this slug instead of
+        # building up a brand-new preset.
+        self._editing_preset_slug: str | None = None
 
     def _get_members(self) -> list[Member]:
         raw: list[dict[str, Any]] = self._entry.data.get(CONF_MEMBERS, [])
@@ -307,9 +312,247 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
     async def async_step_edit_templates(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
-        return self.async_show_menu(
-            step_id="edit_templates",
-            menu_options=["add_custom_preset"],
+        custom_presets = self._entry.data.get(CONF_CUSTOM_PRESETS, [])
+        menu_options: list[str] = ["add_custom_preset"]
+        if custom_presets:
+            menu_options.append("manage_existing_preset")
+        menu_options.append("view_builtin_presets")
+        return self.async_show_menu(step_id="edit_templates", menu_options=menu_options)
+
+    async def async_step_view_builtin_presets(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Read-only listing of the built-in presets and their routines."""
+        if user_input is not None:
+            return await self.async_step_edit_templates()
+
+        lines: list[str] = []
+        for preset in BUILTIN_PRESETS.values():
+            if preset.routines:
+                routines_text = ", ".join(
+                    f"{r.icon} {r.summary}".strip() for r in preset.routines
+                )
+            else:
+                routines_text = "(no routines)"
+            lines.append(f"**{preset.display_name}**: {routines_text}")
+        description = "\n\n".join(lines) if lines else "(no built-in presets)"
+
+        return self.async_show_form(
+            step_id="view_builtin_presets",
+            data_schema=vol.Schema({}),
+            description_placeholders={"presets": description},
+        )
+
+    async def async_step_manage_existing_preset(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Pick which custom preset to edit/delete, then dispatch to edit_custom_preset."""
+        custom_presets = self._entry.data.get(CONF_CUSTOM_PRESETS, [])
+        if not custom_presets:
+            # Bounced here via stale navigation — return to the menu.
+            return await self.async_step_edit_templates()
+
+        if user_input is not None:
+            slug = user_input.get("preset_slug", "")
+            if any(cp["slug"] == slug for cp in custom_presets):
+                self._editing_preset_slug = slug
+                return await self.async_step_edit_custom_preset()
+
+        options = {cp["slug"]: cp["display_name"] for cp in custom_presets}
+        schema = vol.Schema({vol.Required("preset_slug"): vol.In(options)})
+        return self.async_show_form(
+            step_id="manage_existing_preset", data_schema=schema
+        )
+
+    async def async_step_edit_custom_preset(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Edit screen for a single custom preset: rename, add a routine, or delete it.
+
+        Slugs are immutable — renaming only updates display_name so existing
+        `member.preset` references keep resolving. Deleting routes through
+        `delete_preset_confirm`. Adding a routine reuses
+        `async_step_add_preset_routine` with `_editing_preset_slug` set.
+        """
+        errors: dict[str, str] = {}
+        custom_presets = list(self._entry.data.get(CONF_CUSTOM_PRESETS, []))
+
+        if self._editing_preset_slug is None:
+            return await self.async_step_edit_templates()
+
+        target_idx = next(
+            (
+                i
+                for i, cp in enumerate(custom_presets)
+                if cp["slug"] == self._editing_preset_slug
+            ),
+            None,
+        )
+        if target_idx is None:
+            self._editing_preset_slug = None
+            return await self.async_step_edit_templates()
+
+        target = custom_presets[target_idx]
+
+        if user_input is not None:
+            action = user_input.get("action", "save")
+            new_name = (user_input.get("display_name") or "").strip()
+
+            if action == "delete":
+                return await self.async_step_delete_preset_confirm()
+
+            # Empty name on save/add-routine is invalid — same rule as
+            # async_step_add_custom_preset. The schema pre-fills the existing
+            # name, so this only fires if the user deliberately clears it.
+            if not new_name:
+                errors["display_name"] = "name_empty"
+
+            # Both "save" and "add_routine" first apply any rename.
+            rename_needed = (
+                not errors and bool(new_name) and new_name != target["display_name"]
+            )
+            if rename_needed:
+                err = _validate_name(new_name)
+                if err:
+                    errors["display_name"] = err
+                else:
+                    new_slug = _make_slug(new_name)
+                    if not new_slug:
+                        errors["display_name"] = "empty_slug"
+                    else:
+                        clashes_builtin = (
+                            new_slug in BUILTIN_PRESETS
+                            and new_slug != target["slug"]
+                        )
+                        # Compare against stored slugs, not recomputed ones —
+                        # sibling slugs are immutable after their own rename
+                        # and may have drifted from `_make_slug(display_name)`.
+                        clashes_custom = any(
+                            cp["slug"] != target["slug"]
+                            and cp["slug"] == new_slug
+                            for cp in custom_presets
+                        )
+                        if clashes_builtin or clashes_custom:
+                            errors["display_name"] = "slug_conflict"
+
+                if not errors:
+                    custom_presets[target_idx] = {
+                        **target,
+                        "display_name": new_name,
+                    }
+                    new_data = {
+                        **self._entry.data,
+                        CONF_CUSTOM_PRESETS: custom_presets,
+                    }
+                    self.hass.config_entries.async_update_entry(
+                        self._entry, data=new_data
+                    )
+                    target = custom_presets[target_idx]
+
+            if not errors and action == "add_routine":
+                self._pending_preset_routines = []
+                # Signal to async_step_add_preset_routine that the routine
+                # should be appended to this existing preset rather than
+                # creating a new one.
+                self._pending_preset_name = None
+                return await self.async_step_add_preset_routine()
+
+            if not errors and action == "save":
+                self._editing_preset_slug = None
+                return await self.async_step_edit_templates()
+
+        routine_lines: list[str] = []
+        for r in target["routines"]:
+            icon = r.get("icon", "")
+            routine_lines.append(
+                f"- {icon} {r['summary']} ({r['recurrence']})".strip()
+            )
+        routines_text = "\n".join(routine_lines) if routine_lines else "(no routines)"
+
+        schema = vol.Schema(
+            {
+                vol.Required("display_name", default=target["display_name"]): str,
+                vol.Required("action", default="save"): vol.In(
+                    {
+                        "save": "Save changes",
+                        "add_routine": "Add a routine",
+                        "delete": "Delete this preset",
+                    }
+                ),
+            }
+        )
+        return self.async_show_form(
+            step_id="edit_custom_preset",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={
+                "preset_name": target["display_name"],
+                "routines": routines_text,
+            },
+        )
+
+    async def async_step_delete_preset_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Confirm deletion. Removes the preset and migrates affected members to adult-none."""
+        custom_presets = list(self._entry.data.get(CONF_CUSTOM_PRESETS, []))
+        slug = self._editing_preset_slug
+        target = next((cp for cp in custom_presets if cp["slug"] == slug), None)
+
+        if slug is None or target is None:
+            self._editing_preset_slug = None
+            return await self.async_step_edit_templates()
+
+        if user_input is not None:
+            if not user_input.get("confirm"):
+                self._editing_preset_slug = None
+                return await self.async_step_edit_templates()
+
+            members = self._get_members()
+            affected = [m for m in members if m.preset == slug]
+
+            remaining_presets = [cp for cp in custom_presets if cp["slug"] != slug]
+            new_data = {**self._entry.data, CONF_CUSTOM_PRESETS: remaining_presets}
+            self.hass.config_entries.async_update_entry(self._entry, data=new_data)
+
+            if affected:
+                migrated = [
+                    Member(
+                        slug=m.slug,
+                        name=m.name,
+                        color=m.color,
+                        avatar=m.avatar,
+                        created_at=m.created_at,
+                        preset=PRESET_ADULT_NONE if m.preset == slug else m.preset,
+                        todo_entity_id=m.todo_entity_id,
+                        streak_counter_id=m.streak_counter_id,
+                    )
+                    for m in members
+                ]
+                await self._save_members(migrated)
+
+            self._editing_preset_slug = None
+            return await self.async_step_edit_templates()
+
+        members = self._get_members()
+        affected_names = [m.name for m in members if m.preset == slug]
+        if affected_names:
+            impact = (
+                f"{len(affected_names)} member(s) currently use this preset "
+                f"({', '.join(affected_names)}). Their preset will be reset to "
+                "'Adult (none)'. Already-seeded routine items are not removed."
+            )
+        else:
+            impact = "No members currently reference this preset."
+
+        schema = vol.Schema({vol.Required("confirm", default=False): bool})
+        return self.async_show_form(
+            step_id="delete_preset_confirm",
+            data_schema=schema,
+            description_placeholders={
+                "preset_name": target["display_name"],
+                "impact": impact,
+            },
         )
 
     async def async_step_add_custom_preset(
@@ -363,22 +606,39 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                 if add_another:
                     return await self.async_step_add_preset_routine()
 
-                # Save the new custom preset
-                slug = _make_slug(self._pending_preset_name or "custom")
                 custom_presets: list[dict[str, Any]] = list(
                     self._entry.data.get(CONF_CUSTOM_PRESETS, [])
                 )
-                custom_presets.append(
-                    {
-                        "slug": slug,
-                        "display_name": self._pending_preset_name,
-                        "routines": list(self._pending_preset_routines),
-                    }
-                )
+
+                if self._editing_preset_slug is not None:
+                    # Append the just-collected routines to an existing preset.
+                    target_slug = self._editing_preset_slug
+                    for i, cp in enumerate(custom_presets):
+                        if cp["slug"] == target_slug:
+                            custom_presets[i] = {
+                                **cp,
+                                "routines": [
+                                    *cp.get("routines", []),
+                                    *self._pending_preset_routines,
+                                ],
+                            }
+                            break
+                else:
+                    # Save a brand-new custom preset.
+                    slug = _make_slug(self._pending_preset_name or "custom")
+                    custom_presets.append(
+                        {
+                            "slug": slug,
+                            "display_name": self._pending_preset_name,
+                            "routines": list(self._pending_preset_routines),
+                        }
+                    )
+
                 new_data = {**self._entry.data, CONF_CUSTOM_PRESETS: custom_presets}
                 self.hass.config_entries.async_update_entry(self._entry, data=new_data)
                 self._pending_preset_name = None
                 self._pending_preset_routines = []
+                self._editing_preset_slug = None
                 return self.async_create_entry(title="", data={})
 
         schema = vol.Schema(
