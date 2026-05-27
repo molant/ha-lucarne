@@ -5,7 +5,7 @@ import { customElement, property } from 'lit/decorators.js';
 // least one pictographic glyph). Includes ZWJ (U+200D) and variation
 // selector U+FE0F so multi-codepoint sequences — ZWJ families,
 // skin-tone modifiers, and the `❤️` heart-with-VS16 — are recognised.
-const EMOJI_RE =
+export const EMOJI_RE =
   /^(?=.*[\p{Extended_Pictographic}\p{Regional_Indicator}])[\p{Extended_Pictographic}\p{Emoji_Component}\p{Emoji_Modifier}\p{Regional_Indicator}‍️]+$/u;
 
 @customElement('lucarne-member-avatar')

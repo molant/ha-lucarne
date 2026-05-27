@@ -22,9 +22,11 @@ export class LucarneTaskRow extends LitElement {
       -webkit-tap-highlight-color: transparent;
       user-select: none;
     }
+    /* compact tightens visual spacing while preserving the 44px hit area —
+       per a11y guidelines the interactive role="checkbox" must keep that
+       minimum touch target. Density comes from the smaller circle + gap. */
     :host([compact]) .row {
       gap: 8px;
-      min-height: 32px;
       padding: 4px 2px;
     }
     .row:hover,

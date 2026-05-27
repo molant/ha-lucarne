@@ -7,6 +7,30 @@ import { makeFakeHass } from '../setup/ha-mock.mjs';
 
 await import('../../src/cards/lucarne-today-card.js');
 
+/**
+ * Wait for `selector` to appear inside `root`, polling on a short interval.
+ * Replaces fixed-duration setTimeout sleeps in tests that depend on the
+ * family-subscription's chain of async fetches (`lucarne_family/get_family`
+ * → per-entity `todo.get_items` → Lit re-render). Awaits the element's own
+ * `updateComplete` before returning so child shadow trees are populated.
+ */
+async function waitForShadow<E extends HTMLElement & { updateComplete?: Promise<unknown> }>(
+  root: ShadowRoot,
+  selector: string,
+  maxMs = 2000,
+): Promise<E> {
+  const start = Date.now();
+  while (Date.now() - start < maxMs) {
+    const found = root.querySelector(selector) as E | null;
+    if (found) {
+      if (found.updateComplete) await found.updateComplete;
+      return found;
+    }
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  throw new Error(`waitForShadow: timed out waiting for "${selector}" after ${maxMs}ms`);
+}
+
 const BASE_CONFIG: LucarneTodayCardConfig = {
   type: 'custom:lucarne-today-card',
   calendars: [{ entity: 'calendar.family', color: '#a8d8b9' }],
@@ -336,19 +360,16 @@ describe('lucarne-today-card — task interaction', () => {
       { tasks: 'todo.my_list', show_family_ready_pill: true },
       hass as unknown as HomeAssistant,
     );
-    await new Promise((r) => setTimeout(r, 1100));
-    await el.updateComplete;
-
-    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
-    assert.ok(summary, 'lucarne-tasks-summary mounted');
-    await summary!.updateComplete;
-    const taskRow = summary!.shadowRoot!.querySelector('lucarne-task-row') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
-    assert.ok(taskRow, 'task-row mounted');
-    await taskRow!.updateComplete;
-    const row = taskRow!.shadowRoot?.querySelector('.row') as HTMLElement | null;
-    assert.ok(row, 'task row rendered');
-
-    row!.click();
+    const summary = await waitForShadow<HTMLElement & { updateComplete: Promise<unknown> }>(
+      el.shadowRoot!,
+      'lucarne-tasks-summary',
+    );
+    const taskRow = await waitForShadow<HTMLElement & { updateComplete: Promise<unknown> }>(
+      summary.shadowRoot!,
+      'lucarne-task-row',
+    );
+    const row = taskRow.shadowRoot!.querySelector('.row') as HTMLElement;
+    row.click();
     await new Promise((r) => setTimeout(r, 10));
 
     const updateCalls = hass.calls.callService.filter(
@@ -402,16 +423,15 @@ describe('lucarne-today-card — raw-mode metadata enrichment', () => {
       { tasks: 'todo.anna' },
       hass as unknown as HomeAssistant,
     );
-    await new Promise((r) => setTimeout(r, 1100));
-    await el.updateComplete;
-
-    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
-    assert.ok(summary, 'tasks-summary mounted');
-    await summary!.updateComplete;
-    const taskRow = summary!.shadowRoot!.querySelector('lucarne-task-row') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
-    assert.ok(taskRow, 'task-row mounted');
-    await taskRow!.updateComplete;
-    const iconSpan = taskRow!.shadowRoot!.querySelector('.icon');
+    const summary = await waitForShadow<HTMLElement & { updateComplete: Promise<unknown> }>(
+      el.shadowRoot!,
+      'lucarne-tasks-summary',
+    );
+    const taskRow = await waitForShadow<HTMLElement & { updateComplete: Promise<unknown> }>(
+      summary.shadowRoot!,
+      'lucarne-task-row',
+    );
+    const iconSpan = taskRow.shadowRoot!.querySelector('.icon');
     assert.ok(iconSpan, 'icon span rendered from integration metadata');
     assert.equal(iconSpan!.textContent, '🪥');
   });
@@ -424,16 +444,13 @@ describe('lucarne-today-card — raw-mode metadata enrichment', () => {
       { tasks: 'todo.anna' },
       hass as unknown as HomeAssistant,
     );
-    await new Promise((r) => setTimeout(r, 1100));
-    await el.updateComplete;
-
-    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
-    assert.ok(summary, 'tasks-summary mounted');
-    await summary!.updateComplete;
-    const avatar = summary!.shadowRoot!.querySelector('.owner-avatar') as HTMLElement | null;
-    assert.ok(avatar, 'owner avatar rendered');
-    assert.equal(avatar!.getAttribute('title'), 'Anna');
-    assert.ok((avatar!.textContent ?? '').includes('🦊'), 'avatar emoji rendered');
+    const summary = await waitForShadow<HTMLElement & { updateComplete: Promise<unknown> }>(
+      el.shadowRoot!,
+      'lucarne-tasks-summary',
+    );
+    const avatar = await waitForShadow<HTMLElement>(summary.shadowRoot!, '.owner-avatar');
+    assert.equal(avatar.getAttribute('title'), 'Anna');
+    assert.ok((avatar.textContent ?? '').includes('🦊'), 'avatar emoji rendered');
   });
 
   it('falls back to entity→member mapping when metadata is missing for an item', async () => {
@@ -446,13 +463,12 @@ describe('lucarne-today-card — raw-mode metadata enrichment', () => {
       { tasks: 'todo.anna' },
       hass as unknown as HomeAssistant,
     );
-    await new Promise((r) => setTimeout(r, 1100));
-    await el.updateComplete;
-    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
-    await summary!.updateComplete;
-    const avatar = summary!.shadowRoot!.querySelector('.owner-avatar') as HTMLElement | null;
-    assert.ok(avatar, 'owner avatar still rendered via entity-fallback');
-    assert.equal(avatar!.getAttribute('title'), 'Anna');
+    const summary = await waitForShadow<HTMLElement & { updateComplete: Promise<unknown> }>(
+      el.shadowRoot!,
+      'lucarne-tasks-summary',
+    );
+    const avatar = await waitForShadow<HTMLElement>(summary.shadowRoot!, '.owner-avatar');
+    assert.equal(avatar.getAttribute('title'), 'Anna');
   });
 
   it('passes compact attribute to task-row in tasks-summary', async () => {
@@ -463,12 +479,11 @@ describe('lucarne-today-card — raw-mode metadata enrichment', () => {
       { tasks: 'todo.anna' },
       hass as unknown as HomeAssistant,
     );
-    await new Promise((r) => setTimeout(r, 1100));
-    await el.updateComplete;
-    const summary = el.shadowRoot!.querySelector('lucarne-tasks-summary') as (HTMLElement & { updateComplete: Promise<unknown> }) | null;
-    await summary!.updateComplete;
-    const taskRow = summary!.shadowRoot!.querySelector('lucarne-task-row');
-    assert.ok(taskRow, 'task-row mounted');
-    assert.ok(taskRow!.hasAttribute('compact'), 'compact attribute reflected on task-row');
+    const summary = await waitForShadow<HTMLElement & { updateComplete: Promise<unknown> }>(
+      el.shadowRoot!,
+      'lucarne-tasks-summary',
+    );
+    const taskRow = await waitForShadow<HTMLElement>(summary.shadowRoot!, 'lucarne-task-row');
+    assert.ok(taskRow.hasAttribute('compact'), 'compact attribute reflected on task-row');
   });
 });
