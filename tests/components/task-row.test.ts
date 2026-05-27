@@ -77,7 +77,7 @@ describe('lucarne-task-row', () => {
     assert.ok((dueSpan!.textContent ?? '').trim().length > 0, 'due text non-empty');
   });
 
-  it('formats date-only YYYY-MM-DD dues as "Mon D" (local)', async () => {
+  it('formats date-only YYYY-MM-DD dues using locale "short month + day" (e.g. "May 30")', async () => {
     // Regression: was previously displayed raw (e.g. "2026-05-30"). Date-only strings
     // must be parsed as local midnight so they don't drift across UTC midnight.
     const el = makeEl(makeTask({ due: '2026-05-30' }));
