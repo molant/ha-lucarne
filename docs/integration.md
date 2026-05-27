@@ -86,10 +86,48 @@ A shared household todo list (`todo.lucarne_household`) is created once at integ
 
 ### Task types
 
-| Type | Description |
-|------|-------------|
-| `routine` | Recurring task tied to an RRULE schedule (e.g. "brush teeth daily") |
-| `chore` | One-off or non-scheduled task (e.g. "clean bathroom") |
+Every task is one of two types. Pick the type by what the task **does next** after
+you check it off, not by how often you do it.
+
+| Behavior | `routine` | `chore` |
+|---|---|---|
+| Auto-reset at `reset_time` (flips `completed` → `needs_action` next day) | **yes** — by `reset_logic.py` | no, stays checked |
+| Counts toward streak (`counter.<slug>_streak`) | yes — when its RRULE is due today | no |
+| RRULE has any runtime effect | yes — drives "is this due today?" via `recurrence.py` | no — silently ignored |
+| Recurrence picker shown in **Add Task** UI | yes | no — hidden |
+| Due-date field shown in **Add Task** UI | no | yes — `<input type="datetime-local">` |
+| Card visibility toggle (`lucarne-chores-card`) | `show_routines` (default true) | `show_tasks` (default true) |
+| Default when `type` is omitted from `add_task` | — | yes (see `task_service.py`) |
+
+> **Household-list exemption.** Tasks on the shared `todo.lucarne_household`
+> list are skipped by both `reset_logic.py` and `streak_logic.py`, which only
+> iterate per-member lists. A `type: routine` task added to the household
+> list won't auto-reset or count toward any streak (the UI doesn't prevent
+> this combination — Add Task allows Household + Routine — but the runtime
+> ignores it). Use `chore` for shared items.
+
+> **Service contract vs. UI affordance.** The backend `add_task` service
+> accepts `recurrence` *and* `due` for any `type` — there is no schema-level
+> type-gate. (`update_task_metadata` only mutates metadata fields — `icon`,
+> `recurrence`, `type`, `assignee` — and never touches the due date;
+> due-date edits on existing items go through HA's built-in
+> `todo.update_item`, which is what **Edit Task** calls when you change the
+> Due field on a routine.) The differences above are: (a) which fields the
+> **Add Task** popover exposes (Recurrence: routine-only; Due: chore-only),
+> and (b) which fields the runtime actually consumes (RRULEs on chores are
+> stored but never replayed). Developers calling `add_task` from Developer
+> Tools can pass either field for either type.
+
+**Rule of thumb.** Use `routine` for the daily-rhythm stuff your family does every
+day or every weekday — brushing teeth, making the bed, packing bags. The auto-reset
++ streak loop is the whole point. Use `chore` for everything else: errands,
+one-offs, occasional jobs ("clean the garage", "renew passport") — they stay
+checked once done and you'll create another the next time it's due.
+
+A `chore` that you also want on a schedule (e.g. "water plants weekly") is
+currently a manual workflow — you'll re-add the chore each time. There is no
+"regenerate chore on RRULE" logic today; the Add Task form intentionally hides
+Recurrence when type is `chore` to avoid implying otherwise.
 
 ### Recurrence rules
 
