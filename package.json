@@ -13,6 +13,7 @@
     "test": "TZ=America/Los_Angeles node --import tsx --import ./tests/setup/dom-globals.mjs --test 'tests/**/*.test.ts'"
   },
   "dependencies": {
+    "cropperjs": "^1.6.2",
     "custom-card-helpers": "^1.9.0",
     "home-assistant-js-websocket": "^9.0.0",
     "lit": "^3.0.0"

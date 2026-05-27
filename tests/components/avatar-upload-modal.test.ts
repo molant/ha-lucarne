@@ -99,33 +99,21 @@ describe('lucarne-avatar-upload-modal', () => {
     assert.ok(shadow(el, '.error-msg'), 'error message shown');
   });
 
-  it('upload mode: file too large shows inline error, no service call', async () => {
-    const fakeHass = makeFakeHass();
+  it('upload mode: shows file picker initially (no source URL)', async () => {
     const el = makeEl();
-    el.hass = fakeHass as any;
     await el.updateComplete;
 
-    // Switch to upload mode
     const tabs = el.shadowRoot!.querySelectorAll('.mode-tab');
     const uploadTab = Array.from(tabs).find((t) => t.textContent?.toLowerCase().includes('upload')) as HTMLElement;
     uploadTab.click();
     await el.updateComplete;
 
-    // Simulate file input change with oversized file
-    const fileInput = shadow(el, 'input[type="file"]') as HTMLInputElement;
-    assert.ok(fileInput, 'file input present');
-
-    // Create a fake oversized file (3MB)
-    const oversizedFile = new File([new Uint8Array(3 * 1024 * 1024)], 'big.png', { type: 'image/png' });
-    Object.defineProperty(fileInput, 'files', { value: [oversizedFile] });
-    fileInput.dispatchEvent(new Event('change'));
-    await el.updateComplete;
-
-    assert.ok(shadow(el, '.error-msg'), 'error message shown for oversized file');
-    assert.equal(fakeHass.calls.callService.length, 0, 'no service call for oversized file');
+    assert.ok(shadow(el, 'input[type="file"]'), 'file input present');
+    assert.ok(shadow(el, '.picker'), 'picker UI shown');
+    assert.equal(shadow(el, '#crop-image'), null, 'crop stage not shown before a file is picked');
   });
 
-  it('upload mode: wrong MIME type shows inline error', async () => {
+  it('upload mode: oversized file shows inline error, no source URL set', async () => {
     const fakeHass = makeFakeHass();
     const el = makeEl();
     el.hass = fakeHass as any;
@@ -137,15 +125,35 @@ describe('lucarne-avatar-upload-modal', () => {
     await el.updateComplete;
 
     const fileInput = shadow(el, 'input[type="file"]') as HTMLInputElement;
-    const gifFile = new File([new Uint8Array(100)], 'anim.gif', { type: 'image/gif' });
-    Object.defineProperty(fileInput, 'files', { value: [gifFile] });
+    const oversized = new File([new Uint8Array(3 * 1024 * 1024)], 'big.png', { type: 'image/png' });
+    Object.defineProperty(fileInput, 'files', { value: [oversized] });
     fileInput.dispatchEvent(new Event('change'));
     await el.updateComplete;
 
-    assert.ok(shadow(el, '.error-msg'), 'error shown for unsupported MIME type');
+    assert.ok(shadow(el, '.error-msg'), 'error shown for oversized file');
+    assert.equal(shadow(el, '#crop-image'), null, 'no crop stage shown');
+    assert.equal(fakeHass.calls.callService.length, 0, 'no service call');
   });
 
-  it('upload mode: valid file calls upload_avatar service', async () => {
+  it('upload mode: unsupported MIME shows inline error', async () => {
+    const el = makeEl();
+    await el.updateComplete;
+
+    const tabs = el.shadowRoot!.querySelectorAll('.mode-tab');
+    const uploadTab = Array.from(tabs).find((t) => t.textContent?.toLowerCase().includes('upload')) as HTMLElement;
+    uploadTab.click();
+    await el.updateComplete;
+
+    const fileInput = shadow(el, 'input[type="file"]') as HTMLInputElement;
+    const gif = new File([new Uint8Array(100)], 'anim.gif', { type: 'image/gif' });
+    Object.defineProperty(fileInput, 'files', { value: [gif] });
+    fileInput.dispatchEvent(new Event('change'));
+    await el.updateComplete;
+
+    assert.ok(shadow(el, '.error-msg'), 'error shown for unsupported MIME');
+  });
+
+  it('upload mode: Save without picked image shows error, no service call', async () => {
     const fakeHass = makeFakeHass();
     const el = makeEl();
     el.hass = fakeHass as any;
@@ -156,28 +164,54 @@ describe('lucarne-avatar-upload-modal', () => {
     uploadTab.click();
     await el.updateComplete;
 
-    const fileInput = shadow(el, 'input[type="file"]') as HTMLInputElement;
-    // 1x1 png bytes (minimal valid file under 2MB)
-    const pngBytes = new Uint8Array([
-      137, 80, 78, 71, 13, 10, 26, 10, // PNG signature
-    ]);
-    const pngFile = new File([pngBytes], 'avatar.png', { type: 'image/png' });
-    Object.defineProperty(fileInput, 'files', { value: [pngFile] });
-    fileInput.dispatchEvent(new Event('change'));
+    const saveBtn = el.shadowRoot!.querySelector('.btn-primary') as HTMLButtonElement;
+    saveBtn?.click();
+    await el.updateComplete;
+    await new Promise((r) => setTimeout(r, 10));
+
+    assert.equal(fakeHass.calls.callService.length, 0, 'no service call without picked image');
+    assert.ok(shadow(el, '.error-msg'), 'error message shown');
+  });
+
+  it('upload mode: Save with initialized cropper calls upload_avatar with cropped JPEG', async () => {
+    const fakeHass = makeFakeHass();
+    const el = makeEl();
+    el.hass = fakeHass as any;
     await el.updateComplete;
 
-    const saveBtn = Array.from(el.shadowRoot!.querySelectorAll('.btn-primary')) as HTMLButtonElement[];
-    saveBtn[0]?.click();
+    const tabs = el.shadowRoot!.querySelectorAll('.mode-tab');
+    const uploadTab = Array.from(tabs).find((t) => t.textContent?.toLowerCase().includes('upload')) as HTMLElement;
+    uploadTab.click();
     await el.updateComplete;
-    await new Promise((r) => setTimeout(r, 20));
+
+    // Avoid cropperjs DOM work that happy-dom can't fully simulate: stub the cropper
+    // instance and pretend a file has been picked.
+    const fakeBlob = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], { type: 'image/jpeg' });
+    const fakeCanvas = {
+      toBlob: (cb: (b: Blob | null) => void) => cb(fakeBlob),
+    } as unknown as HTMLCanvasElement;
+    const anyEl = el as unknown as { _sourceUrl: string | null; _cropper: unknown };
+    anyEl._sourceUrl = 'blob:fake';
+    anyEl._cropper = {
+      getCroppedCanvas: () => fakeCanvas,
+      destroy: () => {},
+    };
+
+    const saveBtn = el.shadowRoot!.querySelector('.btn-primary') as HTMLButtonElement;
+    saveBtn.click();
+    await el.updateComplete;
+    await new Promise((r) => setTimeout(r, 30));
 
     const serviceCalls = fakeHass.calls.callService;
-    assert.equal(serviceCalls.length, 1);
+    assert.equal(serviceCalls.length, 1, 'one service call');
     assert.equal(serviceCalls[0].domain, 'lucarne_family');
     assert.equal(serviceCalls[0].service, 'upload_avatar');
     assert.equal(serviceCalls[0].payload.member, 'anna');
-    assert.equal(serviceCalls[0].payload.mime_type, 'image/png');
-    assert.ok(typeof serviceCalls[0].payload.image_data === 'string', 'image_data is base64 string');
+    assert.equal(serviceCalls[0].payload.mime_type, 'image/jpeg');
+    assert.ok(
+      typeof serviceCalls[0].payload.image_data === 'string' && serviceCalls[0].payload.image_data.length > 0,
+      'image_data is non-empty base64 string',
+    );
   });
 
   it('close button dispatches close event', async () => {

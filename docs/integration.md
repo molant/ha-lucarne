@@ -41,19 +41,22 @@ Open **Settings → Devices & Services → Lucarne Family → Configure** to man
 2. Fill in:
    - **Name** — displayed in cards (e.g. "Anna"). Must be non-empty and ≤ 50 characters.
    - **Color** — hex color (e.g. `#f5c89c`). Used for visual identification in cards.
-   - **Avatar** — emoji (e.g. `🧒`) or a path under `/local/lucarne/avatars/` (Phase 6 adds upload UI).
    - **Routine preset** — choose a starting set of daily routines:
      - **School-age kid** — brush teeth, make bed, pack school bag (weekdays), kindness act, screen time off
      - **Toddler** — brush teeth, get dressed, put toys away
      - **Adult (none)** — empty; adults typically only need household chores
 3. Click Submit. The member is saved. A stable **slug** is derived from the name (e.g. "Anna" → `anna`).
 
+> **Avatar (emoji or photo)** is set from the chores card editor (✏️ button next to the member). The Options flow no longer takes an avatar — see "Avatar upload" below.
+
 ### Edit a member
 
 1. Choose **Manage members → Edit member**.
 2. Select the member to edit.
-3. Update name, color, avatar, or preset.
+3. Update name, color, or preset.
 4. Click Submit.
+
+To change the avatar, open the dashboard, edit the chores card, and click the ✏️ next to the member.
 
 **Name-change and slug behavior**: If the new name produces the same slug as the old name (e.g. "Anna" → "ANNA"), only the display name changes — no entity rename occurs. If the slug would change (e.g. "Anna" → "Ana"), the flow shows an impact preview listing automations, scripts, scenes, and dashboards that reference the old entity IDs. You must check "I understand" before proceeding.
 
@@ -171,11 +174,13 @@ The streak is computed by walking backward from today:
 
 ### Avatar upload
 
-Avatars are uploaded via the `lucarne_family.upload_avatar` service. The service:
+The chores card editor exposes an ✏️ button next to each member. Click it to open a modal where you can either pick an emoji or upload a photo with a square crop dialog (powered by Cropper.js). On Save the cropped JPEG is sent to the `lucarne_family.upload_avatar` service. The service:
 - Accepts PNG, JPEG, or WebP; max 2 MB; max 16,777,216 total pixels (e.g. 4096 × 4096).
 - Validates the file type via magic-byte check (independent of the declared `mime_type`).
 - Writes to `<config>/www/lucarne/avatars/<slug>.<ext>` (served at `/local/lucarne/avatars/<slug>.<ext>`).
 - Rejects path traversal — the filename is always derived from the member slug, never from user input.
+
+The Options flow does **not** offer avatar editing, by design — there's no way to embed a crop dialog inside a config-flow form. Use the chores card editor instead.
 
 ### Rename behavior
 

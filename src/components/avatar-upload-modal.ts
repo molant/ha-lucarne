@@ -1,13 +1,15 @@
-import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { LitElement, html, css, unsafeCSS } from 'lit';
+import { customElement, property, state, query } from 'lit/decorators.js';
+import Cropper from 'cropperjs';
 import type { HomeAssistant } from '../shared/types.js';
 import { lucarneStyles } from '../shared/design-tokens.js';
+import { cropperCss } from '../shared/cropper-styles.js';
 import { setMemberAvatar, uploadAvatar } from '../shared/integration-services.js';
 
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const OUTPUT_SIZE = 512;
 
-// Common emoji used for avatars
 const COMMON_EMOJI = [
   '👶','🧒','👧','🧑','👦','👩','👨','🧓','👴','👵',
   '🐶','🐱','🐻','🐼','🐨','🦊','🦁','🐯','🐸','🦄',
@@ -21,6 +23,7 @@ type Mode = 'emoji' | 'upload';
 export class LucarneAvatarUploadModal extends LitElement {
   static styles = [
     lucarneStyles,
+    unsafeCSS(cropperCss),
     css`
       :host {
         display: block;
@@ -38,8 +41,8 @@ export class LucarneAvatarUploadModal extends LitElement {
         background: var(--card-background-color, #fff);
         border-radius: var(--lucarne-radius-lg);
         padding: var(--lucarne-spacing-lg);
-        width: min(400px, 90vw);
-        max-height: 80vh;
+        width: min(420px, 92vw);
+        max-height: 90vh;
         overflow-y: auto;
         display: flex;
         flex-direction: column;
@@ -111,30 +114,65 @@ export class LucarneAvatarUploadModal extends LitElement {
         flex-direction: column;
         gap: var(--lucarne-spacing-sm);
       }
-      .file-input-label {
-        display: block;
-        padding: var(--lucarne-spacing-md);
-        border: 2px dashed rgba(0,0,0,0.2);
+      .picker {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: var(--lucarne-spacing-sm);
+        padding: var(--lucarne-spacing-lg);
+        border: 2px dashed rgba(0,0,0,0.18);
         border-radius: var(--lucarne-radius-md);
         text-align: center;
-        cursor: pointer;
         color: var(--lucarne-on-surface-muted);
         font-size: var(--lucarne-fs-sm);
-        transition: border-color 0.15s;
       }
-      .file-input-label:hover {
-        border-color: var(--primary-color);
+      .picker-button {
+        padding: var(--lucarne-spacing-sm) var(--lucarne-spacing-lg);
+        border-radius: 999px;
+        border: 1px solid var(--primary-color);
+        background: rgba(var(--rgb-primary-color, 3, 169, 244), 0.08);
+        color: var(--primary-color);
+        font-weight: 600;
+        cursor: pointer;
       }
       input[type='file'] {
         display: none;
       }
-      .preview {
-        width: 80px;
-        height: 80px;
-        object-fit: cover;
+      .crop-stage {
+        position: relative;
+        width: 100%;
+        /* cropperjs needs a fixed-size container so it can compute layout. */
+        height: 320px;
+        background: #000;
+        border-radius: var(--lucarne-radius-md);
+        overflow: hidden;
+      }
+      .crop-stage img {
+        display: block;
+        max-width: 100%;
+      }
+      /* Round preview overlay so the user sees how the avatar will look. */
+      .crop-stage .cropper-view-box,
+      .crop-stage .cropper-face {
         border-radius: 50%;
-        border: 2px solid var(--primary-color);
-        align-self: center;
+      }
+      .crop-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: var(--lucarne-spacing-sm);
+      }
+      .crop-hint {
+        font-size: var(--lucarne-fs-xs);
+        color: var(--lucarne-on-surface-muted);
+      }
+      .link-btn {
+        background: none;
+        border: none;
+        color: var(--primary-color);
+        cursor: pointer;
+        font-size: var(--lucarne-fs-sm);
+        padding: 0;
       }
       .error-msg {
         color: var(--error-color, #b00020);
@@ -178,10 +216,13 @@ export class LucarneAvatarUploadModal extends LitElement {
 
   @state() private _mode: Mode = 'emoji';
   @state() private _selectedEmoji: string | null = null;
-  @state() private _selectedFile: File | null = null;
-  @state() private _previewUrl: string | null = null;
+  @state() private _sourceUrl: string | null = null;
   @state() private _error: string | null = null;
   @state() private _submitting = false;
+
+  @query('#crop-image') private _cropImage?: HTMLImageElement;
+
+  private _cropper: Cropper | null = null;
 
   private _close() {
     this.dispatchEvent(new CustomEvent('close'));
@@ -194,14 +235,9 @@ export class LucarneAvatarUploadModal extends LitElement {
 
   private _onFileChange(e: Event) {
     const input = e.target as HTMLInputElement;
-    const file = input.files?.[0] ?? null;
-    if (this._previewUrl) {
-      URL.revokeObjectURL(this._previewUrl);
-    }
-    this._selectedFile = null;
-    this._previewUrl = null;
-    this._error = null;
-
+    const file = input.files?.[0];
+    // Allow the same file to be picked again later by clearing the input value.
+    input.value = '';
     if (!file) return;
 
     if (!ALLOWED_MIME.has(file.type)) {
@@ -213,8 +249,44 @@ export class LucarneAvatarUploadModal extends LitElement {
       return;
     }
 
-    this._selectedFile = file;
-    this._previewUrl = URL.createObjectURL(file);
+    this._error = null;
+    this._setSource(URL.createObjectURL(file));
+  }
+
+  private _setSource(url: string | null) {
+    if (this._cropper) {
+      this._cropper.destroy();
+      this._cropper = null;
+    }
+    if (this._sourceUrl) {
+      URL.revokeObjectURL(this._sourceUrl);
+    }
+    this._sourceUrl = url;
+  }
+
+  private _onCropImageLoad() {
+    const img = this._cropImage;
+    if (!img) return;
+    if (this._cropper) {
+      this._cropper.destroy();
+    }
+    this._cropper = new Cropper(img, {
+      aspectRatio: 1,
+      viewMode: 1,
+      dragMode: 'move',
+      autoCropArea: 0.9,
+      background: false,
+      cropBoxResizable: true,
+      cropBoxMovable: true,
+      toggleDragModeOnDblclick: false,
+      guides: false,
+      center: false,
+    });
+  }
+
+  private _clearPickedImage() {
+    this._setSource(null);
+    this._error = null;
   }
 
   private async _submit() {
@@ -229,7 +301,9 @@ export class LucarneAvatarUploadModal extends LitElement {
       this._submitting = true;
       try {
         await setMemberAvatar(this.hass, this.memberSlug, this._selectedEmoji);
-        this.dispatchEvent(new CustomEvent('avatar-changed', { detail: { avatar: this._selectedEmoji } }));
+        this.dispatchEvent(
+          new CustomEvent('avatar-changed', { detail: { avatar: this._selectedEmoji } }),
+        );
         this._close();
       } catch (err) {
         this._error = err instanceof Error ? err.message : String(err);
@@ -239,13 +313,15 @@ export class LucarneAvatarUploadModal extends LitElement {
       return;
     }
 
-    if (!this._selectedFile) {
-      this._error = 'Select an image file first.';
+    if (!this._sourceUrl || !this._cropper) {
+      this._error = 'Pick an image first.';
       return;
     }
+
     this._submitting = true;
     try {
-      await uploadAvatar(this.hass, this.memberSlug, this._selectedFile);
+      const file = await this._getCroppedFile();
+      await uploadAvatar(this.hass, this.memberSlug, file);
       this.dispatchEvent(new CustomEvent('avatar-changed'));
       this._close();
     } catch (err) {
@@ -255,11 +331,38 @@ export class LucarneAvatarUploadModal extends LitElement {
     }
   }
 
+  private _getCroppedFile(): Promise<File> {
+    return new Promise((resolve, reject) => {
+      if (!this._cropper) {
+        reject(new Error('Cropper not initialized'));
+        return;
+      }
+      const canvas = this._cropper.getCroppedCanvas({
+        width: OUTPUT_SIZE,
+        height: OUTPUT_SIZE,
+        imageSmoothingQuality: 'high',
+      });
+      if (!canvas) {
+        reject(new Error('Failed to crop image'));
+        return;
+      }
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('Failed to encode cropped image'));
+            return;
+          }
+          resolve(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }));
+        },
+        'image/jpeg',
+        0.9,
+      );
+    });
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback();
-    if (this._previewUrl) {
-      URL.revokeObjectURL(this._previewUrl);
-    }
+    this._setSource(null);
   }
 
   render() {
@@ -316,14 +419,31 @@ export class LucarneAvatarUploadModal extends LitElement {
   }
 
   private _renderUploadMode() {
+    if (this._sourceUrl) {
+      return html`
+        <div class="upload-area">
+          <div class="crop-stage">
+            <img
+              id="crop-image"
+              src=${this._sourceUrl}
+              alt="Crop preview"
+              @load=${this._onCropImageLoad}
+            />
+          </div>
+          <div class="crop-actions">
+            <button class="link-btn" @click=${this._clearPickedImage}>Choose different image</button>
+            <span class="crop-hint">Drag to position · drag corners to resize</span>
+          </div>
+        </div>
+      `;
+    }
     return html`
       <div class="upload-area">
-        ${this._previewUrl
-          ? html`<img class="preview" src=${this._previewUrl} alt="Preview" />`
-          : ''}
-        <label class="file-input-label" for="avatar-file-input">
-          ${this._selectedFile ? this._selectedFile.name : 'Click to choose a PNG, JPEG, or WebP (max 2 MB)'}
-        </label>
+        <div class="picker">
+          <button type="button" class="picker-button" @click=${this._openFilePicker}>Add picture</button>
+          <span>Click the button above to choose an image.</span>
+          <span>Supports PNG, JPEG, or WebP (max 2 MB).</span>
+        </div>
         <input
           type="file"
           id="avatar-file-input"
@@ -332,6 +452,11 @@ export class LucarneAvatarUploadModal extends LitElement {
         />
       </div>
     `;
+  }
+
+  private _openFilePicker() {
+    const input = this.renderRoot.querySelector('#avatar-file-input') as HTMLInputElement | null;
+    input?.click();
   }
 }
 
