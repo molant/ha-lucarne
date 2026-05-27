@@ -62,13 +62,14 @@ export class LucarneChoresCardEditor extends LitElement {
       }
       .change-avatar-btn {
         background: none;
-        border: 1px solid rgba(0,0,0,0.15);
-        border-radius: var(--lucarne-radius-sm);
-        padding: 2px 8px;
-        font-size: var(--lucarne-fs-xs, 0.75rem);
+        border: none;
+        padding: 2px 6px;
+        font-size: 1rem;
+        line-height: 1;
         cursor: pointer;
         color: var(--lucarne-on-surface-muted);
         flex-shrink: 0;
+        border-radius: var(--lucarne-radius-sm);
       }
       .change-avatar-btn:hover {
         background: rgba(0,0,0,0.05);
@@ -225,8 +226,10 @@ export class LucarneChoresCardEditor extends LitElement {
             ${m.slug !== 'household'
               ? html`<button
                   class="change-avatar-btn"
+                  title="Edit avatar"
+                  aria-label="Edit avatar for ${m.name}"
                   @click=${() => { this._avatarModalMember = m; }}
-                >Change</button>`
+                >✏️</button>`
               : ''}
           </div>
         `,

@@ -129,7 +129,10 @@ async def test_upload_avatar_png(
 
     members = store.get_members()
     anna = next(m for m in members if m.slug == "anna")
-    assert anna.avatar == "/local/lucarne/avatars/anna.png"
+    # `?v=<hash>` cache buster is appended; assert the path prefix.
+    assert anna.avatar is not None
+    assert anna.avatar.split("?", 1)[0] == "/local/lucarne/avatars/anna.png"
+    assert "?v=" in anna.avatar
 
     assert len(events) == 1
     assert events[0].data["member"] == "anna"
@@ -154,7 +157,9 @@ async def test_upload_avatar_jpeg(
     dest = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "anna.jpg"
     assert dest.exists()
     anna = next(m for m in store.get_members() if m.slug == "anna")
-    assert anna.avatar == "/local/lucarne/avatars/anna.jpg"
+    assert anna.avatar is not None
+    assert anna.avatar.split("?", 1)[0] == "/local/lucarne/avatars/anna.jpg"
+    assert "?v=" in anna.avatar
 
 
 async def test_upload_avatar_webp(
@@ -176,7 +181,9 @@ async def test_upload_avatar_webp(
     dest = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "anna.webp"
     assert dest.exists()
     anna = next(m for m in store.get_members() if m.slug == "anna")
-    assert anna.avatar == "/local/lucarne/avatars/anna.webp"
+    assert anna.avatar is not None
+    assert anna.avatar.split("?", 1)[0] == "/local/lucarne/avatars/anna.webp"
+    assert "?v=" in anna.avatar
 
 
 async def test_upload_avatar_wrong_mime_rejected(

@@ -2,22 +2,17 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import secrets
-from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.components.file_upload import process_uploaded_file
-from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from . import seed_preset_routines
-from .avatar_service import save_avatar_bytes
 from .const import (
     CONF_CUSTOM_PRESETS,
     CONF_FAMILY_NAME,
@@ -103,19 +98,6 @@ def _hex_to_rgb(hex_color: str) -> list[int]:
 
 
 
-def _read_and_save_uploaded_avatar(
-    hass: HomeAssistant, member_slug: str, uploaded_file_id: str
-) -> str:
-    """Open the file_upload context, read the bytes, and persist via save_avatar_bytes.
-
-    Synchronous — invoke via `hass.async_add_executor_job` so both the I/O
-    and the validation happen off the event loop in a single hop.
-    """
-    with process_uploaded_file(hass, uploaded_file_id) as path:
-        raw = path.read_bytes()
-    return save_avatar_bytes(hass, member_slug, raw)
-
-
 def _default_entry_data(family_name: str) -> dict[str, Any]:
     return {
         CONF_FAMILY_NAME: family_name,
@@ -183,11 +165,6 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         self._entry = config_entry
         self._selected_member_slug: str | None = None
         self._pending_rename: dict[str, Any] | None = None
-        # On-disk path of an avatar uploaded during a slug-changing rename.
-        # Tracked so we can delete the file if the user cancels rename_confirm
-        # or the rename rolls back — otherwise the new-slug file would remain
-        # orphaned and a future member with that slug could silently inherit it.
-        self._pending_avatar_path: Path | None = None
         self._pending_preset_name: str | None = None
         self._pending_preset_routines: list[dict[str, Any]] = []
         # When set, `async_step_add_preset_routine` appends each submitted
@@ -205,49 +182,6 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
 
         store: LucarneFamilyStore = self.hass.data[DOMAIN][self._entry.entry_id]["store"]
         await store.async_save_members(members)
-
-    async def _remove_local_avatar_file(self, avatar_url: str | None) -> None:
-        """Remove the on-disk file backing a `/local/lucarne/avatars/...` URL.
-
-        Used to clean up an avatar that was just uploaded but whose containing
-        flow then failed (entity create, rename rollback, user decline). The
-        URL is parsed defensively — anything that isn't a bare basename
-        directly under the expected prefix is ignored.
-        """
-        prefix = "/local/lucarne/avatars/"
-        if not avatar_url or not avatar_url.startswith(prefix):
-            return
-        tail = avatar_url[len(prefix):]
-        if not tail or "/" in tail or "\\" in tail or ".." in tail:
-            return
-        path = Path(self.hass.config.path("www", "lucarne", "avatars", tail))
-
-        def _remove(p: Path) -> None:
-            try:
-                os.remove(p)
-            except FileNotFoundError:
-                pass
-            except OSError as exc:
-                _LOGGER.warning("Failed to remove orphaned avatar %s: %s", p, exc)
-
-        await self.hass.async_add_executor_job(_remove, path)
-
-    async def _discard_pending_avatar(self) -> None:
-        """Remove the orphaned avatar file from a cancelled/rolled-back rename."""
-        path = self._pending_avatar_path
-        self._pending_avatar_path = None
-        if path is None:
-            return
-
-        def _remove(p: Path) -> None:
-            try:
-                os.remove(p)
-            except FileNotFoundError:
-                pass
-            except OSError as exc:
-                _LOGGER.warning("Failed to remove orphaned avatar %s: %s", p, exc)
-
-        await self.hass.async_add_executor_job(_remove, path)
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -742,8 +676,6 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             name = user_input.get("name", "").strip()
             color = _normalize_color(user_input.get("color"))
-            avatar = user_input.get("avatar", "").strip() or None
-            uploaded_file_id = user_input.get("avatar_file") or None
             preset = user_input.get("preset", PRESET_SCHOOL_AGE)
 
             err = _validate_name(name)
@@ -761,21 +693,6 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                     existing = self._get_members()
                     if any(m.slug == slug for m in existing):
                         errors["name"] = "slug_conflict"
-                    elif uploaded_file_id:
-                        # Process the upload BEFORE creating entities so a bad
-                        # image doesn't leave dangling todo/counter entities
-                        # behind. ValueError covers the "unknown/expired
-                        # file_id" case from `process_uploaded_file`.
-                        try:
-                            avatar = await self.hass.async_add_executor_job(
-                                _read_and_save_uploaded_avatar,
-                                self.hass,
-                                slug,
-                                uploaded_file_id,
-                            )
-                        except (ServiceValidationError, ValueError) as exc:
-                            _LOGGER.warning("Avatar upload rejected for %r: %s", slug, exc)
-                            errors["avatar_file"] = "avatar_invalid"
 
                     if not errors:
                         from datetime import UTC, datetime
@@ -787,7 +704,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                             slug=slug,
                             name=name,
                             color=color,
-                            avatar=avatar,
+                            avatar=None,
                             created_at=datetime.now(UTC),
                             preset=preset,
                         )
@@ -812,20 +729,12 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                             )
                             errors["base"] = "entity_create_failed"
 
-                        # If entity creation failed AFTER an avatar was just
-                        # written to disk, the file is now orphaned — the
-                        # member isn't saved, so nothing references the URL.
-                        # Remove it so a future member with the same slug
-                        # doesn't silently inherit it.
-                        if errors and uploaded_file_id and avatar:
-                            await self._remove_local_avatar_file(avatar)
-
                         if not errors:
                             new_member = Member(
                                 slug=slug,
                                 name=name,
                                 color=color,
-                                avatar=avatar,
+                                avatar=None,
                                 created_at=new_member.created_at,
                                 preset=preset,
                                 todo_entity_id=todo_id,
@@ -862,10 +771,6 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             {
                 vol.Required("name"): str,
                 vol.Required("color", default=_hex_to_rgb("#4a90e2")): selector.ColorRGBSelector(),
-                vol.Optional("avatar", default=""): str,
-                vol.Optional("avatar_file"): selector.FileSelector(
-                    selector.FileSelectorConfig(accept="image/*")
-                ),
                 vol.Required("preset", default=PRESET_SCHOOL_AGE): vol.In(preset_options),
             }
         )
@@ -885,8 +790,6 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
 
             name = user_input.get("name", "").strip()
             color = _normalize_color(user_input.get("color"))
-            avatar = user_input.get("avatar", "").strip() or None
-            uploaded_file_id = user_input.get("avatar_file") or None
             preset = user_input.get("preset", PRESET_SCHOOL_AGE)
 
             err = _validate_name(name)
@@ -909,49 +812,10 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             ):
                 errors["name"] = "slug_conflict"
 
-            if not errors and uploaded_file_id:
-                # Save the uploaded file under the slug the member will have AFTER
-                # any pending rename. Saving under the old slug would leak a
-                # `/local/lucarne/avatars/<old_slug>.*` URL into the renamed
-                # member's record, and a future member with the old slug could
-                # later overwrite or accidentally inherit the file.
-                slug_for_upload = (
-                    new_slug if slug_is_changing else (self._selected_member_slug or "")
-                )
-                try:
-                    avatar = await self.hass.async_add_executor_job(
-                        _read_and_save_uploaded_avatar,
-                        self.hass,
-                        slug_for_upload,
-                        uploaded_file_id,
-                    )
-                except (ServiceValidationError, ValueError) as exc:
-                    _LOGGER.warning(
-                        "Avatar upload rejected for %r: %s", slug_for_upload, exc
-                    )
-                    errors["avatar_file"] = "avatar_invalid"
-
             if not errors and slug_is_changing:
-                # If we just wrote a file under the new slug, remember its
-                # on-disk path so rename_confirm can clean it up on
-                # cancel/rollback. (When the user didn't upload, `avatar` is
-                # whatever was in the text field and `_pending_avatar_path`
-                # stays None.)
-                if uploaded_file_id and avatar and avatar.startswith(
-                    "/local/lucarne/avatars/"
-                ):
-                    filename = avatar.rsplit("/", 1)[-1]
-                    # Defense in depth: even though `save_avatar_bytes`
-                    # rejects unsafe slugs, also confirm the derived filename
-                    # is a bare basename before turning it into a cleanup path.
-                    if Path(filename).name == filename and ".." not in filename:
-                        self._pending_avatar_path = Path(
-                            self.hass.config.path("www", "lucarne", "avatars", filename)
-                        )
                 self._pending_rename = {
                     "name": name,
                     "color": color,
-                    "avatar": avatar,
                     "preset": preset,
                 }
                 return await self.async_step_rename_confirm()
@@ -962,7 +826,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                         slug=m.slug,
                         name=name if m.slug == self._selected_member_slug else m.name,
                         color=color if m.slug == self._selected_member_slug else m.color,
-                        avatar=avatar if m.slug == self._selected_member_slug else m.avatar,
+                        avatar=m.avatar,
                         created_at=m.created_at,
                         preset=preset if m.slug == self._selected_member_slug else m.preset,
                         todo_entity_id=m.todo_entity_id,
@@ -996,10 +860,6 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                 vol.Required(
                     "color", default=_hex_to_rgb(target.color)
                 ): selector.ColorRGBSelector(),
-                vol.Optional("avatar", default=target.avatar or ""): str,
-                vol.Optional("avatar_file"): selector.FileSelector(
-                    selector.FileSelectorConfig(accept="image/*")
-                ),
                 vol.Required("preset", default=target.preset): vol.In(preset_options),
             }
         )
@@ -1015,7 +875,6 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         )
 
         if target is None or self._pending_rename is None:
-            await self._discard_pending_avatar()
             self._selected_member_slug = None
             self._pending_rename = None
             return await self.async_step_manage_members()
@@ -1079,7 +938,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                             slug=new_slug if m.slug == sel else m.slug,
                             name=pend["name"] if m.slug == sel else m.name,
                             color=pend["color"] if m.slug == sel else m.color,
-                            avatar=pend["avatar"] if m.slug == sel else m.avatar,
+                            avatar=m.avatar,
                             created_at=m.created_at,
                             preset=pend["preset"] if m.slug == sel else m.preset,
                             todo_entity_id=new_todo_id if m.slug == sel else m.todo_entity_id,
@@ -1090,29 +949,15 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                         for m in members
                     ]
                     await self._save_members(updated)
-                    # Rename committed — the file at _pending_avatar_path is
-                    # now the live avatar for the renamed member; drop the
-                    # tracking reference without removing it from disk.
-                    self._pending_avatar_path = None
                     self._selected_member_slug = None
                     self._pending_rename = None
                     return await self.async_step_manage_members()
 
                 # Rename failed (SQLite migration or entity rename + rollback).
-                # If an avatar was just written under the new slug, it's now
-                # orphaned — clean it up so a future member with the same slug
-                # doesn't silently inherit the file. Also revert
-                # `_pending_rename["avatar"]` to the member's existing avatar
-                # so a retry that succeeds doesn't persist a 404'ing URL
-                # pointing at the file we just deleted.
-                await self._discard_pending_avatar()
-                if self._pending_rename is not None:
-                    self._pending_rename["avatar"] = target.avatar
+                # Nothing avatar-specific to clean up — avatars aren't touched
+                # by the Options flow anymore.
 
             else:
-                # User declined the rename: discard the just-uploaded file
-                # under the new slug for the same reason.
-                await self._discard_pending_avatar()
                 self._selected_member_slug = None
                 self._pending_rename = None
                 return await self.async_step_manage_members()

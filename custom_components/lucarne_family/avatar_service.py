@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import io
 import logging
 import os
@@ -119,7 +120,11 @@ def save_avatar_bytes(
     _cleanup_old_avatar(avatar_dir, member_slug, ext)
     _write_avatar(dest, raw)
 
-    return f"/local/lucarne/avatars/{member_slug}.{ext}"
+    # Append a content-hash cache buster so the browser refetches after each
+    # upload — the on-disk file is always overwritten at the same path, so
+    # without this the cached image survives across uploads.
+    cache_key = hashlib.sha1(raw, usedforsecurity=False).hexdigest()[:10]
+    return f"/local/lucarne/avatars/{member_slug}.{ext}?v={cache_key}"
 
 
 async def async_setup_avatar_service(hass: HomeAssistant, entry_id: str) -> None:

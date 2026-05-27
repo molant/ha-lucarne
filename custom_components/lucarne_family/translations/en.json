@@ -35,22 +35,20 @@
       },
       "add_member": {
         "title": "Add member",
+        "description": "Avatars (emoji or photo) are set from the chores card editor after a member is added.",
         "data": {
           "name": "Name",
           "color": "Color",
-          "avatar": "Avatar emoji or /local/... path",
-          "avatar_file": "Upload a photo (optional, overrides the field above)",
           "preset": "Starting routines"
         }
       },
       "edit_member": {
         "title": "Edit member",
+        "description": "To change the avatar, edit the chores card on your dashboard.",
         "data": {
           "member_slug": "Member to edit",
           "name": "Name",
           "color": "Color",
-          "avatar": "Avatar emoji or /local/... path",
-          "avatar_file": "Upload a photo (optional, overrides the field above)",
           "preset": "Routine preset"
         }
       },
@@ -159,7 +157,6 @@
       "entity_rename_failed": "Failed to rename the member's entities. Check the logs and try again.",
       "entity_create_failed": "Failed to create the member's entities. Check the logs and try again.",
       "entity_delete_failed": "Failed to delete the member's entities. Check the logs and try again.",
-      "avatar_invalid": "Could not save the uploaded image. Use a PNG, JPEG, or WebP file under 2 MB.",
       "invalid_url": "Enter a valid URL starting with http:// or https://",
       "secret_too_short": "Secret must be at least 32 characters.",
       "invalid_rrule": "Not a valid recurrence rule. Example: FREQ=DAILY or FREQ=WEEKLY;BYDAY=MO"
