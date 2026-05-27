@@ -113,8 +113,8 @@
         }
       },
       "edit_custom_preset": {
-        "title": "Edit '{preset_name}'",
-        "description": "Current routines:\n{routines}",
+        "title": "Edit custom preset",
+        "description": "**{preset_name}**\n\nCurrent routines:\n{routines}",
         "menu_options": {
           "rename_custom_preset": "Rename preset",
           "add_routine_to_preset": "Add a routine",
@@ -123,15 +123,15 @@
         }
       },
       "rename_custom_preset": {
-        "title": "Rename '{preset_name}'",
-        "description": "Choose a new display name. Member references to this preset keep working — the internal identifier doesn't change.",
+        "title": "Rename custom preset",
+        "description": "Renaming **{preset_name}**.\n\nChoose a new display name. Member references to this preset keep working — the internal identifier doesn't change.",
         "data": {
           "display_name": "Preset name"
         }
       },
       "delete_preset_confirm": {
-        "title": "Delete '{preset_name}'?",
-        "description": "{impact}\n\nCheck the box to confirm deletion.",
+        "title": "Delete custom preset",
+        "description": "About to delete **{preset_name}**.\n\n{impact}\n\nCheck the box to confirm deletion.",
         "data": {
           "confirm": "I understand — delete this preset"
         }
