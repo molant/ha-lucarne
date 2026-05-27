@@ -189,6 +189,32 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         store: LucarneFamilyStore = self.hass.data[DOMAIN][self._entry.entry_id]["store"]
         await store.async_save_members(members)
 
+    async def _remove_local_avatar_file(self, avatar_url: str | None) -> None:
+        """Remove the on-disk file backing a `/local/lucarne/avatars/...` URL.
+
+        Used to clean up an avatar that was just uploaded but whose containing
+        flow then failed (entity create, rename rollback, user decline). The
+        URL is parsed defensively — anything that isn't a bare basename
+        directly under the expected prefix is ignored.
+        """
+        prefix = "/local/lucarne/avatars/"
+        if not avatar_url or not avatar_url.startswith(prefix):
+            return
+        tail = avatar_url[len(prefix):]
+        if not tail or "/" in tail or "\\" in tail or ".." in tail:
+            return
+        path = Path(self.hass.config.path("www", "lucarne", "avatars", tail))
+
+        def _remove(p: Path) -> None:
+            try:
+                os.remove(p)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                _LOGGER.warning("Failed to remove orphaned avatar %s: %s", p, exc)
+
+        await self.hass.async_add_executor_job(_remove, path)
+
     async def _discard_pending_avatar(self) -> None:
         """Remove the orphaned avatar file from a cancelled/rolled-back rename."""
         path = self._pending_avatar_path
@@ -453,6 +479,14 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                                 "Unexpected error creating entities for member %r", slug
                             )
                             errors["base"] = "entity_create_failed"
+
+                        # If entity creation failed AFTER an avatar was just
+                        # written to disk, the file is now orphaned — the
+                        # member isn't saved, so nothing references the URL.
+                        # Remove it so a future member with the same slug
+                        # doesn't silently inherit it.
+                        if errors and uploaded_file_id and avatar:
+                            await self._remove_local_avatar_file(avatar)
 
                         if not errors:
                             new_member = Member(

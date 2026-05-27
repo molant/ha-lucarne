@@ -777,6 +777,49 @@ async def test_add_member_avatar_file_overrides_text(
     assert members[0]["avatar"] == "/local/lucarne/avatars/dana.png"
 
 
+async def test_add_member_upload_orphan_cleaned_when_entity_create_fails(
+    hass: HomeAssistant, mock_process_uploaded_file: MagicMock
+) -> None:
+    """When `async_create_member_entities` fails after the avatar file has
+    already been written, the orphan file must be removed so a future member
+    with the same slug doesn't silently inherit it.
+    """
+    from homeassistant.exceptions import HomeAssistantError
+
+    mock_process_uploaded_file.content["data"] = _png_bytes()
+
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "add_member"})
+
+    with patch(
+        "custom_components.lucarne_family.entity_manager.async_create_member_entities",
+        side_effect=HomeAssistantError("registry locked"),
+    ):
+        result = await _configure(
+            hass,
+            result["flow_id"],
+            {
+                "name": "Eve",
+                "color": [10, 20, 30],
+                "avatar": "",
+                "avatar_file": mock_process_uploaded_file.file_id,
+                "preset": "school-age",
+            },
+        )
+
+    assert result["type"] == data_entry_flow.FlowResultType.FORM
+    assert result["errors"].get("base") == "entity_create_failed"
+    # No member persisted.
+    assert entry.data[CONF_MEMBERS] == []
+    # Avatar file was cleaned up.
+    eve_path = Path(hass.config.config_dir) / "www" / "lucarne" / "avatars" / "eve.png"
+    assert not eve_path.exists()
+
+
 async def test_edit_member_upload_with_slug_changing_rename_saves_under_new_slug(
     hass: HomeAssistant, mock_process_uploaded_file: MagicMock
 ) -> None:
