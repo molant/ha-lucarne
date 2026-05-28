@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  hacs-plugin:
+  hacs-integration:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -13,16 +13,6 @@ jobs:
       - uses: actions/checkout@v4
       # Pin hacs/action to a commit SHA — the latest tag (22.5.0) is stale
       # relative to current HACS validation rules. Bump deliberately.
-      - uses: hacs/action@dcb30e72781db3f207d5236b861172774ab0b485 # main as of 2026-05-23
-        with:
-          category: plugin
-
-  hacs-integration:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
       - uses: hacs/action@dcb30e72781db3f207d5236b861172774ab0b485 # main as of 2026-05-23
         with:
           category: integration
