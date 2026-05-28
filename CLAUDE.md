@@ -4,12 +4,12 @@ Working guide for AI sessions. Covers what you'd get wrong without it.
 
 ## Project overview
 
-Dual-distribution HACS repo:
+Single-distribution HACS repo (one `integration` install ships both halves):
 
-- **Frontend** (`dist/ha-lucarne.js`) — three Lit-based Lovelace cards: `lucarne-today-card`, `lucarne-calendar-card`, `lucarne-chores-card`. Single ESM bundle; no code splitting.
 - **Integration** (`custom_components/lucarne_family/`) — Python HA integration that owns family members, managed entities (`todo.<slug>`, `counter.<slug>_streak`), SQLite task/completion storage, and in-process time-change listeners for daily reset and streak check.
+- **Frontend** (`custom_components/lucarne_family/frontend/ha-lucarne.js`) — three Lit-based Lovelace cards: `lucarne-today-card`, `lucarne-calendar-card`, `lucarne-chores-card`. Single ESM bundle; no code splitting. The integration's `async_setup` serves this file at `FRONTEND_URL` (`/lucarne_family_frontend/ha-lucarne.js`) and calls `add_extra_js_url` so the cards auto-register — **no HACS plugin, no manual Lovelace resource.**
 
-Two test runners, two deploy targets.
+Two test runners (node:test + pytest), one deploy target.
 
 ## Layout
 
@@ -38,6 +38,7 @@ custom_components/
     apple_sentinel_backfill.py Extracts [apple:UUID] from item descriptions → source=apple metadata
     presets.py                Routine preset definitions (school-age kid, toddler, adult)
     models.py, const.py       Dataclasses and constants
+    frontend/ha-lucarne.js    Built card bundle (committed; served + registered by async_setup)
 blueprints/automation/
   lucarne_reminders_sync.yaml Only remaining blueprint (webhook receiver for Reminders bridge)
 bridge/                       Mac mini launchd bridge setup instructions
@@ -45,8 +46,7 @@ docs/                         Architecture, integration, services, events docs
 tests/                        Node test suites (components + shared), pytest suites (Python)
   setup/ha-mock.mjs           Shared HA stub for Lit component tests
 scripts/
-  deploy.sh                   rsync dist/ to ha-vm
-  deploy-integration.sh       rsync custom_components/lucarne_family/ to ha-vm
+  deploy-integration.sh       build cards + rsync custom_components/lucarne_family/ to ha-vm
 ```
 
 ## Build & test
@@ -54,11 +54,13 @@ scripts/
 ### TypeScript (cards)
 
 ```bash
-npm run build         # Vite build → dist/ha-lucarne.js (single ESM)
+npm run build         # Vite build → custom_components/lucarne_family/frontend/ha-lucarne.js (single ESM, committed)
 npm test              # node:test runner (NOT vitest — see pitfalls)
 npm run typecheck     # tsc --noEmit
 npm run lint          # eslint src
 ```
+
+The built bundle is **committed** — HACS ships repo files for an integration and does not run a build. Rebuild and commit `frontend/ha-lucarne.js` whenever card sources change.
 
 ### Python (integration)
 
@@ -83,20 +85,18 @@ pytest tests/python/
 
 ## Deploy
 
-Both scripts bypass HACS for fast iteration. HACS is the install path for end users only.
+One script bypasses HACS for fast iteration. HACS is the install path for end users only.
 
 ```bash
-# Cards (hot-reload via cache-busted URL — no HA restart needed)
-# Requires: HA_SSH_HOST, HA_REMOTE_PATH (must end in /www/lucarne)
-./scripts/deploy.sh
-
-# Integration (requires HA restart after deploy)
+# Builds the card bundle into frontend/, then rsyncs the whole integration.
 # Requires: HA_SSH_HOST, HA_INTEGRATION_PATH (must end in /custom_components/lucarne_family)
-./scripts/deploy-integration.sh
+./scripts/deploy-integration.sh                # build + rsync
+./scripts/deploy-integration.sh --skip-build   # rsync existing frontend/ as-is
 ```
 
-Set env vars in `.env` at the project root (see `.env.example`). After deploying the integration,
-restart HA (`ha core restart` or Settings → System → Restart).
+Set env vars in `.env` at the project root (see `.env.example`). A card-only change still requires an
+HA restart (or at least a re-setup) for the new bundle to be served, plus a hard browser refresh —
+the cards no longer hot-reload from a standalone `/www/lucarne` path.
 
 ## Test runner conventions
 
@@ -106,12 +106,13 @@ restart HA (`ha core restart` or Settings → System → Restart).
 
 ## HACS distribution
 
+Single HACS item — `integration` category only. The cards ride along inside the integration package and are auto-registered by `async_setup`; there is **no** `plugin` category and **no** separate Dashboard registration.
+
 | Surface | Category | Source |
 |---------|----------|--------|
-| Frontend (cards) | `plugin` | `dist/ha-lucarne.js` (declared in `hacs.json`) |
-| Integration | `integration` | `custom_components/lucarne_family/` |
+| Integration + cards | `integration` | `custom_components/lucarne_family/` (cards at `frontend/ha-lucarne.js`) |
 
-Both surfaces ship from the same GitHub repo via HACS custom-repository registration (once as Dashboard, once as Integration).
+`hacs.json` carries only integration-level keys (`name`, `render_readme`, `homeassistant`) — the plugin-only `filename`/`content_in_root` keys were removed.
 
 ## Common pitfalls
 
@@ -134,7 +135,7 @@ Both surfaces ship from the same GitHub repo via HACS custom-repository registra
 - **Don't** write files to `<config>/www/` outside `/local/lucarne/avatars/`.
 - **Don't** add `contributing.md`, `code_of_conduct.md`, or other meta docs unless asked.
 - **Don't** generate vitest imports in test files.
-- **Don't** split the ESM bundle or add a second HACS manifest.
+- **Don't** split the ESM bundle or re-introduce a separate HACS `plugin` distribution — the integration serves and registers the single bundle itself.
 - **Don't** implement the round-trip webhook POST without a spec — only the HA event is fired in v0.2.
 - **Don't** add server-side center-square crop to `avatar_service.py` without a spec — the deferred design is documented in CLAUDE.md and the phase-6 spec.
 

@@ -8,6 +8,10 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_DIR"
 
+# The card bundle ships inside the integration (HACS pulls the repo at the tag),
+# so it is committed, not uploaded as a release asset.
+BUNDLE="custom_components/lucarne_family/frontend/ha-lucarne.js"
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -39,8 +43,8 @@ if ! gh auth status &> /dev/null; then
     exit 1
 fi
 
-if [ ! -f "dist/ha-lucarne.js" ]; then
-    log_error "dist/ha-lucarne.js not found. Run 'npm run build' first."
+if [ ! -f "$BUNDLE" ]; then
+    log_error "$BUNDLE not found. Run 'npm run build' first."
     exit 1
 fi
 
@@ -168,18 +172,19 @@ log_success "Files updated"
 # 5. BUILD
 # ============================================================================
 
-log_info "Building dist/ha-lucarne.js..."
+log_info "Building $BUNDLE..."
 npm run build
 
-if [ ! -f "dist/ha-lucarne.js" ]; then
-    log_error "Build failed — dist/ha-lucarne.js not created"
+if [ ! -f "$BUNDLE" ]; then
+    log_error "Build failed — $BUNDLE not created"
     exit 1
 fi
 
-BUNDLE_SIZE=$(wc -c < "dist/ha-lucarne.js")
+BUNDLE_SIZE=$(wc -c < "$BUNDLE")
 BUNDLE_SIZE_KB=$((BUNDLE_SIZE / 1024))
-if [ "$BUNDLE_SIZE_KB" -gt 300 ]; then
-    log_error "Bundle size ${BUNDLE_SIZE_KB} KB exceeds 300 KB limit"
+# Budget is on the raw bundle (~338 KB / ~78 KB gzipped since cropperjs landed).
+if [ "$BUNDLE_SIZE_KB" -gt 400 ]; then
+    log_error "Bundle size ${BUNDLE_SIZE_KB} KB exceeds 400 KB limit"
     exit 1
 fi
 log_success "Build complete (${BUNDLE_SIZE_KB} KB)"
@@ -190,7 +195,7 @@ log_success "Build complete (${BUNDLE_SIZE_KB} KB)"
 
 log_info "Committing changes..."
 
-git add package.json package-lock.json CHANGELOG.md dist/ha-lucarne.js dist/ha-lucarne.js.map
+git add package.json package-lock.json CHANGELOG.md "$BUNDLE"
 git commit -m "bump: v${NEW_VERSION}"
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -210,12 +215,12 @@ log_info "Creating GitHub release..."
 git tag -a "v${NEW_VERSION}" -m "v${NEW_VERSION}"
 git push origin "v${NEW_VERSION}"
 
+# No asset uploads: the bundle ships inside the integration and HACS pulls the
+# repo at this tag, so the release is just the tag + notes.
 gh release create "v${NEW_VERSION}" \
     --verify-tag \
     --title "v${NEW_VERSION}" \
-    --notes "$CHANGELOG_ENTRY" \
-    dist/ha-lucarne.js \
-    dist/ha-lucarne.js.map
+    --notes "$CHANGELOG_ENTRY"
 
 log_success "Release created!"
 REPO_URL=$(gh repo view --json url -q '.url')

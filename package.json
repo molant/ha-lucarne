@@ -1,13 +1,13 @@
 {
   "name": "ha-lucarne",
-  "version": "0.2.0",
+  "version": "1.0.0",
   "private": false,
   "type": "module",
-  "main": "dist/ha-lucarne.js",
+  "main": "custom_components/lucarne_family/frontend/ha-lucarne.js",
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
-    "deploy": "bash scripts/deploy.sh",
+    "deploy": "bash scripts/deploy-integration.sh",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "TZ=America/Los_Angeles node --import tsx --import ./tests/setup/dom-globals.mjs --test 'tests/**/*.test.ts'"

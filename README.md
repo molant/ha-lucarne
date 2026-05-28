@@ -1,19 +1,18 @@
 # ha-lucarne — Family Calendar & Chores Dashboard for Home Assistant
 
-<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=integration"><img src="https://img.shields.io/badge/HACS-Add%20integration-41BDF5.svg" alt="Add integration via HACS"></a>
-<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=plugin"><img src="https://img.shields.io/badge/HACS-Add%20dashboard%20cards-41BDF5.svg" alt="Add dashboard cards via HACS"></a>
+<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=integration"><img src="https://img.shields.io/badge/HACS-Add%20to%20Home%20Assistant-41BDF5.svg" alt="Add to Home Assistant via HACS"></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 <a href="https://www.home-assistant.io/"><img src="https://img.shields.io/badge/Home%20Assistant-2026.3%2B-blue.svg" alt="Home Assistant 2026.3+"></a>
 
-**ha-lucarne** turns a tablet into a family command center, all driven from Home Assistant. It is two
-things that ship together:
+**ha-lucarne** turns a tablet into a family command center, all driven from Home Assistant. You install
+**one thing** — the `lucarne_family` integration — and it brings two parts with it:
 
-- A **Home Assistant integration** (`lucarne_family`) that owns your family in one place — members,
-  their colors and avatars, their per-person to-do lists and streak counters, and the daily routine
-  reset and streak checks.
+- The **integration** owns your family in one place — members, their colors and avatars, their
+  per-person to-do lists and streak counters, and the daily routine reset and streak checks.
 - Three **Lovelace cards** — a rolling multi-day **calendar**, a **today** agenda with weather, and a
-  per-member **chores & routines** tracker — that render that state on a tablet in landscape/kiosk
-  mode.
+  per-member **chores & routines** tracker — render that state on a tablet in landscape/kiosk mode.
+  The cards ship inside the integration and register themselves automatically, so there's no separate
+  download and no Lovelace resource to add by hand.
 
 Add a family member and the integration does the plumbing for you: it creates their `todo.<slug>`
 list, their `counter.<slug>_streak` counter, and seeds their starter routines — no manual helpers,
@@ -94,59 +93,42 @@ check-off, and a streak counter per person:
 
 ## Install
 
-The buttons below open HACS inside your Home Assistant and pre-fill this repository — you still click
-**Download** in HACS. (They work without this repo being in the default HACS index.)
+The cards are bundled inside the integration, so there's a single HACS install — no separate
+dashboard download and no manual Lovelace resource.
 
-| What | Category | Button |
-|------|----------|--------|
-| **Integration** — family management, entities, daily reset & streaks | `integration` | [![Add integration to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=integration) |
-| **Dashboard cards** — the three Lovelace cards | `plugin` | [![Add dashboard cards to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=plugin) |
+### Step 1 — Install via HACS
 
-Prefer to do it by hand? The same repository (`https://github.com/molant/ha-lucarne`) is registered
-under both HACS categories:
+[![Add to Home Assistant via HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=integration)
 
-### Step 1 — Add the cards via HACS (Frontend)
-
-1. Open HA → **HACS** → **Frontend**
-2. Click the three-dot menu (⋮) → **Custom repositories**
-3. Paste `https://github.com/molant/ha-lucarne` and set Type to **Dashboard** (category: `plugin`)
-4. Click **Add**, then search for **Lucarne** and click **Download**
-
-### Step 2 — Add the Lovelace resource
-
-HA → **Settings** → **Dashboards** → **⋮** → **Resources** → **Add resource**:
-
-```
-URL:  /hacsfiles/ha-lucarne/ha-lucarne.js
-Type: JavaScript Module
-```
-
-### Step 3 — Install the Lucarne Family integration via HACS
+The button opens HACS in your Home Assistant and pre-fills this repository (it works without the repo
+being in the default HACS index) — then click **Download**. To do it by hand instead:
 
 1. Open HA → **HACS** → **Integrations**
-2. Click **⋮** → **Custom repositories**
-3. Paste the same URL `https://github.com/molant/ha-lucarne` and set Type to **Integration**
+2. Click the three-dot menu (⋮) → **Custom repositories**
+3. Paste `https://github.com/molant/ha-lucarne` and set Type to **Integration**
 4. Click **Add**, then search for **Lucarne Family** and click **Download**
-5. Restart Home Assistant
 
-> **HACS dual-category note**: Adding the same repository URL under both Frontend and Integration
-> is how HACS 2.x handles multi-category repos. If your HACS version does not support this, you
-> can install the integration manually: copy `custom_components/lucarne_family/` from the repo to
-> your HA config's `custom_components/` directory and restart HA.
+> Prefer not to use HACS at all? Copy `custom_components/lucarne_family/` from the repo into your HA
+> config's `custom_components/` directory.
 
-### Step 4 — Configure the Lucarne Family integration
+### Step 2 — Restart Home Assistant
+
+Restart HA (**Settings → System → Restart**). On restart the integration registers the cards
+automatically — there is no Lovelace resource to add.
+
+### Step 3 — Configure the Lucarne Family integration
 
 1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **Lucarne Family** and click it
 3. Enter your family name (e.g. "The Smiths") and click **Submit**
 4. Open the integration's **Configure** dialog to add family members (see [Family configuration](#family-configuration) below)
 
-### Step 5 — Add cards to your dashboard
+### Step 4 — Add cards to your dashboard
 
 Open your dashboard in edit mode and add the cards via YAML (see [Configuration](#configuration)).
 Each card has a visual editor — click **Visual editor** after adding.
 
-### Step 6 — (Optional) Install the Lucarne theme
+### Step 5 — (Optional) Install the Lucarne theme
 
 A pastel theme ships at `themes/lucarne.yaml`. It pairs the cards with the calm cream/pastel palette
 they were designed against and widens HA's `type: sections` views past the default 500px cap (via
@@ -161,7 +143,7 @@ they were designed against and widens HA's `type: sections` views past the defau
 3. Reload themes: **Developer tools → Services → `frontend.reload_themes`**.
 4. Per-user: **Profile → Theme → Lucarne**.
 
-### Step 7 — (Optional) Set up the Mac mini Reminders bridge
+### Step 6 — (Optional) Set up the Mac mini Reminders bridge
 
 Follow [bridge/README.md](bridge/README.md) to install the launchd sync job on a Mac mini.
 Skip this step if you prefer to manage todo items directly in HA.
@@ -260,8 +242,8 @@ show_create_button: true  # optional; shows a + button on empty slots
 
 ### `lucarne-chores-card`
 
-> **Requires the Lucarne Family integration.** Install it first (Steps 3–4 above). Without it the
-> card shows an error block. Old YAML configs with a `kids:` array also show an upgrade block.
+> **Requires the Lucarne Family integration** to be set up (Step 3 above). Without it the card shows
+> an error block. Old YAML configs with a `kids:` array also show an upgrade block.
 
 ```yaml
 type: custom:lucarne-chores-card
@@ -307,11 +289,13 @@ See [docs/events.md](docs/events.md) for the full schema and a TTS example autom
 ## Troubleshooting
 
 **Cards show "Custom element not defined"**
-The Lovelace resource is not registered. Check Settings → Dashboards → Resources. Make sure the URL
-is `/hacsfiles/ha-lucarne/ha-lucarne.js` (not `/local/…`). Hard-refresh the browser (Cmd+Shift+R).
+The integration registers the cards on startup, so make sure you **restarted HA** after installing
+(Step 2) and that the integration is set up. Then hard-refresh the browser (Cmd+Shift+R) to clear the
+cached bundle. You can confirm the bundle is served by opening `/lucarne_family_frontend/ha-lucarne.js`
+in your browser — it should return JavaScript, not a 404.
 
 **Chores card shows "Lucarne Family integration not set up"**
-Install and configure the integration (Steps 3–4 above). The card requires it; other cards do not.
+Add and configure the integration (Step 3 above). The card requires it; other cards do not.
 
 **Reminders not syncing**
 1. `launchctl list | grep ha-lucarne-sync` — check exit code is 0

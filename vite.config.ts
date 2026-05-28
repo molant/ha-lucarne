@@ -10,7 +10,11 @@ export default defineConfig({
     rollupOptions: {
       external: [],
     },
-    outDir: "dist",
-    sourcemap: true,
+    // The integration bundles and auto-registers this file; HACS ships it as part
+    // of the integration package (HACS does not run a build). async_setup serves
+    // only ha-lucarne.js, so sourcemaps are disabled (the .map wouldn't be served
+    // and would be dead weight in the shipped integration).
+    outDir: "custom_components/lucarne_family/frontend",
+    sourcemap: false,
   },
 });

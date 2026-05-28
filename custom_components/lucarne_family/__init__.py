@@ -5,14 +5,18 @@ import dataclasses
 import logging
 import os
 import uuid
+from pathlib import Path
 from typing import Any
 
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.todo import TodoItem
 from homeassistant.components.todo.const import TodoItemStatus
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
 
-from .const import DOMAIN, PRESET_ADULT_NONE
+from .const import DOMAIN, FRONTEND_URL, PRESET_ADULT_NONE
 from .models import Member, RoutinePreset
 from .presets import BUILTIN_PRESETS
 from .store import LucarneFamilyStore
@@ -20,8 +24,19 @@ from .store import LucarneFamilyStore
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup(_hass: HomeAssistant, _config: dict[str, Any]) -> bool:
-    """Set up the Lucarne Family integration."""
+async def async_setup(hass: HomeAssistant, _config: dict[str, Any]) -> bool:
+    """Set up the Lucarne Family integration.
+
+    Serves the bundled Lovelace card JS and registers it as a frontend module so
+    the cards load automatically — no separate HACS plugin or manual Lovelace
+    resource needed.
+    """
+    js_file = Path(__file__).parent / "frontend" / "ha-lucarne.js"
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(FRONTEND_URL, str(js_file), cache_headers=True)]
+    )
+    integration = await async_get_integration(hass, DOMAIN)
+    add_extra_js_url(hass, f"{FRONTEND_URL}?v={integration.version}")
     return True
 
 
