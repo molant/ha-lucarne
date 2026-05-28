@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Lucarne Family">
+  <defs>
+    <linearGradient id="icon-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a4655"/>
+      <stop offset="1" stop-color="#2a323d"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="48" fill="url(#icon-bg)"/>
+  <!-- shift mark left by 14 so its bounding box (x:72→212) centers on the 256 canvas -->
+  <g transform="translate(-14 0)">
+    <path d="M72 48 L108 48 L108 172 L208 172 L208 208 L72 208 Z" fill="#f3eee4"/>
+    <circle cx="170" cy="110" r="34" fill="#ffd66b"/>
+    <line x1="128" y1="110" x2="212" y2="110" stroke="#3a4655" stroke-width="6" stroke-linecap="round"/>
+    <g stroke="#ffd66b" stroke-width="4" stroke-linecap="round">
+      <line x1="170" y1="58" x2="170" y2="68"/>
+      <line x1="206" y1="74" x2="200" y2="80"/>
+      <line x1="134" y1="74" x2="140" y2="80"/>
+    </g>
+  </g>
+</svg>

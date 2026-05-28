@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 256" role="img" aria-label="Lucarne Family">
+  <defs>
+    <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3a4655"/>
+      <stop offset="1" stop-color="#2a323d"/>
+    </linearGradient>
+  </defs>
+  <!-- full-canvas dark card so the wordmark stays readable on light and dark surfaces -->
+  <rect width="768" height="256" rx="48" fill="url(#logo-bg)"/>
+  <!-- icon mark; sized so the mark spans Lucarne's cap-top to FAMILY's baseline; inner translate(-14 0) centers the mark within its box -->
+  <g transform="translate(46 23) scale(0.88)">
+    <g transform="translate(-14 0)">
+      <path d="M72 48 L108 48 L108 172 L208 172 L208 208 L72 208 Z" fill="#f3eee4"/>
+      <circle cx="170" cy="110" r="34" fill="#ffd66b"/>
+      <line x1="128" y1="110" x2="212" y2="110" stroke="#3a4655" stroke-width="6" stroke-linecap="round"/>
+      <g stroke="#ffd66b" stroke-width="4" stroke-linecap="round">
+        <line x1="170" y1="58" x2="170" y2="68"/>
+        <line x1="206" y1="74" x2="200" y2="80"/>
+        <line x1="134" y1="74" x2="140" y2="80"/>
+      </g>
+    </g>
+  </g>
+  <!-- wordmark on the dark card -->
+  <text x="252" y="148" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="700" font-size="116" fill="#f3eee4" letter-spacing="-3">Lucarne</text>
+  <text x="254" y="206" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-weight="500" font-size="48" fill="#a8b0bb" letter-spacing="4">FAMILY</text>
+</svg>
