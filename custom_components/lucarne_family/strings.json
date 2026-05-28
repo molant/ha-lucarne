@@ -30,7 +30,8 @@
         "menu_options": {
           "add_member": "Add member",
           "edit_member": "Edit member",
-          "remove_member": "Remove member"
+          "remove_member": "Remove member",
+          "back_to_init": "← Back"
         }
       },
       "add_member": {
@@ -91,7 +92,8 @@
         "menu_options": {
           "add_custom_preset": "Add a custom preset",
           "manage_existing_preset": "Edit or delete a custom preset",
-          "view_builtin_presets": "View built-in presets"
+          "view_builtin_presets": "View built-in presets",
+          "back_to_init": "← Back"
         }
       },
       "add_custom_preset": {

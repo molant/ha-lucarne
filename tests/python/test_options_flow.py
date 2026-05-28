@@ -381,7 +381,7 @@ async def test_remove_member_wrong_confirmation_rejected(hass: HomeAssistant) ->
 
 
 async def test_edit_schedule_times_saved(hass: HomeAssistant) -> None:
-    """Valid times are persisted to entry.data."""
+    """Valid times are persisted to entry.data and the flow returns to `init`."""
     entry = _make_entry(hass)
     await _setup_entry(hass, entry)
 
@@ -392,7 +392,10 @@ async def test_edit_schedule_times_saved(hass: HomeAssistant) -> None:
     result = await _configure(
         hass, result["flow_id"], {"reset_time": "03:00", "streak_check_time": "20:30"}
     )
-    assert result["type"] == data_entry_flow.FlowResultType.CREATE_ENTRY
+    # Issue #15: saving the schedule lands back on the root menu instead of
+    # closing the dialog, so a sibling option is one click away.
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "init"
 
     assert entry.data["reset_time"] == "03:00"
     assert entry.data["streak_check_time"] == "20:30"
@@ -603,4 +606,197 @@ async def test_edit_round_trip_readback(hass: HomeAssistant) -> None:
     # The schema defaults should reflect the saved values
     schema = result2.get("data_schema")
     assert schema is not None
+
+
+# ---------------------------------------------------------------------------
+# Back navigation (issue #15) — every sub-menu and sub-form returns to its
+# parent menu instead of closing the dialog, so users don't have to reopen
+# the gear icon to access a sibling setting.
+# ---------------------------------------------------------------------------
+
+
+async def test_manage_members_menu_offers_back_to_init(hass: HomeAssistant) -> None:
+    """`manage_members` menu must expose a `back_to_init` affordance."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert "back_to_init" in result["menu_options"]
+
+
+async def test_manage_members_back_to_init_returns_to_root_menu(
+    hass: HomeAssistant,
+) -> None:
+    """Choosing `back_to_init` from `manage_members` lands on the root `init` menu."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "manage_members"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "back_to_init"})
+
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "init"
+
+
+async def test_edit_templates_menu_offers_back_to_init(hass: HomeAssistant) -> None:
+    """`edit_templates` menu must expose a `back_to_init` affordance."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_templates"})
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert "back_to_init" in result["menu_options"]
+
+
+async def test_edit_templates_back_to_init_returns_to_root_menu(
+    hass: HomeAssistant,
+) -> None:
+    """Choosing `back_to_init` from `edit_templates` lands on the root `init` menu."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_templates"})
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "back_to_init"})
+
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "init"
+
+
+async def test_edit_schedule_submit_returns_to_init_menu(hass: HomeAssistant) -> None:
+    """Saving the schedule must land back on `init`, not close the dialog.
+
+    Sibling options (round-trip, presets, members) are still one click away.
+    """
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_schedule"})
+    result = await _configure(
+        hass, result["flow_id"], {"reset_time": "03:00", "streak_check_time": "20:30"}
+    )
+
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "init"
+    # Save still happened
+    assert entry.data["reset_time"] == "03:00"
+    assert entry.data["streak_check_time"] == "20:30"
+
+
+async def test_edit_round_trip_submit_returns_to_init_menu(hass: HomeAssistant) -> None:
+    """Saving Apple-Reminders-sync settings lands back on `init`, not close."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_round_trip"})
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "enabled": False,
+            "webhook_url": "",
+            "secret": "",
+            "device_name": "Mac mini",
+        },
+    )
+
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "init"
+    assert entry.data["round_trip"]["device_name"] == "Mac mini"
+
+
+async def test_add_preset_routine_new_preset_returns_to_edit_templates(
+    hass: HomeAssistant,
+) -> None:
+    """Finishing a brand-new preset returns to `edit_templates`, not closes."""
+    entry = _make_entry(hass)
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_templates"})
+    result = await _configure(
+        hass, result["flow_id"], {"next_step_id": "add_custom_preset"}
+    )
+    result = await _configure(
+        hass, result["flow_id"], {"display_name": "Evening wind-down"}
+    )
+    assert result["step_id"] == "add_preset_routine"
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "summary": "Read book",
+            "icon": "📚",
+            "recurrence": "FREQ=DAILY",
+            "time_of_day": "night",
+            "add_another": False,
+        },
+    )
+
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "edit_templates"
+
+
+async def test_add_routine_to_existing_preset_returns_to_edit_custom_preset(
+    hass: HomeAssistant,
+) -> None:
+    """Appending a routine to an existing preset returns to that preset's menu,
+    not to the root templates menu — so the user can immediately add another
+    or rename without re-picking the preset."""
+    from custom_components.lucarne_family.const import CONF_CUSTOM_PRESETS
+
+    entry = _make_entry(hass)
+    # Seed an existing custom preset directly so we don't have to walk the
+    # add-preset flow first.
+    hass.config_entries.async_update_entry(
+        entry,
+        data={
+            **entry.data,
+            CONF_CUSTOM_PRESETS: [
+                {
+                    "slug": "evening_wind_down",
+                    "display_name": "Evening wind-down",
+                    "routines": [],
+                }
+            ],
+        },
+    )
+    await _setup_entry(hass, entry)
+
+    result = await _init_options_flow(hass, entry)
+    result = await _configure(hass, result["flow_id"], {"next_step_id": "edit_templates"})
+    result = await _configure(
+        hass, result["flow_id"], {"next_step_id": "manage_existing_preset"}
+    )
+    result = await _configure(
+        hass, result["flow_id"], {"preset_slug": "evening_wind_down"}
+    )
+    assert result["step_id"] == "edit_custom_preset"
+
+    result = await _configure(
+        hass, result["flow_id"], {"next_step_id": "add_routine_to_preset"}
+    )
+    assert result["step_id"] == "add_preset_routine"
+
+    result = await _configure(
+        hass,
+        result["flow_id"],
+        {
+            "summary": "Brush teeth",
+            "icon": "🪥",
+            "recurrence": "FREQ=DAILY",
+            "time_of_day": "night",
+            "add_another": False,
+        },
+    )
+
+    assert result["type"] == data_entry_flow.FlowResultType.MENU
+    assert result["step_id"] == "edit_custom_preset"
 
