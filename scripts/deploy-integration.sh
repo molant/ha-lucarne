@@ -3,8 +3,14 @@
 # over SSH/rsync. Config comes from environment variables, sourced from .env at
 # the project root if present (see .env.example).
 #
+# The card bundle ships inside the integration (custom_components/lucarne_family/
+# frontend/ha-lucarne.js) and is auto-registered on setup, so this script builds
+# the frontend first and then rsyncs the whole integration. There is no separate
+# card deploy or Lovelace-resource step.
+#
 # Usage:
-#   ./scripts/deploy-integration.sh                  # rsync
+#   ./scripts/deploy-integration.sh                  # build + rsync
+#   ./scripts/deploy-integration.sh --skip-build     # rsync existing frontend/ as-is
 #   ./scripts/deploy-integration.sh --dry-run        # show what would change, no transfer
 #   HA_SSH_HOST=ha.lan ./scripts/deploy-integration.sh   # override per-invocation
 #
@@ -42,9 +48,11 @@ if [ -f "$ROOT_DIR/.env" ]; then
 fi
 
 DRY_RUN=0
+SKIP_BUILD=0
 for arg in "$@"; do
   case "$arg" in
-    --dry-run)  DRY_RUN=1 ;;
+    --dry-run)    DRY_RUN=1 ;;
+    --skip-build) SKIP_BUILD=1 ;;
     -h|--help)
       awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "$0"
       exit 0
@@ -75,6 +83,17 @@ esac
 SOURCE="$ROOT_DIR/custom_components/lucarne_family/"
 if [ ! -d "$SOURCE" ]; then
   echo -e "${RED}Source not found: $SOURCE${NC}" >&2
+  exit 1
+fi
+
+# Build the card bundle into the integration's frontend/ dir so the deployed
+# integration carries the latest cards.
+if [ "$SKIP_BUILD" = "0" ]; then
+  echo "Building frontend bundle (npm run build)..."
+  (cd "$ROOT_DIR" && npm run build)
+fi
+if [ ! -f "$SOURCE/frontend/ha-lucarne.js" ]; then
+  echo -e "${RED}Missing $SOURCE/frontend/ha-lucarne.js — run without --skip-build${NC}" >&2
   exit 1
 fi
 

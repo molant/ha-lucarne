@@ -131,7 +131,7 @@ and the `RollingWindowController` state machine.
 
 ## Custom integration (lucarne_family)
 
-This repo ships both a **Frontend** (Lovelace card pack, `dist/ha-lucarne.js`) and an **Integration** (`custom_components/lucarne_family/`). The integration owns family members, task metadata, managed entities (`todo.<slug>`, `counter.<slug>_streak`), and (starting Phase 3) managed automations.
+This repo ships a single **Integration** (`custom_components/lucarne_family/`) that also bundles the **Frontend** (Lovelace card pack, `custom_components/lucarne_family/frontend/ha-lucarne.js`). The integration owns family members, task metadata, managed entities (`todo.<slug>`, `counter.<slug>_streak`), and managed automations — and on setup it serves the card bundle and registers it with the frontend so the cards load with no separate install.
 
 ### Data flow — entity-manager + task-service (Phase 2)
 
@@ -245,10 +245,12 @@ in-process time-change listeners (configured via the integration's Options Flow)
 
 ## Build
 
-Vite bundles `src/index.ts` (which imports all three card entry points) into `dist/ha-lucarne.js`.
-The bundle is a single ES module with no external runtime dependencies (Lit is bundled in). HACS
-reads `hacs.json` → `filename: "ha-lucarne.js"` and serves `dist/ha-lucarne.js` from the tagged
-GitHub release.
+Vite bundles `src/index.ts` (which imports all three card entry points) into
+`custom_components/lucarne_family/frontend/ha-lucarne.js`. The bundle is a single ES module with no
+external runtime dependencies (Lit is bundled in) and is committed to the repo. HACS installs the
+integration directory at the tagged GitHub release, so the bundle ships with it; the integration's
+`async_setup` serves it at `/lucarne_family_frontend/ha-lucarne.js` and registers it via
+`add_extra_js_url`, so no separate HACS plugin or Lovelace resource is needed.
 
 ## Breakpoints
 

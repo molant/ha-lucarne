@@ -38,6 +38,22 @@ def auto_enable_custom_integrations(enable_custom_integrations: None) -> None:
 
 
 @pytest.fixture(autouse=True)
+def stub_frontend_registration() -> Generator[None]:
+    """Stub the card auto-registration so integration setup works in tests.
+
+    `async_setup` calls `frontend.add_extra_js_url`, but that helper's data store
+    is only created when the real `frontend` component is set up — which needs the
+    `hass_frontend` package, not a test dependency. Stub the call here so any test
+    that sets up the component succeeds; `test_frontend.py` asserts the real
+    registration behavior with its own targeted patch.
+    """
+    from unittest.mock import patch
+
+    with patch("custom_components.lucarne_family.add_extra_js_url"):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def verify_cleanup(
     expected_lingering_tasks: bool,
     expected_lingering_timers: bool,

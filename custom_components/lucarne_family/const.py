@@ -4,6 +4,9 @@ from __future__ import annotations
 DOMAIN = "lucarne_family"
 STORAGE_VERSION = 1
 
+# Frontend bundle served + auto-registered by the integration (see __init__.async_setup).
+FRONTEND_URL = "/lucarne_family_frontend/ha-lucarne.js"
+
 DEFAULT_RESET_TIME = "04:00"
 DEFAULT_STREAK_CHECK_TIME = "21:00"
 
