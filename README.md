@@ -1,63 +1,109 @@
-# ha-lucarne — DIY Skylight Calendar for Home Assistant
+# ha-lucarne — Family Calendar & Chores Dashboard for Home Assistant
 
-![ha-lucarne banner](docs/banner.svg)
-
-<a href="https://github.com/hacs/integration"><img src="https://img.shields.io/badge/HACS-Custom-41BDF5.svg" alt="HACS Custom"></a>
+<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=integration"><img src="https://img.shields.io/badge/HACS-Add%20integration-41BDF5.svg" alt="Add integration via HACS"></a>
+<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=plugin"><img src="https://img.shields.io/badge/HACS-Add%20dashboard%20cards-41BDF5.svg" alt="Add dashboard cards via HACS"></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-<a href="https://www.home-assistant.io/"><img src="https://img.shields.io/badge/Home%20Assistant-2026.3%2B-blue.svg" alt="Home Assistant"></a>
+<a href="https://www.home-assistant.io/"><img src="https://img.shields.io/badge/Home%20Assistant-2026.3%2B-blue.svg" alt="Home Assistant 2026.3+"></a>
 
-A custom Lovelace card collection that turns a wall-mounted iPad into a Skylight-style family
-dashboard: a rolling N-day calendar with per-person colors, a daily agenda + weather strip, a
-family chore tracker with streaks, and an Apple Reminders sync bridge — all designed for iPad 9
-landscape in kiosk mode.
+**ha-lucarne** turns a tablet into a family command center, all driven from Home Assistant. It is two
+things that ship together:
 
-> **v0.2.0** — screenshots gallery to follow once deployed and stable on the wall iPad. The banner above is a placeholder.
+- A **Home Assistant integration** (`lucarne_family`) that owns your family in one place — members,
+  their colors and avatars, their per-person to-do lists and streak counters, and the daily routine
+  reset and streak checks.
+- Three **Lovelace cards** — a rolling multi-day **calendar**, a **today** agenda with weather, and a
+  per-member **chores & routines** tracker — that render that state on a tablet in landscape/kiosk
+  mode.
+
+Add a family member and the integration does the plumbing for you: it creates their `todo.<slug>`
+list, their `counter.<slug>_streak` counter, and seeds their starter routines — no manual helpers,
+no scattered automations.
 
 ---
 
-## What does the integration do?
+## Screenshots
 
-The **Lucarne Family** integration (`custom_components/lucarne_family/`) is a Home Assistant custom
-integration that owns all family configuration in one place:
+**Today + Calendar** — daily agenda, current weather and tomorrow's forecast, and a rolling calendar
+that auto-fits 3–7 days to the screen width with per-person color coding:
 
-- **One config, no manual helpers**: Add a family member and the integration automatically creates
-  their `todo.<slug>` list, `counter.<slug>_streak` counter, and seeds their initial routine tasks.
-- **Centralized family settings**: Name, color, avatar, and routine preset — all in
-  **Settings → Devices & Services → Lucarne Family → Configure**, not scattered across Helpers.
-- **Managed automations**: Daily routine reset (04:00 default) and streak check (21:00 default)
-  run as in-process time listeners. No blueprint instances to maintain.
-- **Rename with impact preview**: Renaming a member shows which automations, scripts, and dashboards
-  reference the old entity IDs before committing the rename.
+![Today and Calendar cards](images/today-and-calendar.png)
 
-The three Lovelace cards are thin views over integration state. Without the integration the chores
-card shows an error block; the today and calendar cards continue to work.
+**Chores** — per-member routines and chores grouped by time of day, with emoji icons, one-tap
+check-off, and a streak counter per person:
+
+![Chores card](images/chores.png)
 
 ---
 
 ## Features
 
-- **`lucarne-today-card`** — agenda strip (next 7 days, per-person color dots), today's weather +
-  tomorrow's forecast, task-count badge, presence pills. Optional: household task pane from the
-  integration (`household_tasks_from_integration: true`) and a family-ready pill showing N/M members
-  done with today's routines (`show_family_ready_pill: true`).
-- **`lucarne-calendar-card`** — rolling N-day window with touch swipe (auto-fits 3–7 days to
-  width), per-person color coding, calendar visibility pills, event-detail popover, create-event
-  flow (on calendars that support it)
-- **`lucarne-chores-card`** — per-member routine + chore grid, friendly recurrence labels
-  (every Monday, every 6 months, …), emoji icons, one-click add via the card, long-press edit/delete,
-  streak counter, celebration animation. Requires the Lucarne Family integration.
-- **Lucarne Family integration** — centralized family configuration. Add a member and the
-  integration creates their todo list, streak counter, and managed automations automatically.
-- **Apple Reminders bridge** — Mac mini Shortcut + launchd job syncs Reminders to HA todo entities
-  every 5 minutes
-- **One blueprint** — `lucarne_reminders_sync` (webhook receiver that upserts Reminders into
-  `local_todo`). Daily reset and streak checks are now owned by the integration.
-- **Design-token layer** — CSS custom properties for spacing, radii, typography, palette; consistent
-  at all 4 breakpoints (700 / 1080 / 1366 / 1440 px)
+### Family, managed for you (the integration)
+
+- **One config, no manual helpers** — add a member and you automatically get their `todo.<slug>`
+  list, `counter.<slug>_streak` counter, and seeded starter routines.
+- **Everything in one dialog** — name, color, avatar, and routine preset live under
+  **Settings → Devices & Services → Lucarne Family → Configure**, not scattered across Helpers.
+- **Avatars with a real crop UI** — upload a photo from the chores-card editor and position/resize it
+  in a square crop dialog (the same cropper Home Assistant uses internally), or just pick an emoji.
+- **Routine presets** — start members from built-in presets (school-age kid, toddler, adult), or
+  create, rename, and delete your own custom presets and reuse them across members.
+- **Managed daily reset & streaks** — routines reset every morning (04:00 default) and streaks are
+  checked each night (21:00 default) by in-process listeners. Times are editable in the dialog, no
+  restart needed. There are no blueprint instances to babysit.
+- **Rename with an impact preview** — renaming a member shows which automations, scripts, and
+  dashboards reference the old entity IDs before anything changes.
+
+### `lucarne-calendar-card`
+
+- Rolling N-day window with touch swipe; auto-fits 3–7 day columns to the available width.
+- Per-person color coding and toggle pills to show/hide each calendar.
+- Event-detail popover and a create-event flow on calendars that support it.
+- Optional cropping of the time grid to your waking hours (`visible_hours`).
+
+### `lucarne-today-card`
+
+- Agenda strip for the next several days with per-person color dots.
+- Today's weather plus tomorrow's forecast and a "what to wear" hint.
+- Rich Tasks list: 44px tap targets, owner avatar pills, tap to check off, long-press for the
+  full more-info dialog.
+- Draggable section order so you can arrange calendar / weather / tasks to taste.
+- Optional household task pane and an "N of M ready" family-ready pill sourced from the integration.
+
+### `lucarne-chores-card`
+
+- Per-member grid of routines and chores, grouped by **time of day** (Morning → Afternoon → Night →
+  Anytime), with empty buckets hidden.
+- Friendly recurrence labels ("every Monday", "every 6 months", …) and emoji icons.
+- One-tap **+ Add task** from the card; long-press any task to edit or delete it.
+- Per-member **streak counter** with a celebration animation when a member finishes their routines.
+- Reorder members and scroll horizontally on tablets instead of wrapping rows.
+- Includes an optional shared **Household** column.
+
+### Apple Reminders bridge
+
+- A Mac mini Shortcut + launchd job syncs Apple Reminders into Home Assistant `todo` entities every
+  five minutes, so reminders you add on your phone show up on the family dashboard.
+
+### Polished for tablets
+
+- A design-token layer (spacing, radii, typography, palette) keeps the cards consistent across tablet
+  breakpoints, and an optional pastel **Lucarne theme** pairs the cards with the palette they were
+  designed against.
 
 ---
 
 ## Install
+
+The buttons below open HACS inside your Home Assistant and pre-fill this repository — you still click
+**Download** in HACS. (They work without this repo being in the default HACS index.)
+
+| What | Category | Button |
+|------|----------|--------|
+| **Integration** — family management, entities, daily reset & streaks | `integration` | [![Add integration to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=integration) |
+| **Dashboard cards** — the three Lovelace cards | `plugin` | [![Add dashboard cards to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=plugin) |
+
+Prefer to do it by hand? The same repository (`https://github.com/molant/ha-lucarne`) is registered
+under both HACS categories:
 
 ### Step 1 — Add the cards via HACS (Frontend)
 
@@ -102,10 +148,9 @@ Each card has a visual editor — click **Visual editor** after adding.
 
 ### Step 6 — (Optional) Install the Lucarne theme
 
-A Skylight-inspired pastel theme ships at `themes/lucarne.yaml`. It pairs the cards with the calm
-cream/pastel palette they were designed against and widens HA's `type: sections` views past the
-default 500 px cap (via `ha-view-sections-column-max-width: 1200px`) so cards render side-by-side
-at full iPad width.
+A pastel theme ships at `themes/lucarne.yaml`. It pairs the cards with the calm cream/pastel palette
+they were designed against and widens HA's `type: sections` views past the default 500px cap (via
+`ha-view-sections-column-max-width: 1200px`) so cards render side-by-side at full tablet width.
 
 1. Copy `themes/lucarne.yaml` to your HA `<config>/themes/` directory.
 2. Ensure `configuration.yaml` has:
@@ -130,17 +175,23 @@ Open **Settings → Devices & Services → Lucarne Family → Configure** to man
 ### Add a member
 
 1. Choose **Manage members → Add member**
-2. Fill in name, color, avatar (emoji or `/local/...` image path), and routine preset:
+2. Fill in name, color, and routine preset:
    - **School-age kid** — brush teeth, make bed, pack school bag (weekdays), screen time off
    - **Toddler** — brush teeth, get dressed, put toys away
    - **Adult (none)** — empty
 3. Click **Submit**. The integration creates `todo.<slug>`, `counter.<slug>_streak`, and seeds
    preset routines.
+4. Set the member's avatar (photo with crop, or emoji) from the chores-card editor.
 
 ### Edit schedule
 
 Choose **Edit schedule** to adjust the daily reset time (default `04:00`) and streak check time
 (default `21:00`). Changes take effect immediately — no HA restart needed.
+
+### Routine presets
+
+Choose **Routine presets** to view the built-in presets, or create / edit / delete your own custom
+presets and reuse them when adding members.
 
 See [docs/integration.md](docs/integration.md) for the full member management, rename, and
 remove workflows.
@@ -170,6 +221,10 @@ presence:                           # optional; shows home/away pills in header
   - entity: binary_sensor.ingrid_home
     name: I
 agenda_limit: 5                     # optional, default 5
+section_order:                      # optional; drag to reorder in the visual editor
+  - calendar
+  - weather
+  - tasks
 
 # Lucarne Family integration toggles (both default false; require the integration)
 household_tasks_from_integration: false   # if true, ignores tasks: and shows household tasks from integration
@@ -221,7 +276,7 @@ show_streak: true       # optional, default true
 ```
 
 Member slugs are derived from names entered in the integration (e.g. "Anna" → `anna`).
-The visual editor populates the member list from the integration automatically.
+The visual editor populates and reorders the member list from the integration automatically.
 
 ---
 
@@ -235,17 +290,15 @@ One automation blueprint lives in `blueprints/automation/`. Import it via HA:
   `local_todo` entities. Inputs: Webhook ID + `list_mappings` JSON (e.g.
   `{"Family": "todo.anna", "Groceries": "todo.groceries"}`).
 
-> **Note**: The `lucarne_chores_daily_reset` and `lucarne_chores_streak_advance` blueprints have
-> been retired. Daily reset and streak checks are now managed by the `lucarne_family` integration.
-> If you had instances of the old blueprints, delete them — no replacement needed.
+> Daily reset and streak checks are owned by the `lucarne_family` integration — there are no
+> blueprints to maintain for those.
 
 ---
 
 ## Custom events
 
 The `lucarne_family` integration fires `lucarne_family_all_routines_done` when all of a member's
-routines complete for the day. The legacy `ha_lucarne_chores_all_done` event is also fired during
-v0.x for backwards compatibility (will be removed in v1.0).
+routines complete for the day.
 
 See [docs/events.md](docs/events.md) for the full schema and a TTS example automation.
 
@@ -274,22 +327,6 @@ HA's Google Calendar integration polls on a fixed schedule. This is a HA core li
 
 **Mac mini sleeps and sync stops**
 System Settings → Lock Screen → set "Put computer to sleep when display is off" to **Never**.
-
----
-
-## Roadmap (v0.2)
-
-- Round-trip Reminders: completing an item in HA marks it complete in Apple Reminders
-- Avatar upload UI in the integration's Options Flow
-- Submitting to the HACS default index
-
----
-
-## Credits
-
-- [mohesles/my-skylight-calendar](https://github.com/mohesles/my-skylight-calendar) — original
-  Lovelace layout pattern this project adapted
-- [Skylight](https://www.skylightcal.com/) — the $159 product that inspired the wall calendar idea
 
 ---
 
