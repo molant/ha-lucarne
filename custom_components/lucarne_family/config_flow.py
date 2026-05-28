@@ -191,6 +191,19 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
             menu_options=["manage_members", "edit_schedule", "edit_round_trip", "edit_templates"],
         )
 
+    async def async_step_back_to_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Back-navigation hook routed from sub-menus to the root menu.
+
+        Exists as a real step so `async_show_menu` can list `back_to_init`
+        as a menu option — HA dispatches the click to a step coroutine by
+        name. Returning to `init` (instead of `async_create_entry`) keeps
+        the dialog open so the user can immediately pick a sibling option
+        without reopening from the gear icon.
+        """
+        return await self.async_step_init()
+
     async def async_step_edit_round_trip(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
@@ -226,7 +239,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                     },
                 }
                 self.hass.config_entries.async_update_entry(self._entry, data=new_data)
-                return self.async_create_entry(title="", data={})
+                return await self.async_step_init()
 
         schema = vol.Schema(
             {
@@ -263,6 +276,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         if custom_presets:
             menu_options.append("manage_existing_preset")
         menu_options.append("view_builtin_presets")
+        menu_options.append("back_to_init")
         return self.async_show_menu(step_id="edit_templates", menu_options=menu_options)
 
     async def async_step_view_builtin_presets(
@@ -477,8 +491,10 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
 
         if user_input is not None:
             if not user_input.get("confirm"):
-                self._editing_preset_slug = None
-                return await self.async_step_edit_templates()
+                # User declined deletion — return to the per-preset menu
+                # so they see the preset still intact, rather than being
+                # bounced two levels up to the templates list.
+                return await self.async_step_edit_custom_preset()
 
             members = self._get_members()
             affected = [m for m in members if m.preset == slug]
@@ -636,8 +652,14 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                 self.hass.config_entries.async_update_entry(self._entry, data=new_data)
                 self._pending_preset_name = None
                 self._pending_preset_routines = []
-                self._editing_preset_slug = None
-                return self.async_create_entry(title="", data={})
+                # Returning to `edit_custom_preset` when appending to an
+                # existing preset (vs. `edit_templates` for brand-new
+                # presets) keeps the user one click away from adding
+                # another routine or renaming, instead of forcing them
+                # to re-pick the preset.
+                if self._editing_preset_slug is not None:
+                    return await self.async_step_edit_custom_preset()
+                return await self.async_step_edit_templates()
 
         schema = vol.Schema(
             {
@@ -666,6 +688,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
         menu: list[str] = ["add_member"]
         if members:
             menu += ["edit_member", "remove_member"]
+        menu.append("back_to_init")
         return self.async_show_menu(step_id="manage_members", menu_options=menu)
 
     async def async_step_add_member(
@@ -1064,7 +1087,7 @@ class LucarneFamilyOptionsFlow(config_entries.OptionsFlow):
                 CONF_STREAK_CHECK_TIME: _normalize(user_input[CONF_STREAK_CHECK_TIME]),
             }
             self.hass.config_entries.async_update_entry(self._entry, data=new_data)
-            return self.async_create_entry(title="", data={})
+            return await self.async_step_init()
 
         current_reset = self._entry.data.get(CONF_RESET_TIME, DEFAULT_RESET_TIME)
         current_streak = self._entry.data.get(CONF_STREAK_CHECK_TIME, DEFAULT_STREAK_CHECK_TIME)
