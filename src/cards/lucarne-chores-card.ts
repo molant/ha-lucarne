@@ -53,21 +53,35 @@ export class LucarneChoresCard extends LitElement {
         margin: 0;
       }
       .members-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
       }
       .member-cell {
+        flex: 1 0 220px;
+        min-width: 220px;
         border-right: 1px solid rgba(0, 0, 0, 0.07);
         position: relative;
+        scroll-snap-align: start;
       }
       .member-cell:last-child {
         border-right: none;
       }
       @media (max-width: 600px) {
         .members-grid {
-          grid-template-columns: 1fr;
+          flex-direction: column;
+          overflow-x: visible;
+          overflow-y: visible;
+          scroll-snap-type: none;
         }
         .member-cell {
+          flex: 1 1 auto;
+          min-width: 0;
+          width: 100%;
           border-right: none;
           border-bottom: 1px solid rgba(0, 0, 0, 0.07);
         }

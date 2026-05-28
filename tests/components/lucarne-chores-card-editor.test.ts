@@ -241,4 +241,91 @@ describe('lucarne-chores-card-editor', () => {
     assert.ok(!('kids' in emitted), 'kids stripped from emitted config');
     assert.equal(emitted.title, 'New Title');
   });
+
+  it('renders selected members in config order, not family-state order', async () => {
+    // bob first, anna second — opposite of the family-state order
+    const el = await makeEl(['bob', 'anna']);
+    const rows = Array.from(
+      el.shadowRoot!.querySelectorAll('.member-row.selected'),
+    ) as HTMLElement[];
+    assert.equal(rows.length, 2, 'two selected rows rendered');
+    const labels = rows.map((r) => r.querySelector('label')?.textContent?.trim());
+    assert.deepEqual(labels, ['Bob', 'Anna'], 'selected rows follow config order');
+  });
+
+  it('renders move-up and move-down buttons for selected members only', async () => {
+    const el = await makeEl(['anna', 'bob']);
+    const selectedRows = el.shadowRoot!.querySelectorAll('.member-row.selected');
+    assert.equal(selectedRows.length, 2);
+    selectedRows.forEach((row) => {
+      assert.ok(row.querySelector('.move-up-btn'), 'has up button');
+      assert.ok(row.querySelector('.move-down-btn'), 'has down button');
+    });
+    const unselected = el.shadowRoot!.querySelectorAll('.member-row.unselected');
+    unselected.forEach((row) => {
+      assert.equal(row.querySelector('.move-up-btn'), null, 'no up button on unselected');
+      assert.equal(row.querySelector('.move-down-btn'), null, 'no down button on unselected');
+    });
+  });
+
+  it('disables move-up on first selected and move-down on last selected', async () => {
+    const el = await makeEl(['anna', 'bob']);
+    const selectedRows = Array.from(
+      el.shadowRoot!.querySelectorAll('.member-row.selected'),
+    ) as HTMLElement[];
+    const firstUp = selectedRows[0].querySelector('.move-up-btn') as HTMLButtonElement;
+    const firstDown = selectedRows[0].querySelector('.move-down-btn') as HTMLButtonElement;
+    const lastUp = selectedRows[1].querySelector('.move-up-btn') as HTMLButtonElement;
+    const lastDown = selectedRows[1].querySelector('.move-down-btn') as HTMLButtonElement;
+    assert.equal(firstUp.disabled, true, 'first row up disabled');
+    assert.equal(firstDown.disabled, false, 'first row down enabled');
+    assert.equal(lastUp.disabled, false, 'last row up enabled');
+    assert.equal(lastDown.disabled, true, 'last row down disabled');
+  });
+
+  it('fires config-changed with swapped order when move-down clicked', async () => {
+    const el = await makeEl(['anna', 'bob']);
+    const events: CustomEvent[] = [];
+    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+
+    const firstRow = el.shadowRoot!.querySelector('.member-row.selected') as HTMLElement;
+    const downBtn = firstRow.querySelector('.move-down-btn') as HTMLButtonElement;
+    downBtn.click();
+
+    assert.equal(events.length, 1);
+    assert.deepEqual(
+      events[0].detail.config.members,
+      ['bob', 'anna'],
+      'order swapped',
+    );
+  });
+
+  it('fires config-changed with swapped order when move-up clicked', async () => {
+    const el = await makeEl(['anna', 'bob']);
+    const events: CustomEvent[] = [];
+    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+
+    const selectedRows = el.shadowRoot!.querySelectorAll('.member-row.selected');
+    const secondRow = selectedRows[1] as HTMLElement;
+    const upBtn = secondRow.querySelector('.move-up-btn') as HTMLButtonElement;
+    upBtn.click();
+
+    assert.equal(events.length, 1);
+    assert.deepEqual(
+      events[0].detail.config.members,
+      ['bob', 'anna'],
+      'order swapped',
+    );
+  });
+
+  it('renders unselected members in a separate group below selected', async () => {
+    const el = await makeEl(['anna']);
+    const allRows = Array.from(
+      el.shadowRoot!.querySelectorAll('.member-row'),
+    ) as HTMLElement[];
+    const selectedIndex = allRows.findIndex((r) => r.classList.contains('selected'));
+    const unselectedIndex = allRows.findIndex((r) => r.classList.contains('unselected'));
+    assert.ok(selectedIndex >= 0, 'has selected row');
+    assert.ok(unselectedIndex > selectedIndex, 'unselected rows after selected');
+  });
 });

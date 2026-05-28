@@ -46,6 +46,43 @@ export class LucarneChoresCardEditor extends LitElement {
         cursor: pointer;
         flex: 1;
       }
+      .move-btns {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex-shrink: 0;
+      }
+      .move-up-btn,
+      .move-down-btn {
+        background: none;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        border-radius: var(--lucarne-radius-sm);
+        cursor: pointer;
+        padding: 0;
+        width: 22px;
+        height: 16px;
+        line-height: 1;
+        font-size: 0.7rem;
+        color: var(--lucarne-on-surface);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .move-up-btn:hover:not(:disabled),
+      .move-down-btn:hover:not(:disabled) {
+        background: rgba(0, 0, 0, 0.05);
+      }
+      .move-up-btn:disabled,
+      .move-down-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+      .unselected-hint {
+        font-size: var(--lucarne-fs-sm);
+        color: var(--lucarne-on-surface-muted);
+        font-style: italic;
+        margin: var(--lucarne-spacing-xs) 0;
+      }
       .member-avatar {
         width: 28px;
         height: 28px;
@@ -167,6 +204,16 @@ export class LucarneChoresCardEditor extends LitElement {
     this._fire({ ...this._config!, members: current });
   }
 
+  private _moveMember(slug: string, direction: -1 | 1) {
+    const current = [...(this._config?.members ?? [])];
+    const idx = current.indexOf(slug);
+    if (idx < 0) return;
+    const target = idx + direction;
+    if (target < 0 || target >= current.length) return;
+    [current[idx], current[target]] = [current[target], current[idx]];
+    this._fire({ ...this._config!, members: current });
+  }
+
   private _toggleChanged(
     field: 'show_routines' | 'show_tasks' | 'show_streak',
     e: Event,
@@ -195,6 +242,62 @@ export class LucarneChoresCardEditor extends LitElement {
 
     const allMembers = [...this._familyState.members, SYNTHETIC_HOUSEHOLD];
     const selectedSlugs = this._config.members ?? [];
+    const slugToMember = new Map(allMembers.map((m) => [m.slug, m]));
+    const selectedMembers = selectedSlugs
+      .map((slug) => slugToMember.get(slug))
+      .filter((m): m is MemberSummary => Boolean(m));
+    const unselectedMembers = allMembers.filter((m) => !selectedSlugs.includes(m.slug));
+
+    const renderRow = (
+      m: MemberSummary,
+      opts: { selected: boolean; isFirst?: boolean; isLast?: boolean },
+    ) => html`
+      <div class="member-row ${opts.selected ? 'selected' : 'unselected'}">
+        <input
+          type="checkbox"
+          id="member-${m.slug}"
+          .checked=${opts.selected}
+          @change=${(e: Event) =>
+            this._memberToggled(m.slug, (e.target as HTMLInputElement).checked)}
+        />
+        ${opts.selected
+          ? html`
+              <div class="move-btns">
+                <button
+                  class="move-up-btn"
+                  type="button"
+                  title="Move up"
+                  aria-label="Move ${m.name} up"
+                  ?disabled=${opts.isFirst}
+                  @click=${() => this._moveMember(m.slug, -1)}
+                >▲</button>
+                <button
+                  class="move-down-btn"
+                  type="button"
+                  title="Move down"
+                  aria-label="Move ${m.name} down"
+                  ?disabled=${opts.isLast}
+                  @click=${() => this._moveMember(m.slug, 1)}
+                >▼</button>
+              </div>
+            `
+          : ''}
+        <div class="member-avatar">
+          ${m.avatar && m.avatar.startsWith('/local/')
+            ? html`<img src=${m.avatar} alt=${m.name} style="width:100%;height:100%;object-fit:cover;" />`
+            : html`${m.avatar ?? m.name[0]}`}
+        </div>
+        <label for="member-${m.slug}">${m.name}</label>
+        ${m.slug !== 'household'
+          ? html`<button
+              class="change-avatar-btn"
+              title="Edit avatar"
+              aria-label="Edit avatar for ${m.name}"
+              @click=${() => { this._avatarModalMember = m; }}
+            >✏️</button>`
+          : ''}
+      </div>
+    `;
 
     return html`
       <div class="section-label">General</div>
@@ -207,33 +310,17 @@ export class LucarneChoresCardEditor extends LitElement {
       />
 
       <div class="section-label">Members</div>
-      ${allMembers.map(
-        (m) => html`
-          <div class="member-row">
-            <input
-              type="checkbox"
-              id="member-${m.slug}"
-              .checked=${selectedSlugs.includes(m.slug)}
-              @change=${(e: Event) =>
-                this._memberToggled(m.slug, (e.target as HTMLInputElement).checked)}
-            />
-            <div class="member-avatar">
-              ${m.avatar && m.avatar.startsWith('/local/')
-                ? html`<img src=${m.avatar} alt=${m.name} style="width:100%;height:100%;object-fit:cover;" />`
-                : html`${m.avatar ?? m.name[0]}`}
-            </div>
-            <label for="member-${m.slug}">${m.name}</label>
-            ${m.slug !== 'household'
-              ? html`<button
-                  class="change-avatar-btn"
-                  title="Edit avatar"
-                  aria-label="Edit avatar for ${m.name}"
-                  @click=${() => { this._avatarModalMember = m; }}
-                >✏️</button>`
-              : ''}
-          </div>
-        `,
+      ${selectedMembers.map((m, idx) =>
+        renderRow(m, {
+          selected: true,
+          isFirst: idx === 0,
+          isLast: idx === selectedMembers.length - 1,
+        }),
       )}
+      ${unselectedMembers.length > 0 && selectedMembers.length > 0
+        ? html`<div class="unselected-hint">Available members</div>`
+        : ''}
+      ${unselectedMembers.map((m) => renderRow(m, { selected: false }))}
 
       ${this._avatarModalMember
         ? html`<lucarne-avatar-upload-modal

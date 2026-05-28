@@ -158,6 +158,29 @@ describe('lucarne-chores-card', () => {
     el.remove();
   });
 
+  it('members grid uses single-row flex with horizontal overflow scroll', async () => {
+    const el = await makeCard(['anna', 'bob']);
+    const grid = shadow(el, '.members-grid') as HTMLElement;
+    assert.ok(grid, 'members-grid present');
+    const styleText = (el.constructor as unknown as { styles: { cssText: string }[] | { cssText: string } }).styles;
+    const allCss = Array.isArray(styleText)
+      ? styleText.map((s) => s.cssText).join('\n')
+      : styleText.cssText;
+    // Outer grid should be flex row, not grid wrap, so members lay out in a single
+    // row and overflow horizontally instead of wrapping to a new row.
+    assert.match(allCss, /\.members-grid\s*\{[^}]*display:\s*flex/, 'grid uses flex');
+    assert.match(
+      allCss,
+      /\.members-grid\s*\{[^}]*overflow-x:\s*auto/,
+      'grid scrolls horizontally',
+    );
+    assert.match(
+      allCss,
+      /\.members-grid\s*\{[^}]*flex-wrap:\s*nowrap/,
+      'grid does not wrap',
+    );
+  });
+
   it('card re-renders when _familyState is updated', async () => {
     const el = await makeCard(['anna']);
     const initial = el.shadowRoot!.querySelectorAll('.member-cell').length;

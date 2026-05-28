@@ -7624,21 +7624,35 @@ ke.styles = [
         margin: 0;
       }
       .members-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scroll-snap-type: x proximity;
       }
       .member-cell {
+        flex: 1 0 220px;
+        min-width: 220px;
         border-right: 1px solid rgba(0, 0, 0, 0.07);
         position: relative;
+        scroll-snap-align: start;
       }
       .member-cell:last-child {
         border-right: none;
       }
       @media (max-width: 600px) {
         .members-grid {
-          grid-template-columns: 1fr;
+          flex-direction: column;
+          overflow-x: visible;
+          overflow-y: visible;
+          scroll-snap-type: none;
         }
         .member-cell {
+          flex: 1 1 auto;
+          min-width: 0;
+          width: 100%;
           border-right: none;
           border-bottom: 1px solid rgba(0, 0, 0, 0.07);
         }
@@ -9801,6 +9815,13 @@ let He = class extends D {
     }
     this._fire({ ...this._config, members: r });
   }
+  _moveMember(t, e) {
+    var n;
+    const r = [...((n = this._config) == null ? void 0 : n.members) ?? []], a = r.indexOf(t);
+    if (a < 0) return;
+    const i = a + e;
+    i < 0 || i >= r.length || ([r[a], r[i]] = [r[i], r[a]], this._fire({ ...this._config, members: r }));
+  }
   _toggleChanged(t, e) {
     const r = e.target.checked;
     this._fire({ ...this._config, [t]: r });
@@ -9818,7 +9839,48 @@ let He = class extends D {
       `;
     if (this._familyState === null)
       return u`<div class="loading">Loading members…</div>`;
-    const t = [...this._familyState.members, pt], e = this._config.members ?? [];
+    const t = [...this._familyState.members, pt], e = this._config.members ?? [], r = new Map(t.map((s) => [s.slug, s])), a = e.map((s) => r.get(s)).filter((s) => !!s), i = t.filter((s) => !e.includes(s.slug)), n = (s, o) => u`
+      <div class="member-row ${o.selected ? "selected" : "unselected"}">
+        <input
+          type="checkbox"
+          id="member-${s.slug}"
+          .checked=${o.selected}
+          @change=${(l) => this._memberToggled(s.slug, l.target.checked)}
+        />
+        ${o.selected ? u`
+              <div class="move-btns">
+                <button
+                  class="move-up-btn"
+                  type="button"
+                  title="Move up"
+                  aria-label="Move ${s.name} up"
+                  ?disabled=${o.isFirst}
+                  @click=${() => this._moveMember(s.slug, -1)}
+                >▲</button>
+                <button
+                  class="move-down-btn"
+                  type="button"
+                  title="Move down"
+                  aria-label="Move ${s.name} down"
+                  ?disabled=${o.isLast}
+                  @click=${() => this._moveMember(s.slug, 1)}
+                >▼</button>
+              </div>
+            ` : ""}
+        <div class="member-avatar">
+          ${s.avatar && s.avatar.startsWith("/local/") ? u`<img src=${s.avatar} alt=${s.name} style="width:100%;height:100%;object-fit:cover;" />` : u`${s.avatar ?? s.name[0]}`}
+        </div>
+        <label for="member-${s.slug}">${s.name}</label>
+        ${s.slug !== "household" ? u`<button
+              class="change-avatar-btn"
+              title="Edit avatar"
+              aria-label="Edit avatar for ${s.name}"
+              @click=${() => {
+      this._avatarModalMember = s;
+    }}
+            >✏️</button>` : ""}
+      </div>
+    `;
     return u`
       <div class="section-label">General</div>
       <input
@@ -9830,30 +9892,15 @@ let He = class extends D {
       />
 
       <div class="section-label">Members</div>
-      ${t.map(
-      (r) => u`
-          <div class="member-row">
-            <input
-              type="checkbox"
-              id="member-${r.slug}"
-              .checked=${e.includes(r.slug)}
-              @change=${(a) => this._memberToggled(r.slug, a.target.checked)}
-            />
-            <div class="member-avatar">
-              ${r.avatar && r.avatar.startsWith("/local/") ? u`<img src=${r.avatar} alt=${r.name} style="width:100%;height:100%;object-fit:cover;" />` : u`${r.avatar ?? r.name[0]}`}
-            </div>
-            <label for="member-${r.slug}">${r.name}</label>
-            ${r.slug !== "household" ? u`<button
-                  class="change-avatar-btn"
-                  title="Edit avatar"
-                  aria-label="Edit avatar for ${r.name}"
-                  @click=${() => {
-        this._avatarModalMember = r;
-      }}
-                >✏️</button>` : ""}
-          </div>
-        `
+      ${a.map(
+      (s, o) => n(s, {
+        selected: !0,
+        isFirst: o === 0,
+        isLast: o === a.length - 1
+      })
     )}
+      ${i.length > 0 && a.length > 0 ? u`<div class="unselected-hint">Available members</div>` : ""}
+      ${i.map((s) => n(s, { selected: !1 }))}
 
       ${this._avatarModalMember ? u`<lucarne-avatar-upload-modal
             .hass=${this.hass}
@@ -9873,15 +9920,15 @@ let He = class extends D {
       ["show_tasks", "Show tasks"],
       ["show_streak", "Show streak"]
     ].map(
-      ([r, a]) => u`
+      ([s, o]) => u`
           <div class="toggle-row">
             <input
               type="checkbox"
-              id="ed-${r}"
-              .checked=${this._config[r] ?? !0}
-              @change=${(i) => this._toggleChanged(r, i)}
+              id="ed-${s}"
+              .checked=${this._config[s] ?? !0}
+              @change=${(l) => this._toggleChanged(s, l)}
             />
-            <label for="ed-${r}">${a}</label>
+            <label for="ed-${s}">${o}</label>
           </div>
         `
     )}
@@ -9923,6 +9970,43 @@ He.styles = [
         color: var(--lucarne-on-surface);
         cursor: pointer;
         flex: 1;
+      }
+      .move-btns {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex-shrink: 0;
+      }
+      .move-up-btn,
+      .move-down-btn {
+        background: none;
+        border: 1px solid rgba(0, 0, 0, 0.15);
+        border-radius: var(--lucarne-radius-sm);
+        cursor: pointer;
+        padding: 0;
+        width: 22px;
+        height: 16px;
+        line-height: 1;
+        font-size: 0.7rem;
+        color: var(--lucarne-on-surface);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .move-up-btn:hover:not(:disabled),
+      .move-down-btn:hover:not(:disabled) {
+        background: rgba(0, 0, 0, 0.05);
+      }
+      .move-up-btn:disabled,
+      .move-down-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+      .unselected-hint {
+        font-size: var(--lucarne-fs-sm);
+        color: var(--lucarne-on-surface-muted);
+        font-style: italic;
+        margin: var(--lucarne-spacing-xs) 0;
       }
       .member-avatar {
         width: 28px;
