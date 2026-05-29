@@ -1,6 +1,7 @@
 import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import type { LucarneTasksSummary } from '../../src/components/tasks-summary.js';
+import { sortByPriority } from '../../src/components/tasks-summary.js';
 import type { MemberSummary, RenderableTask, TodoItem } from '../../src/shared/types.js';
 
 await import('../../src/components/tasks-summary.js');
@@ -152,13 +153,112 @@ describe('lucarne-tasks-summary', () => {
     assert.equal(events[0].detail.task.uid, 'click-me');
   });
 
-  it('shows "+N more" when there are more than 3 active tasks', async () => {
-    const tasks = Array.from({ length: 5 }, (_, i) =>
+  it('caps visible rows at the configured limit', async () => {
+    const tasks = Array.from({ length: 8 }, (_, i) =>
       makeRenderable({ uid: `t${i}`, summary: `Task ${i}` }),
     );
-    const el = await makeEl({ integrationMode: true, renderableTasks: tasks });
-    const more = el.shadowRoot!.querySelector('.more-row');
-    assert.ok(more, '"+N more" row shown');
-    assert.match(more!.textContent ?? '', /2/, 'count 2 shown (5 active - 3 visible)');
+    const el = await makeEl({ integrationMode: true, renderableTasks: tasks, limit: 3 });
+    const rows = el.shadowRoot!.querySelectorAll('lucarne-task-row');
+    assert.equal(rows.length, 3, 'only `limit` rows shown');
+    // Badge still reports the honest total.
+    assert.equal(el.shadowRoot!.querySelector('.count-badge')!.textContent, '8');
+  });
+
+  it('no-refill mode does not promote a backlog task when one is completed', async () => {
+    const tasks = [
+      makeRenderable({ uid: 't0', summary: 'Task 0' }),
+      makeRenderable({ uid: 't1', summary: 'Task 1' }),
+      makeRenderable({ uid: 't2', summary: 'Task 2' }),
+    ];
+    const el = await makeEl({
+      integrationMode: true,
+      renderableTasks: tasks,
+      limit: 2,
+      refillOnComplete: false,
+    });
+    assert.equal(el.shadowRoot!.querySelectorAll('lucarne-task-row').length, 2, 'starts with 2');
+
+    // Complete the first visible task; it must still exist in source as completed.
+    el.renderableTasks = [
+      makeRenderable({ uid: 't0', summary: 'Task 0', status: 'completed' }),
+      makeRenderable({ uid: 't1', summary: 'Task 1' }),
+      makeRenderable({ uid: 't2', summary: 'Task 2' }),
+    ];
+    await el.updateComplete;
+
+    const rows = el.shadowRoot!.querySelectorAll('lucarne-task-row');
+    assert.equal(rows.length, 1, 'completed slot is not refilled — only Task 1 remains');
+  });
+
+  it('refill mode promotes the next backlog task when one is completed', async () => {
+    const tasks = [
+      makeRenderable({ uid: 't0', summary: 'Task 0' }),
+      makeRenderable({ uid: 't1', summary: 'Task 1' }),
+      makeRenderable({ uid: 't2', summary: 'Task 2' }),
+    ];
+    const el = await makeEl({
+      integrationMode: true,
+      renderableTasks: tasks,
+      limit: 2,
+      refillOnComplete: true,
+    });
+    assert.equal(el.shadowRoot!.querySelectorAll('lucarne-task-row').length, 2, 'starts with 2');
+
+    el.renderableTasks = [
+      makeRenderable({ uid: 't0', summary: 'Task 0', status: 'completed' }),
+      makeRenderable({ uid: 't1', summary: 'Task 1' }),
+      makeRenderable({ uid: 't2', summary: 'Task 2' }),
+    ];
+    await el.updateComplete;
+
+    const rows = el.shadowRoot!.querySelectorAll('lucarne-task-row');
+    assert.equal(rows.length, 2, 'backlog task slides up to refill the slot');
+  });
+
+  it('no-refill mode shows the "all done for now" state when the window is cleared but backlog remains', async () => {
+    const el = await makeEl({
+      integrationMode: true,
+      renderableTasks: [
+        makeRenderable({ uid: 't0', summary: 'Task 0' }),
+        makeRenderable({ uid: 't1', summary: 'Task 1' }),
+      ],
+      limit: 1,
+      refillOnComplete: false,
+    });
+    el.renderableTasks = [
+      makeRenderable({ uid: 't0', summary: 'Task 0', status: 'completed' }),
+      makeRenderable({ uid: 't1', summary: 'Task 1' }),
+    ];
+    await el.updateComplete;
+
+    const empty = el.shadowRoot!.querySelector('.empty-state');
+    assert.ok(empty, 'encouraging empty state shown');
+    assert.match(empty!.textContent ?? '', /for now/i);
+  });
+});
+
+describe('sortByPriority', () => {
+  const now = new Date('2026-05-21T10:00:00.000Z'); // 03:00 PDT, May 21 local
+
+  function dued(uid: string, due: string | null): RenderableTask {
+    return makeRenderable({ uid, summary: uid, due });
+  }
+
+  it('orders overdue > due today > within 3 days > no date > beyond 3 days', () => {
+    const tasks = [
+      dued('beyond', '2026-05-30'),
+      dued('none', null),
+      dued('within3', '2026-05-23'),
+      dued('today', '2026-05-21'),
+      dued('overdue', '2026-05-19'),
+    ];
+    const sorted = sortByPriority(tasks, now).map((t) => t.uid);
+    assert.deepEqual(sorted, ['overdue', 'today', 'within3', 'none', 'beyond']);
+  });
+
+  it('orders within a dated bucket by due date ascending', () => {
+    const tasks = [dued('later', '2026-05-23'), dued('sooner', '2026-05-22')];
+    const sorted = sortByPriority(tasks, now).map((t) => t.uid);
+    assert.deepEqual(sorted, ['sooner', 'later']);
   });
 });

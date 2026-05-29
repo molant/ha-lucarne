@@ -50,6 +50,10 @@ export interface LucarneTodayCardConfig {
   household_tasks_from_integration?: boolean;
   /** If true, shows N/M members ready pill in header */
   show_family_ready_pill?: boolean;
+  /** Max number of tasks to display in the tasks section (default 5). */
+  max_tasks?: number;
+  /** If true, completing a task pulls the next backlog task into view (default false). */
+  refill_tasks_on_complete?: boolean;
   /** Order of vertical sections (default: calendar → weather → tasks) */
   section_order?: TodaySectionId[];
 }
@@ -447,6 +451,8 @@ export class LucarneTodayCard extends LitElement {
           .renderableTasks=${tasks}
           .members=${this._familyMembers}
           .todoEntityId=${entityId}
+          .limit=${this._config?.max_tasks ?? 5}
+          .refillOnComplete=${this._config?.refill_tasks_on_complete ?? false}
         ></lucarne-tasks-summary>
       </div>
     `;

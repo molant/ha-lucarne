@@ -86,6 +86,17 @@ export class LucarneTodayCardEditor extends LitElement {
     this._fire({ ...this._config!, agenda_show_tomorrow: checked || undefined });
   }
 
+  private _maxTasksChanged(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const v = parseInt(input.value, 10);
+    this._fire({ ...this._config!, max_tasks: isNaN(v) ? undefined : Math.max(1, v) });
+  }
+
+  private _refillTasksChanged(e: Event) {
+    const checked = (e.target as HTMLInputElement).checked;
+    this._fire({ ...this._config!, refill_tasks_on_complete: checked || undefined });
+  }
+
   private _calEntityChanged(index: number, e: CustomEvent) {
     const cals = [...(this._config?.calendars ?? [])];
     cals[index] = { ...cals[index], entity: e.detail?.value ?? '' };
@@ -204,6 +215,25 @@ export class LucarneTodayCardEditor extends LitElement {
         allow-custom-entity
         @value-changed=${this._tasksChanged}
       ></ha-entity-picker>
+
+      <label class="field">
+        <span class="field-label">Max tasks to show</span>
+        <input
+          class="text-input"
+          type="number"
+          min="1"
+          .value=${String(this._config.max_tasks ?? 5)}
+          @change=${this._maxTasksChanged}
+        />
+      </label>
+      <label class="field field-inline">
+        <span class="field-label">Show a new task when one is completed</span>
+        <input
+          type="checkbox"
+          .checked=${this._config.refill_tasks_on_complete ?? false}
+          @change=${this._refillTasksChanged}
+        />
+      </label>
 
       <div class="section-label">Lucarne Family integration</div>
       <label class="field field-inline" style="${this._isIntegrationAvailable() ? '' : 'opacity:0.5;pointer-events:none'}">

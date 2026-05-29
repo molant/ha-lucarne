@@ -10,6 +10,51 @@ import './task-row.js';
 
 const HOUSEHOLD_SLUG = 'household';
 
+/**
+ * Parse a todo `due` value to a Date. Date-only strings (YYYY-MM-DD) are parsed
+ * in LOCAL time so "due today" lines up with the viewer's calendar day instead
+ * of shifting across the UTC boundary.
+ */
+function parseDue(value: string): Date {
+  return value.length === 10 ? new Date(value + 'T00:00:00') : new Date(value);
+}
+
+/**
+ * Sort tasks by urgency for the Today card:
+ *   overdue > due today > due within 3 days > no due date > due >3 days.
+ * Within a dated bucket, earlier due dates come first; the no-date bucket
+ * orders alphabetically. Pure + exported for unit testing.
+ */
+export function sortByPriority(tasks: RenderableTask[], now: Date): RenderableTask[] {
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const startOfTomorrow = new Date(startOfToday);
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1);
+  // Start of the 4th day from today — the exclusive end of the "within 3 days" window.
+  const beyondThreeDays = new Date(startOfToday);
+  beyondThreeDays.setDate(beyondThreeDays.getDate() + 4);
+
+  const bucket = (t: RenderableTask): number => {
+    if (!t.due) return 3; // no due date
+    const d = parseDue(t.due);
+    if (d < startOfToday) return 0; // overdue
+    if (d < startOfTomorrow) return 1; // due today
+    if (d < beyondThreeDays) return 2; // within the next 3 days
+    return 4; // more than 3 days out
+  };
+
+  return [...tasks].sort((a, b) => {
+    const ba = bucket(a);
+    const bb = bucket(b);
+    if (ba !== bb) return ba - bb;
+    if (ba === 3) return a.summary.localeCompare(b.summary);
+    const da = a.due ? parseDue(a.due).getTime() : 0;
+    const db = b.due ? parseDue(b.due).getTime() : 0;
+    if (da !== db) return da - db;
+    return a.summary.localeCompare(b.summary);
+  });
+}
+
 /** Build a synthetic RenderableTask from a raw todo entity item. */
 function toRenderable(item: TodoItem): RenderableTask {
   return {
@@ -58,6 +103,14 @@ export class LucarneTasksSummary extends LitElement {
         font-size: 0.8em;
         font-weight: 700;
       }
+      .task-list {
+        display: flex;
+        flex-direction: column;
+        /* Cap the visible rows and scroll the rest; the host card can tune the
+           cap via --lucarne-tasks-max-height. */
+        max-height: var(--lucarne-tasks-max-height, none);
+        overflow-y: auto;
+      }
       .task-line {
         display: flex;
         align-items: center;
@@ -94,13 +147,6 @@ export class LucarneTasksSummary extends LitElement {
         font-family: var(--primary-font-family, sans-serif);
         font-size: 11px;
       }
-      .more-row {
-        padding: var(--lucarne-spacing-xs) 0 0;
-        font-size: var(--lucarne-fs-sm);
-        color: var(--lucarne-on-surface-muted);
-        cursor: pointer;
-        text-decoration: underline dotted;
-      }
       .empty-state {
         display: flex;
         flex-direction: column;
@@ -126,27 +172,74 @@ export class LucarneTasksSummary extends LitElement {
   @property({ attribute: false }) renderableTasks: RenderableTask[] = [];
   /** Members from the family subscription — used to resolve owner avatars in integration mode. */
   @property({ attribute: false }) members: MemberSummary[] = [];
+  /** Max number of tasks to display; the rest scroll within the list. */
+  @property({ type: Number }) limit = 5;
+  /**
+   * When true, completing a visible task pulls the next backlog task up to refill
+   * the slot (rolling list). When false (default), a completed task disappears and
+   * its slot stays empty — no backlog item is promoted to replace it.
+   */
+  @property({ type: Boolean }) refillOnComplete = false;
 
-  private _handleMoreClick() {
-    if (this.todoEntityId) {
-      this.dispatchEvent(
-        new CustomEvent('hass-more-info', {
-          detail: { entityId: this.todoEntityId },
-          bubbles: true,
-          composed: true,
-        }),
-      );
+  /** Uids ever admitted to the visible window (no-refill mode session state). */
+  private _admitted = new Set<string>();
+  /** Identity of the current window; changing entity/limit re-seeds _admitted. */
+  private _windowKey = '';
+
+  /**
+   * Resolve which active tasks to show. In refill mode the window is just the
+   * first `limit` by priority. In no-refill mode each completion permanently
+   * burns a slot (never refilled); new tasks only fill slots that were never
+   * occupied. Mutates _admitted, so call once per render.
+   */
+  private _resolveVisible(source: RenderableTask[]): {
+    visible: RenderableTask[];
+    totalActive: number;
+  } {
+    const now = new Date();
+    const active = sortByPriority(
+      source.filter((t) => t.status === 'needs_action'),
+      now,
+    );
+    const totalActive = active.length;
+
+    if (this.refillOnComplete) {
+      this._admitted.clear();
+      this._windowKey = '';
+      return { visible: active.slice(0, this.limit), totalActive };
     }
+
+    const key = `${this.todoEntityId ?? ''}#${this.limit}`;
+    if (key !== this._windowKey) {
+      this._windowKey = key;
+      this._admitted = new Set();
+    }
+
+    const activeUids = new Set(active.map((t) => t.uid));
+    // A slot is burned when an admitted task is now completed (still present in
+    // source, just no longer active). Burned slots reduce the target permanently.
+    const burned = [...this._admitted].filter(
+      (uid) => !activeUids.has(uid) && source.some((t) => t.uid === uid && t.status === 'completed'),
+    ).length;
+    const target = Math.max(0, this.limit - burned);
+    const activeAdmitted = active.filter((t) => this._admitted.has(t.uid));
+    let openSlots = target - activeAdmitted.length;
+    for (const t of active) {
+      if (openSlots <= 0) break;
+      if (!this._admitted.has(t.uid)) {
+        this._admitted.add(t.uid);
+        openSlots--;
+      }
+    }
+    const visible = active.filter((t) => this._admitted.has(t.uid));
+    return { visible, totalActive };
   }
 
   render() {
     const source = this.integrationMode ? this.renderableTasks : this.items.map(toRenderable);
-    const active = source.filter((t) => t.status === 'needs_action');
-    const count = active.length;
-    const visible = active.slice(0, 3);
-    const extra = count - visible.length;
+    const { visible, totalActive } = this._resolveVisible(source);
 
-    if (count === 0) {
+    if (totalActive === 0) {
       return html`
         <div class="empty-state">
           <span class="empty-icon">${iconCheck}</span>
@@ -155,17 +248,23 @@ export class LucarneTasksSummary extends LitElement {
       `;
     }
 
+    if (visible.length === 0) {
+      // No-refill mode: the session window is cleared but backlog remains. Reward
+      // the cleared slate rather than shoving the backlog back into view.
+      return html`
+        <div class="empty-state">
+          <span class="empty-icon">${iconCheck}</span>
+          ${STRINGS.allDoneForNow}
+        </div>
+      `;
+    }
+
     return html`
       <div class="header">
         ${STRINGS.tasksTitle}
-        <span class="count-badge">${count}</span>
+        <span class="count-badge">${totalActive}</span>
       </div>
-      ${visible.map((task) => this._renderTaskLine(task))}
-      ${extra > 0
-        ? html`<div class="more-row" @click=${this._handleMoreClick}>
-            ${STRINGS.moreItems(extra)}
-          </div>`
-        : ''}
+      <div class="task-list">${visible.map((task) => this._renderTaskLine(task))}</div>
     `;
   }
 
