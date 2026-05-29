@@ -183,6 +183,14 @@ export class LucarneTasksSummary extends LitElement {
 
   /** Uids ever admitted to the visible window (no-refill mode session state). */
   private _admitted = new Set<string>();
+  /**
+   * Admitted uids that have left the active set (completed or removed) — i.e. the
+   * slots they occupied are burned and must not be refilled. Tracked here rather
+   * than re-derived from `source` each render so the burn survives even when the
+   * todo provider drops completed items from the fetched list. A uid is un-burned
+   * if it returns to the active set (e.g. a completion is undone).
+   */
+  private _burned = new Set<string>();
   /** Identity of the current window; changing entity/limit re-seeds _admitted. */
   private _windowKey = '';
 
@@ -190,7 +198,7 @@ export class LucarneTasksSummary extends LitElement {
    * Resolve which active tasks to show. In refill mode the window is just the
    * first `limit` by priority. In no-refill mode each completion permanently
    * burns a slot (never refilled); new tasks only fill slots that were never
-   * occupied. Mutates _admitted, so call once per render.
+   * occupied. Mutates _admitted/_burned, so call once per render.
    */
   private _resolveVisible(source: RenderableTask[]): {
     visible: RenderableTask[];
@@ -205,6 +213,7 @@ export class LucarneTasksSummary extends LitElement {
 
     if (this.refillOnComplete) {
       this._admitted.clear();
+      this._burned.clear();
       this._windowKey = '';
       return { visible: active.slice(0, this.limit), totalActive };
     }
@@ -213,15 +222,18 @@ export class LucarneTasksSummary extends LitElement {
     if (key !== this._windowKey) {
       this._windowKey = key;
       this._admitted = new Set();
+      this._burned = new Set();
     }
 
     const activeUids = new Set(active.map((t) => t.uid));
-    // A slot is burned when an admitted task is now completed (still present in
-    // source, just no longer active). Burned slots reduce the target permanently.
-    const burned = [...this._admitted].filter(
-      (uid) => !activeUids.has(uid) && source.some((t) => t.uid === uid && t.status === 'completed'),
-    ).length;
-    const target = Math.max(0, this.limit - burned);
+    // An admitted task that is no longer active has had its slot burned — whether
+    // it was completed, or completed-then-dropped by the provider. If it comes
+    // back to the active set (completion undone), un-burn it so it shows again.
+    for (const uid of this._admitted) {
+      if (activeUids.has(uid)) this._burned.delete(uid);
+      else this._burned.add(uid);
+    }
+    const target = Math.max(0, this.limit - this._burned.size);
     const activeAdmitted = active.filter((t) => this._admitted.has(t.uid));
     let openSlots = target - activeAdmitted.length;
     for (const t of active) {
