@@ -8,7 +8,7 @@ Apple Reminders
       │  Shortcuts.app (ha-lucarne-sync)
       │  every 300 s via launchd
       ▼
-Mac mini ──── POST /api/webhook/<secret> ────► Home Assistant
+    MacOS ──── POST /api/webhook/<secret> ────► Home Assistant
                                                      │
                                               lucarne_reminders_sync
                                               automation (blueprint)
@@ -28,14 +28,14 @@ Mac mini ──── POST /api/webhook/<secret> ────► Home Assistant
                                           │  │   ([apple:UUID] →    │   │
                                           │  │   source=apple meta) │   │
                                           │  └──────────────────────┘   │
-                                          │  status transition →         │
-                                          │    completion_log row        │
-                                          │    (completed/undone/reset)  │
-                                          │  all routines done? →        │
-                                          │    lucarne_family_all_       │
-                                          │    routines_done event       │
-                                          │    + ha_lucarne_chores_all_  │
-                                          │      done (legacy compat)    │
+                                          │  status transition →        │
+                                          │    completion_log row       │
+                                          │    (completed/undone/reset) │
+                                          │  all routines done? →       │
+                                          │    lucarne_family_all_      │
+                                          │    routines_done event      │
+                                          │    + ha_lucarne_chores_all_ │
+                                          │      done (legacy compat)   │
                                           └─────────────────────────────┘
                                                      │
                                         WebSocket subscription

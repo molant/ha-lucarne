@@ -80,7 +80,7 @@ check-off, and a streak counter per person:
 
 ### Apple Reminders bridge
 
-- A Mac mini Shortcut + launchd job syncs Apple Reminders into Home Assistant `todo` entities every
+- A MacOS Shortcut + launchd job syncs Apple Reminders into Home Assistant `todo` entities every
   five minutes, so reminders you add on your phone show up on the family dashboard.
 
 ### Polished for tablets
@@ -144,9 +144,9 @@ Just select it per-user: **Profile → Theme → Lucarne**.
 > `custom_components/lucarne_family/themes/lucarne.yaml` into your `<config>/themes/` directory and add
 > `frontend: { themes: !include_dir_merge_named themes }` to `configuration.yaml`.
 
-### Step 6 — (Optional) Set up the Mac mini Reminders bridge
+### Step 6 — (Optional) Set up the MacOS Reminders bridge
 
-Follow [bridge/README.md](bridge/README.md) to install the launchd sync job on a Mac mini.
+Follow [bridge/README.md](bridge/README.md) to install the launchd sync job on a Mac.
 Skip this step if you prefer to manage todo items directly in HA.
 
 ---
@@ -275,7 +275,7 @@ One automation blueprint lives in `blueprints/automation/`. Import it via HA:
 
 **Settings → Automations → Blueprints → Import Blueprint** and paste the raw GitHub URL:
 
-- `lucarne_reminders_sync` — webhook receiver: upserts the Mac mini's Reminders payload into HA
+- `lucarne_reminders_sync` — webhook receiver: upserts the MacOS's Reminders payload into HA
   `local_todo` entities. Inputs: Webhook ID + `list_mappings` JSON (e.g.
   `{"Family": "todo.anna", "Groceries": "todo.groceries"}`).
 
@@ -316,7 +316,7 @@ duplicates, check the automation traces — the Shortcut must send unique `id` v
 **Google Calendar polling delay (up to 15 min)**
 HA's Google Calendar integration polls on a fixed schedule. This is a HA core limitation.
 
-**Mac mini sleeps and sync stops**
+**MacOS sleeps and sync stops**
 System Settings → Lock Screen → set "Put computer to sleep when display is off" to **Never**.
 
 ---

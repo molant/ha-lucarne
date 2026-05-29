@@ -1,4 +1,4 @@
-# Mac mini Bridge — Install Instructions
+# MacOS Bridge — Install Instructions
 
 Sets up the `ha-lucarne-sync` macOS Shortcut + launchd job that pushes Apple Reminders to HA every 5 minutes.
 
@@ -7,11 +7,11 @@ Sets up the `ha-lucarne-sync` macOS Shortcut + launchd job that pushes Apple Rem
 - macOS 13 (Ventura) or later
 - Shortcuts.app launched at least once (required for `shortcuts run` CLI)
 - iCloud account signed in to Reminders, with access to the Family and Groceries lists
-- Mac mini configured to **not sleep** (System Settings → Lock Screen → disable "Put computer to sleep when display is off")
+- MacOS configured to **not sleep** (System Settings → Lock Screen → disable "Put computer to sleep when display is off")
 
 ## 1. Generate webhook secret + store in Keychain
 
-On this Mac mini (or any machine, then transfer):
+On this MacOS (or any machine, then transfer):
 
 ```sh
 openssl rand -hex 32

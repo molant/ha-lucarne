@@ -7,5 +7,6 @@ features/**/.implement-state.json
 __pycache__/
 .venv/
 .pytest_cache/
+.claude/
 
 uv.lock

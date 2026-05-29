@@ -1,6 +1,6 @@
 # Reminders Bridge
 
-End-to-end flow: Mac mini Shortcuts.app → HA webhook → local_todo entities → iPad dashboard.
+End-to-end flow: MacOS Shortcuts.app → HA webhook → local_todo entities → iPad dashboard.
 
 ## Flow
 
@@ -12,7 +12,7 @@ End-to-end flow: Mac mini Shortcuts.app → HA webhook → local_todo entities �
 
 ## Log locations
 
-- Mac mini: `~/Library/Logs/ha-lucarne-sync.log`
+- MacOS: `~/Library/Logs/ha-lucarne-sync.log`
 - HA: Settings → Automations & Scenes → `lucarne_reminders_sync` → Traces tab
 
 ---
