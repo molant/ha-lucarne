@@ -190,6 +190,33 @@ describe('lucarne-tasks-summary', () => {
     assert.equal(rows.length, 1, 'completed slot is not refilled — only Task 1 remains');
   });
 
+  it('no-refill mode keeps the slot burned even if the completed task is dropped from source', async () => {
+    // Some todo providers return only active items after a completion. The burn
+    // must persist on the admitted-but-now-absent uid, not depend on a completed
+    // record remaining in source.
+    const el = await makeEl({
+      integrationMode: true,
+      renderableTasks: [
+        makeRenderable({ uid: 't0', summary: 'Task 0' }),
+        makeRenderable({ uid: 't1', summary: 'Task 1' }),
+        makeRenderable({ uid: 't2', summary: 'Task 2' }),
+      ],
+      limit: 2,
+      refillOnComplete: false,
+    });
+    assert.equal(el.shadowRoot!.querySelectorAll('lucarne-task-row').length, 2, 'starts with 2');
+
+    // t0 vanishes entirely (not retained as completed).
+    el.renderableTasks = [
+      makeRenderable({ uid: 't1', summary: 'Task 1' }),
+      makeRenderable({ uid: 't2', summary: 'Task 2' }),
+    ];
+    await el.updateComplete;
+
+    const rows = el.shadowRoot!.querySelectorAll('lucarne-task-row');
+    assert.equal(rows.length, 1, 'burned slot is not refilled — t2 stays hidden');
+  });
+
   it('refill mode promotes the next backlog task when one is completed', async () => {
     const tasks = [
       makeRenderable({ uid: 't0', summary: 'Task 0' }),

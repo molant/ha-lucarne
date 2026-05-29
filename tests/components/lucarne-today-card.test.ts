@@ -488,6 +488,26 @@ describe('lucarne-today-card — raw-mode metadata enrichment', () => {
   });
 });
 
+describe('lucarne-today-card — max_tasks clamp', () => {
+  it('clamps a non-positive max_tasks from YAML up to 1', async () => {
+    const hass = makeFakeHassWithFamily([], {
+      'todo.anna': [
+        { uid: 'r1', summary: 'A', status: 'needs_action' },
+        { uid: 'r2', summary: 'B', status: 'needs_action' },
+      ],
+    });
+    const el = await makeCard(
+      { tasks: 'todo.anna', max_tasks: 0 },
+      hass as unknown as HomeAssistant,
+    );
+    const summary = await waitForShadow<HTMLElement & { limit: number }>(
+      el.shadowRoot!,
+      'lucarne-tasks-summary',
+    );
+    assert.equal(summary.limit, 1, 'limit clamped to 1, not 0');
+  });
+});
+
 describe('lucarne-today-card — fill height', () => {
   it('pins the card body to the shared fill-height constant', async () => {
     const el = await makeCard({});

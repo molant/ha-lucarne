@@ -440,6 +440,17 @@ export class LucarneTodayCard extends LitElement {
     `;
   }
 
+  /**
+   * Resolve the task limit, clamping to a sane minimum. The editor enforces
+   * min=1, but a hand-written YAML config can pass 0/negative/non-integer values
+   * which would otherwise hide all tasks (or drop items via a negative slice in
+   * refill mode), so guard here too.
+   */
+  private get _maxTasks(): number {
+    const v = this._config?.max_tasks;
+    return typeof v === 'number' && Number.isFinite(v) ? Math.max(1, Math.floor(v)) : 5;
+  }
+
   private _renderTasksSection(showRawTasks: boolean, showIntegrationTasks: boolean) {
     if (!showRawTasks && !showIntegrationTasks) return '';
     // Both modes now flow through the same `renderableTasks` path so emoji + owner
@@ -459,7 +470,7 @@ export class LucarneTodayCard extends LitElement {
           .renderableTasks=${tasks}
           .members=${this._familyMembers}
           .todoEntityId=${entityId}
-          .limit=${this._config?.max_tasks ?? 5}
+          .limit=${this._maxTasks}
           .refillOnComplete=${this._config?.refill_tasks_on_complete ?? false}
         ></lucarne-tasks-summary>
       </div>
