@@ -16,6 +16,7 @@ export interface LucarneChoresCardConfig {
   show_routines?: boolean;
   show_tasks?: boolean;
   show_streak?: boolean;
+  hide_names?: boolean;
 }
 
 (window as Window & typeof globalThis & { customCards?: object[] }).customCards =
@@ -62,6 +63,7 @@ export class LucarneChoresCard extends LitElement {
         scroll-snap-type: x proximity;
       }
       .member-cell {
+        display: flex;
         flex: 1 0 220px;
         min-width: 220px;
         border-right: 1px solid rgba(0, 0, 0, 0.07);
@@ -70,6 +72,12 @@ export class LucarneChoresCard extends LitElement {
       }
       .member-cell:last-child {
         border-right: none;
+      }
+      /* Stretch the column to the cell so equal-height columns pin their
+         streaks to the same baseline (see member-column .lists/.streak-area). */
+      .member-cell lucarne-member-column {
+        flex: 1 1 auto;
+        min-width: 0;
       }
       @media (max-width: 600px) {
         .members-grid {
@@ -262,6 +270,7 @@ export class LucarneChoresCard extends LitElement {
     const showRoutines = this._config.show_routines ?? true;
     const showTasks = this._config.show_tasks ?? true;
     const showStreak = this._config.show_streak ?? true;
+    const hideNames = this._config.hide_names ?? false;
 
     if (this._familyState === null) {
       return html`<ha-card><div class="loading">Loading…</div></ha-card>`;
@@ -301,6 +310,7 @@ export class LucarneChoresCard extends LitElement {
                 ?show-routines=${showRoutines}
                 ?show-tasks=${showTasks}
                 ?show-streak=${showStreak}
+                ?hide-name=${hideNames}
               ></lucarne-member-column>
             </div>
           `)}

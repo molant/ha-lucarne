@@ -318,6 +318,63 @@ describe('lucarne-chores-card-editor', () => {
     );
   });
 
+  it('fires config-changed when hide_names toggled on', async () => {
+    const el = await makeEl();
+
+    const events: CustomEvent[] = [];
+    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+
+    const toggle = shadow(el, '#ed-hide_names') as HTMLInputElement;
+    assert.ok(toggle, 'hide_names toggle rendered');
+    assert.equal(toggle.checked, false, 'hide_names unchecked by default');
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0].detail.config.hide_names, true);
+  });
+
+  it('makes selected rows draggable with a grab handle (not unselected)', async () => {
+    const el = await makeEl(['anna']);
+    const selected = el.shadowRoot!.querySelector('.member-row.selected') as HTMLElement;
+    assert.equal(selected.getAttribute('draggable'), 'true', 'selected row draggable');
+    assert.ok(selected.querySelector('.grab-handle'), 'selected row has grab handle');
+
+    const unselected = el.shadowRoot!.querySelector('.member-row.unselected') as HTMLElement;
+    assert.equal(unselected.getAttribute('draggable'), 'false', 'unselected row not draggable');
+    assert.equal(unselected.querySelector('.grab-handle'), null, 'no grab handle on unselected');
+  });
+
+  it('reorders selected members via drag-and-drop', async () => {
+    const el = await makeEl(['anna', 'bob']);
+    const events: CustomEvent[] = [];
+    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+
+    const rows = el.shadowRoot!.querySelectorAll<HTMLElement>('.member-row.selected');
+    const bobRow = rows[1]; // index 1
+    const annaRow = rows[0]; // index 0
+
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData: () => {},
+      getData: () => '1',
+    };
+
+    bobRow.dispatchEvent(
+      new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
+    );
+    annaRow.dispatchEvent(
+      new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
+    );
+    annaRow.dispatchEvent(
+      new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
+    );
+
+    assert.equal(events.length, 1, 'config-changed fired after drop');
+    assert.deepEqual(events[0].detail.config.members, ['bob', 'anna'], 'bob moved to front');
+  });
+
   it('renders unselected members in a separate group below selected', async () => {
     const el = await makeEl(['anna']);
     const allRows = Array.from(

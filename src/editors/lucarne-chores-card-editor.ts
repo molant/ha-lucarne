@@ -46,6 +46,28 @@ export class LucarneChoresCardEditor extends LitElement {
         cursor: pointer;
         flex: 1;
       }
+      .member-row.selected {
+        cursor: grab;
+      }
+      .member-row.dragging {
+        opacity: 0.5;
+      }
+      .member-row.drag-over {
+        background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
+        border-radius: var(--lucarne-radius-sm);
+      }
+      .grab-handle {
+        cursor: grab;
+        color: var(--lucarne-on-surface-muted);
+        font-size: 1.2em;
+        line-height: 1;
+        user-select: none;
+        flex-shrink: 0;
+        padding: 0 2px;
+      }
+      .grab-handle:active {
+        cursor: grabbing;
+      }
       .move-btns {
         display: flex;
         flex-direction: column;
@@ -149,6 +171,8 @@ export class LucarneChoresCardEditor extends LitElement {
   @state() private _config?: LucarneChoresCardConfig;
   @state() private _familyState: FamilyState | null = null;
   @state() private _avatarModalMember: MemberSummary | null = null;
+  @state() private _dragIndex: number | null = null;
+  @state() private _dragOverIndex: number | null = null;
 
   private _unsubFamily?: () => void;
 
@@ -214,8 +238,45 @@ export class LucarneChoresCardEditor extends LitElement {
     this._fire({ ...this._config!, members: current });
   }
 
+  // Drag-to-reorder for the selected members list, mirroring the Today card
+  // editor's section-order control. The rendered selected rows map 1:1 (in
+  // order) to _config.members, so indices reorder the slug array directly.
+  private _onDragStart(index: number, e: DragEvent) {
+    this._dragIndex = index;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      // Some browsers require data to be set for a drag to begin.
+      e.dataTransfer.setData('text/plain', String(index));
+    }
+  }
+
+  private _onDragOver(index: number, e: DragEvent) {
+    if (this._dragIndex === null || this._dragIndex === index) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    if (this._dragOverIndex !== index) this._dragOverIndex = index;
+  }
+
+  private _onDrop(index: number, e: DragEvent) {
+    e.preventDefault();
+    const from = this._dragIndex;
+    this._dragIndex = null;
+    this._dragOverIndex = null;
+    if (from === null || from === index) return;
+    const current = [...(this._config?.members ?? [])];
+    if (from < 0 || from >= current.length || index < 0 || index >= current.length) return;
+    const [moved] = current.splice(from, 1);
+    current.splice(index, 0, moved);
+    this._fire({ ...this._config!, members: current });
+  }
+
+  private _onDragEnd() {
+    this._dragIndex = null;
+    this._dragOverIndex = null;
+  }
+
   private _toggleChanged(
-    field: 'show_routines' | 'show_tasks' | 'show_streak',
+    field: 'show_routines' | 'show_tasks' | 'show_streak' | 'hide_names',
     e: Event,
   ) {
     const v = (e.target as HTMLInputElement).checked;
@@ -250,9 +311,24 @@ export class LucarneChoresCardEditor extends LitElement {
 
     const renderRow = (
       m: MemberSummary,
-      opts: { selected: boolean; isFirst?: boolean; isLast?: boolean },
-    ) => html`
-      <div class="member-row ${opts.selected ? 'selected' : 'unselected'}">
+      opts: { selected: boolean; isFirst?: boolean; isLast?: boolean; index?: number },
+    ) => {
+      const i = opts.index ?? -1;
+      const dragClasses = opts.selected
+        ? `${this._dragIndex === i ? 'dragging' : ''} ${this._dragOverIndex === i ? 'drag-over' : ''}`
+        : '';
+      return html`
+      <div
+        class="member-row ${opts.selected ? 'selected' : 'unselected'} ${dragClasses}"
+        draggable=${opts.selected ? 'true' : 'false'}
+        @dragstart=${opts.selected ? (e: DragEvent) => this._onDragStart(i, e) : null}
+        @dragover=${opts.selected ? (e: DragEvent) => this._onDragOver(i, e) : null}
+        @drop=${opts.selected ? (e: DragEvent) => this._onDrop(i, e) : null}
+        @dragend=${opts.selected ? this._onDragEnd : null}
+      >
+        ${opts.selected
+          ? html`<span class="grab-handle" aria-hidden="true" title="Drag to reorder">≡</span>`
+          : ''}
         <input
           type="checkbox"
           id="member-${m.slug}"
@@ -298,6 +374,7 @@ export class LucarneChoresCardEditor extends LitElement {
           : ''}
       </div>
     `;
+    };
 
     return html`
       <div class="section-label">General</div>
@@ -315,6 +392,7 @@ export class LucarneChoresCardEditor extends LitElement {
           selected: true,
           isFirst: idx === 0,
           isLast: idx === selectedMembers.length - 1,
+          index: idx,
         }),
       )}
       ${unselectedMembers.length > 0 && selectedMembers.length > 0
@@ -338,6 +416,7 @@ export class LucarneChoresCardEditor extends LitElement {
           ['show_routines', 'Show routines'],
           ['show_tasks', 'Show tasks'],
           ['show_streak', 'Show streak'],
+          ['hide_names', 'Hide names'],
         ] as const
       ).map(
         ([field, label]) => html`
@@ -345,7 +424,7 @@ export class LucarneChoresCardEditor extends LitElement {
             <input
               type="checkbox"
               id="ed-${field}"
-              .checked=${this._config![field] ?? true}
+              .checked=${this._config![field] ?? (field === 'hide_names' ? false : true)}
               @change=${(e: Event) => this._toggleChanged(field, e)}
             />
             <label for="ed-${field}">${label}</label>

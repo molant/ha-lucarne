@@ -101,6 +101,27 @@ describe('lucarne-chores-card', () => {
     assert.equal(cells.length, 1, 'only anna column shown');
   });
 
+  it('forwards hide_names to member columns', async () => {
+    const el = document.createElement('lucarne-chores-card') as LucarneChoresCard;
+    el.setConfig({ type: 'custom:lucarne-chores-card', members: ['anna'], hide_names: true });
+    el.hass = makeFakeHassWithMembers() as unknown as HomeAssistant;
+    document.body.appendChild(el);
+    await el.updateComplete;
+    await new Promise((r) => setTimeout(r, 50));
+    await el.updateComplete;
+
+    const col = el.shadowRoot!.querySelector('lucarne-member-column') as HTMLElement & { hideName: boolean };
+    assert.ok(col, 'member column rendered');
+    assert.equal(col.hideName, true, 'hide-name forwarded to column');
+  });
+
+  it('defaults hide_names to false (names shown)', async () => {
+    const el = await makeCard(['anna']);
+    const col = el.shadowRoot!.querySelector('lucarne-member-column') as HTMLElement & { hideName: boolean };
+    assert.ok(col, 'member column rendered');
+    assert.equal(col.hideName, false, 'names shown by default');
+  });
+
   it('renders integration error block when integration is not installed', async () => {
     const el = await makeCard(['anna'], makeFakeHassIntegrationMissing());
     const errorBlock = shadow(el, '.error-block');

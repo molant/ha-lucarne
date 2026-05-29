@@ -247,6 +247,7 @@ members:
 show_routines: true     # optional, default true; show routine-type tasks
 show_tasks: true        # optional, default true; show chore-type tasks due today or overdue
 show_streak: true       # optional, default true; show streak counter in column footer
+hide_names: false       # optional, default false; hide member names (avatars only)
 ```
 
 The visual editor (click **Visual editor** after adding the card) populates the member
@@ -258,7 +259,13 @@ checkbox list from the integration automatically.
   the HA WebSocket — no polling.
 - **Filters tasks** per column: routines are always shown (if `show_routines: true`); chores
   are shown only if their `due` date is today or earlier, or has no due date.
-- **+ Add task**: opens an inline popover that calls `lucarne_family.add_task`.
+- **Groups tasks by time of day**: routines *and* chores are bucketed into Morning →
+  Afternoon → Night → Anytime sections by their `time_of_day`. A chore tagged `morning`
+  shows under **Morning** alongside routines (there is no separate "Tasks" section).
+- **Pins the streak** to the bottom of every column (columns share a height) and scrolls
+  an over-long list internally so the streak stays visible.
+- **+ Add task**: a top-right **+** icon opens an inline popover that calls
+  `lucarne_family.add_task`.
 - **Tap a task**: calls `todo.update_item` to toggle `needs_action ↔ completed`.
 - **Long-press a task**: opens the edit popover (update summary, type, recurrence, due date,
   assignee for household tasks; or delete with confirmation).
