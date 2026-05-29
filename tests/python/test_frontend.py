@@ -88,6 +88,33 @@ async def test_register_theme_missing_file_is_noop(hass: HomeAssistant) -> None:
     assert THEME_NAME not in hass.data.get(DATA_THEMES, {})
 
 
+async def test_register_theme_rejects_invalid_tokens(hass: HomeAssistant) -> None:
+    """A non-mapping or empty token value must not be injected into DATA_THEMES."""
+    for bad in ({THEME_NAME: "not-a-mapping"}, {THEME_NAME: {}}, {THEME_NAME: None}):
+        hass.data.pop(DATA_THEMES, None)
+        with patch.object(lucarne, "_load_theme", return_value=bad):
+            await lucarne._async_register_theme(hass)
+        assert THEME_NAME not in hass.data.get(DATA_THEMES, {})
+
+
+async def test_register_theme_preserves_user_theme(hass: HomeAssistant) -> None:
+    """A user-defined theme under the same name must not be clobbered."""
+    user_theme = {"primary-color": "#123456"}
+    hass.data[DATA_THEMES] = {THEME_NAME: user_theme}
+
+    events = []
+    hass.bus.async_listen(EVENT_THEMES_UPDATED, lambda evt: events.append(evt))
+
+    bundled = {THEME_NAME: {"primary-color": "#abcdef"}}
+    with patch.object(lucarne, "_load_theme", return_value=bundled):
+        await lucarne._async_register_theme(hass)
+    await hass.async_block_till_done()
+
+    # Existing theme untouched, and no needless refresh fired.
+    assert hass.data[DATA_THEMES][THEME_NAME] is user_theme
+    assert not events
+
+
 def test_bundle_digest_changes_with_content(tmp_path: Path) -> None:
     """The cache-bust hash differs for different bundle contents (stable per content)."""
     a = tmp_path / "a.js"

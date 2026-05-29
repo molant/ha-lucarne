@@ -92,15 +92,27 @@ async def _async_register_theme(hass: HomeAssistant) -> None:
     """
     theme_path = Path(__file__).parent / THEME_FILE
     theme = await hass.async_add_executor_job(_load_theme, theme_path)
-    if THEME_NAME not in theme:
+    tokens = theme.get(THEME_NAME)
+    if not isinstance(tokens, dict) or not tokens:
         _LOGGER.warning(
-            "Bundled theme %s is missing the %r key; theme not registered",
+            "Bundled theme %s is missing or has an invalid %r mapping; theme not registered",
             theme_path,
             THEME_NAME,
         )
         return
     themes = hass.data.setdefault(DATA_THEMES, {})
-    themes[THEME_NAME] = theme[THEME_NAME]
+    # Never clobber a theme the user already defined under this name. On a normal
+    # restart DATA_THEMES is rebuilt from config before this runs, so a present
+    # entry means the user customized "Lucarne" by hand — leave it untouched.
+    existing = themes.get(THEME_NAME)
+    if existing is not None:
+        if existing != tokens:
+            _LOGGER.debug(
+                "A %r theme is already registered; leaving the existing one untouched",
+                THEME_NAME,
+            )
+        return
+    themes[THEME_NAME] = tokens
     hass.bus.async_fire(EVENT_THEMES_UPDATED)
     _LOGGER.debug("Registered bundled %r theme", THEME_NAME)
 
