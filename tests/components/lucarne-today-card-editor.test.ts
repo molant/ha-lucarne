@@ -32,13 +32,21 @@ async function makeEditor(
   // Editor lazy-loads HA elements; wait for the resulting render.
   await new Promise((r) => setTimeout(r, 30));
   await el.updateComplete;
+  // Section order is rendered by the nested <lucarne-reorder-list>; await it.
+  const rl = el.shadowRoot!.querySelector('lucarne-reorder-list') as
+    | (HTMLElement & { updateComplete: Promise<unknown> })
+    | null;
+  if (rl) await rl.updateComplete;
   return el;
 }
 
+function reorderRows(el: LucarneTodayCardEditor): HTMLElement[] {
+  const rl = el.shadowRoot!.querySelector('lucarne-reorder-list');
+  return Array.from(rl!.shadowRoot!.querySelectorAll<HTMLElement>('.reorder-row'));
+}
+
 function getSectionOrder(el: LucarneTodayCardEditor): string[] {
-  return Array.from(
-    el.shadowRoot!.querySelectorAll<HTMLElement>('.section-order-row'),
-  ).map((row) => row.dataset.section ?? '');
+  return reorderRows(el).map((row) => row.dataset.key ?? '');
 }
 
 afterEach(() => {
@@ -62,9 +70,9 @@ describe('lucarne-today-card-editor — section order', () => {
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    const firstRow = el.shadowRoot!.querySelector<HTMLElement>('.section-order-row');
+    const firstRow = reorderRows(el)[0];
     assert.ok(firstRow, 'first row rendered');
-    const downBtn = firstRow!.querySelector<HTMLButtonElement>(
+    const downBtn = firstRow.querySelector<HTMLButtonElement>(
       'button.move-btn[aria-label$="down"]',
     );
     assert.ok(downBtn, '↓ button rendered');
@@ -80,7 +88,7 @@ describe('lucarne-today-card-editor — section order', () => {
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    const rows = el.shadowRoot!.querySelectorAll<HTMLElement>('.section-order-row');
+    const rows = reorderRows(el);
     const lastRow = rows[rows.length - 1];
     const upBtn = lastRow.querySelector<HTMLButtonElement>(
       'button.move-btn[aria-label$="up"]',
@@ -93,8 +101,8 @@ describe('lucarne-today-card-editor — section order', () => {
 
   it('↑ on the first row is disabled', async () => {
     const el = await makeEditor();
-    const firstRow = el.shadowRoot!.querySelector<HTMLElement>('.section-order-row');
-    const upBtn = firstRow!.querySelector<HTMLButtonElement>(
+    const firstRow = reorderRows(el)[0];
+    const upBtn = firstRow.querySelector<HTMLButtonElement>(
       'button.move-btn[aria-label$="up"]',
     );
     assert.equal(upBtn!.disabled, true);
@@ -102,7 +110,7 @@ describe('lucarne-today-card-editor — section order', () => {
 
   it('↓ on the last row is disabled', async () => {
     const el = await makeEditor();
-    const rows = el.shadowRoot!.querySelectorAll<HTMLElement>('.section-order-row');
+    const rows = reorderRows(el);
     const downBtn = rows[rows.length - 1].querySelector<HTMLButtonElement>(
       'button.move-btn[aria-label$="down"]',
     );
@@ -115,7 +123,7 @@ describe('lucarne-today-card-editor — section order', () => {
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    const rows = el.shadowRoot!.querySelectorAll<HTMLElement>('.section-order-row');
+    const rows = reorderRows(el);
     const tasksRow = rows[2]; // tasks
     const calendarRow = rows[0]; // calendar
 

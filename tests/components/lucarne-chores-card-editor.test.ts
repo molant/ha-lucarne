@@ -40,7 +40,6 @@ function makeFakeHassWithMembers() {
       if (payload['type'] === 'lucarne_family/get_family') {
         return GET_FAMILY_RESPONSE;
       }
-      // todo.get_items → return empty items
       return { response: {} };
     },
   };
@@ -57,6 +56,11 @@ async function makeEl(
   await el.updateComplete;
   await new Promise((r) => setTimeout(r, 50));
   await el.updateComplete;
+  // Members render inside the nested <lucarne-reorder-list>; await it too.
+  const list = el.shadowRoot!.querySelector('lucarne-reorder-list') as
+    | (HTMLElement & { updateComplete: Promise<unknown> })
+    | null;
+  if (list) await list.updateComplete;
   return el;
 }
 
@@ -64,14 +68,29 @@ function shadow(el: LucarneChoresCardEditor, sel: string) {
   return el.shadowRoot?.querySelector(sel) ?? null;
 }
 
+/** Shadow root of the nested reorder-list, where member rows live. */
+function listShadow(el: LucarneChoresCardEditor): ShadowRoot {
+  return el.shadowRoot!.querySelector('lucarne-reorder-list')!.shadowRoot!;
+}
+
 function rowSlugs(el: LucarneChoresCardEditor): (string | null)[] {
-  return Array.from(el.shadowRoot!.querySelectorAll('.member-row')).map((r) =>
-    r.getAttribute('data-slug'),
+  return Array.from(listShadow(el).querySelectorAll('.reorder-row')).map((r) =>
+    r.getAttribute('data-key'),
   );
 }
 
-function row(el: LucarneChoresCardEditor, slug: string): HTMLElement {
-  return el.shadowRoot!.querySelector(`.member-row[data-slug="${slug}"]`) as HTMLElement;
+/** The draggable reorder row (carries grab handle + ↑/↓) for a member. */
+function reorderRow(el: LucarneChoresCardEditor, slug: string): HTMLElement {
+  return listShadow(el).querySelector(`.reorder-row[data-key="${slug}"]`) as HTMLElement;
+}
+
+/**
+ * The member content cell (avatar, name, eye, pencil) for a member. It is
+ * slotted light DOM, so it lives in the editor's own shadow root, not the
+ * reorder-list's.
+ */
+function content(el: LucarneChoresCardEditor, slug: string): HTMLElement {
+  return el.shadowRoot!.querySelector(`.member-content[data-slug="${slug}"]`) as HTMLElement;
 }
 
 function lastConfig(events: CustomEvent[]): LucarneChoresCardConfig {
@@ -119,7 +138,7 @@ describe('lucarne-chores-card-editor', () => {
     assert.equal(events[0].detail.config.title, undefined, 'title cleared when empty');
   });
 
-  // --- Unified members list (one row per family member, drag + eye toggle) ---
+  // --- Unified members list (shared <lucarne-reorder-list>) ---
 
   it('renders every family member (incl. household) as one row', async () => {
     const el = await makeEl({ members: ['anna', 'bob'] });
@@ -127,14 +146,13 @@ describe('lucarne-chores-card-editor', () => {
   });
 
   it('places configured members first, then unplaced ones', async () => {
-    // bob configured (placed); anna + household unplaced → appended in family order
     const el = await makeEl({ members: ['bob'] });
     assert.deepEqual(rowSlugs(el), ['bob', 'anna', 'household']);
   });
 
-  it('every row is draggable with a grab handle', async () => {
+  it('every row is draggable with a grab handle (from the shared control)', async () => {
     const el = await makeEl({ members: ['anna', 'bob'] });
-    const rows = Array.from(el.shadowRoot!.querySelectorAll('.member-row')) as HTMLElement[];
+    const rows = Array.from(listShadow(el).querySelectorAll('.reorder-row')) as HTMLElement[];
     assert.equal(rows.length, 3);
     rows.forEach((r) => {
       assert.equal(r.getAttribute('draggable'), 'true', 'row draggable');
@@ -143,10 +161,9 @@ describe('lucarne-chores-card-editor', () => {
   });
 
   it('shows an eye-outline for visible members and eye-off for hidden', async () => {
-    // anna placed (visible); household unplaced (hidden by default)
     const el = await makeEl({ members: ['anna'] });
-    const annaIcon = row(el, 'anna').querySelector('.visibility-btn ha-icon');
-    const houseIcon = row(el, 'household').querySelector('.visibility-btn ha-icon');
+    const annaIcon = content(el, 'anna').querySelector('.visibility-btn ha-icon');
+    const houseIcon = content(el, 'household').querySelector('.visibility-btn ha-icon');
     assert.equal(annaIcon?.getAttribute('icon'), 'mdi:eye-outline', 'visible → eye-outline');
     assert.equal(houseIcon?.getAttribute('icon'), 'mdi:eye-off-outline', 'hidden → eye-off-outline');
   });
@@ -156,7 +173,7 @@ describe('lucarne-chores-card-editor', () => {
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    (row(el, 'anna').querySelector('.visibility-btn') as HTMLButtonElement).click();
+    (content(el, 'anna').querySelector('.visibility-btn') as HTMLButtonElement).click();
 
     const cfg = lastConfig(events);
     assert.deepEqual(cfg.members, ['anna', 'bob', 'household'], 'anna keeps slot 0');
@@ -164,12 +181,11 @@ describe('lucarne-chores-card-editor', () => {
   });
 
   it('eye toggle shows a hidden member', async () => {
-    // empty config → all members hidden by default
-    const el = await makeEl({ members: [] });
+    const el = await makeEl({ members: [] }); // all hidden by default
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    (row(el, 'anna').querySelector('.visibility-btn') as HTMLButtonElement).click();
+    (content(el, 'anna').querySelector('.visibility-btn') as HTMLButtonElement).click();
 
     const cfg = lastConfig(events);
     assert.ok(cfg.members.includes('anna'), 'anna placed');
@@ -177,12 +193,11 @@ describe('lucarne-chores-card-editor', () => {
   });
 
   it('omits hidden_members from config when nothing is left hidden', async () => {
-    // anna starts hidden; showing it should drop the now-empty hidden_members key
     const el = await makeEl({ members: ['anna', 'bob', 'household'], hidden_members: ['anna'] });
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    (row(el, 'anna').querySelector('.visibility-btn') as HTMLButtonElement).click();
+    (content(el, 'anna').querySelector('.visibility-btn') as HTMLButtonElement).click();
 
     assert.equal(lastConfig(events).hidden_members, undefined, 'hidden_members dropped when empty');
   });
@@ -194,13 +209,13 @@ describe('lucarne-chores-card-editor', () => {
 
     const dataTransfer = { effectAllowed: '', dropEffect: '', setData: () => {}, getData: () => '2' };
     // Drag household (index 2, hidden) up to index 0
-    row(el, 'household').dispatchEvent(
+    reorderRow(el, 'household').dispatchEvent(
       new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
     );
-    row(el, 'anna').dispatchEvent(
+    reorderRow(el, 'anna').dispatchEvent(
       new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
     );
-    row(el, 'anna').dispatchEvent(
+    reorderRow(el, 'anna').dispatchEvent(
       new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
     );
 
@@ -214,8 +229,7 @@ describe('lucarne-chores-card-editor', () => {
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    const downBtn = row(el, 'anna').querySelector('.move-down-btn') as HTMLButtonElement;
-    downBtn.click();
+    (reorderRow(el, 'anna').querySelector('.move-down-btn') as HTMLButtonElement).click();
 
     assert.deepEqual(lastConfig(events).members, ['bob', 'anna', 'household']);
   });
@@ -225,31 +239,30 @@ describe('lucarne-chores-card-editor', () => {
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    const upBtn = row(el, 'bob').querySelector('.move-up-btn') as HTMLButtonElement;
-    upBtn.click();
+    (reorderRow(el, 'bob').querySelector('.move-up-btn') as HTMLButtonElement).click();
 
     assert.deepEqual(lastConfig(events).members, ['bob', 'anna', 'household']);
   });
 
   it('disables move-up on the first row and move-down on the last', async () => {
     const el = await makeEl({ members: ['anna', 'bob'] }); // [anna, bob, household]
-    const firstUp = row(el, 'anna').querySelector('.move-up-btn') as HTMLButtonElement;
-    const lastDown = row(el, 'household').querySelector('.move-down-btn') as HTMLButtonElement;
+    const firstUp = reorderRow(el, 'anna').querySelector('.move-up-btn') as HTMLButtonElement;
+    const lastDown = reorderRow(el, 'household').querySelector('.move-down-btn') as HTMLButtonElement;
     assert.equal(firstUp.disabled, true, 'first row up disabled');
     assert.equal(lastDown.disabled, true, 'last row down disabled');
   });
 
   it('shows a pencil (edit avatar) for members but not household', async () => {
     const el = await makeEl({ members: ['anna', 'bob'] });
-    assert.ok(row(el, 'anna').querySelector('.change-avatar-btn'), 'anna has pencil');
-    assert.equal(row(el, 'household').querySelector('.change-avatar-btn'), null, 'household has no pencil');
-    const pencil = row(el, 'anna').querySelector('.change-avatar-btn ha-icon');
+    assert.ok(content(el, 'anna').querySelector('.change-avatar-btn'), 'anna has pencil');
+    assert.equal(content(el, 'household').querySelector('.change-avatar-btn'), null, 'household has no pencil');
+    const pencil = content(el, 'anna').querySelector('.change-avatar-btn ha-icon');
     assert.equal(pencil?.getAttribute('icon'), 'mdi:pencil-outline', 'uses mdi:pencil-outline');
   });
 
   it('opens the avatar modal when the pencil is clicked', async () => {
     const el = await makeEl({ members: ['anna'] });
-    (row(el, 'anna').querySelector('.change-avatar-btn') as HTMLButtonElement).click();
+    (content(el, 'anna').querySelector('.change-avatar-btn') as HTMLButtonElement).click();
     await el.updateComplete;
     assert.ok(shadow(el, 'lucarne-avatar-upload-modal'), 'avatar modal shown');
   });
@@ -305,11 +318,12 @@ describe('lucarne-chores-card-editor', () => {
     assert.equal(events[0].detail.config.hide_names, true);
   });
 
-  it('styles checkboxes with the theme accent color', async () => {
+  it('renders checkboxes that do not rely on the native (OS color-scheme) appearance', async () => {
     const el = await makeEl();
     const styleText = (el.constructor as unknown as { styles: { cssText: string }[] }).styles;
     const allCss = styleText.map((s) => s.cssText).join('\n');
-    assert.match(allCss, /accent-color:\s*var\(--primary-color/, 'accent-color set on inputs');
+    assert.match(allCss, /input\[type='checkbox'\][^}]*appearance:\s*none/, 'native appearance removed');
+    assert.match(allCss, /:checked[^}]*var\(--primary-color/, 'checked state uses accent color');
   });
 
   // --- Error + legacy handling ---

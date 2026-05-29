@@ -1,4 +1,5 @@
 import { LitElement, html, css, PropertyValues } from 'lit';
+import type { TemplateResult } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant, MemberSummary } from '../shared/types.js';
 import type { LucarneChoresCardConfig } from '../cards/lucarne-chores-card.js';
@@ -7,6 +8,8 @@ import { subscribeFamilyState, SYNTHETIC_HOUSEHOLD } from '../shared/family-subs
 import type { FamilyState } from '../shared/family-subscription.js';
 import { fireEvent } from 'custom-card-helpers';
 import '../components/avatar-upload-modal.js';
+import '../components/reorder-list.js';
+import type { ReorderItem } from '../components/reorder-list.js';
 
 @customElement('lucarne-chores-card-editor')
 export class LucarneChoresCardEditor extends LitElement {
@@ -32,47 +35,16 @@ export class LucarneChoresCardEditor extends LitElement {
       .section-label:first-of-type {
         margin-top: 0;
       }
-      /* Single bordered list of all members, matching the Today card editor's
-         section-order control. */
-      .members-list {
-        display: flex;
-        flex-direction: column;
-        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
-        border-radius: var(--lucarne-radius-md);
-        overflow: hidden;
-      }
-      .member-row {
+      /* Row content rendered inside the shared <lucarne-reorder-list>. */
+      .member-content {
         display: flex;
         align-items: center;
         gap: var(--lucarne-spacing-sm);
-        padding: var(--lucarne-spacing-sm) var(--lucarne-spacing-md);
-        background: var(--ha-card-background, var(--card-background-color, #fff));
+        min-width: 0;
       }
-      .member-row + .member-row {
-        border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.06));
-      }
-      .member-row.dragging {
-        opacity: 0.5;
-      }
-      .member-row.drag-over {
-        background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
-      }
-      /* Dim hidden members so the eye state reads at a glance. */
-      .member-row.hidden-member .member-avatar,
-      .member-row.hidden-member .member-name {
+      .member-content.hidden-member .member-avatar,
+      .member-content.hidden-member .member-name {
         opacity: 0.45;
-      }
-      .grab-handle {
-        cursor: grab;
-        color: var(--lucarne-on-surface-muted);
-        font-size: 1.2em;
-        line-height: 1;
-        user-select: none;
-        flex-shrink: 0;
-        padding: 0 2px;
-      }
-      .grab-handle:active {
-        cursor: grabbing;
       }
       .member-name {
         flex: 1;
@@ -82,63 +54,6 @@ export class LucarneChoresCardEditor extends LitElement {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-      }
-      .move-btns {
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-        flex-shrink: 0;
-      }
-      .move-up-btn,
-      .move-down-btn {
-        background: none;
-        border: 1px solid rgba(0, 0, 0, 0.15);
-        border-radius: var(--lucarne-radius-sm);
-        cursor: pointer;
-        padding: 0;
-        width: 22px;
-        height: 16px;
-        line-height: 1;
-        font-size: 0.7rem;
-        color: var(--lucarne-on-surface);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .move-up-btn:hover:not(:disabled),
-      .move-down-btn:hover:not(:disabled) {
-        background: rgba(0, 0, 0, 0.05);
-      }
-      .move-up-btn:disabled,
-      .move-down-btn:disabled {
-        opacity: 0.3;
-        cursor: not-allowed;
-      }
-      .row-actions {
-        display: flex;
-        align-items: center;
-        gap: 2px;
-        flex-shrink: 0;
-      }
-      .icon-btn {
-        background: none;
-        border: none;
-        cursor: pointer;
-        padding: 4px;
-        color: var(--lucarne-on-surface-muted);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: var(--lucarne-radius-sm);
-      }
-      .icon-btn:hover {
-        background: rgba(0, 0, 0, 0.05);
-        color: var(--lucarne-on-surface);
-      }
-      .icon-btn ha-icon {
-        --mdc-icon-size: 20px;
-        width: 20px;
-        height: 20px;
       }
       .member-avatar {
         width: 28px;
@@ -154,6 +69,27 @@ export class LucarneChoresCardEditor extends LitElement {
         background: rgba(0, 0, 0, 0.05);
         overflow: hidden;
       }
+      .icon-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        color: var(--lucarne-on-surface-muted);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--lucarne-radius-sm);
+        flex-shrink: 0;
+      }
+      .icon-btn:hover {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--lucarne-on-surface);
+      }
+      .icon-btn ha-icon {
+        --mdc-icon-size: 20px;
+        width: 20px;
+        height: 20px;
+      }
       .toggle-row {
         display: flex;
         align-items: center;
@@ -166,12 +102,40 @@ export class LucarneChoresCardEditor extends LitElement {
         cursor: pointer;
         flex: 1;
       }
+      /* Custom checkbox: the native control follows the OS color-scheme and
+         renders as a black box on a light HA theme when the OS is dark. Render
+         it ourselves from theme tokens so it matches the card surface + accent. */
       input[type='checkbox'] {
+        appearance: none;
+        -webkit-appearance: none;
         width: 18px;
         height: 18px;
-        cursor: pointer;
+        margin: 0;
         flex-shrink: 0;
-        accent-color: var(--primary-color, #03a9f4);
+        position: relative;
+        cursor: pointer;
+        border: 2px solid var(--lucarne-on-surface-muted, #727272);
+        border-radius: 4px;
+        background: var(--lucarne-surface, var(--ha-card-background, #fff));
+      }
+      input[type='checkbox']:checked {
+        background: var(--primary-color, #03a9f4);
+        border-color: var(--primary-color, #03a9f4);
+      }
+      input[type='checkbox']:checked::after {
+        content: '';
+        position: absolute;
+        left: 4px;
+        top: 1px;
+        width: 4px;
+        height: 8px;
+        border: solid #fff;
+        border-width: 0 2px 2px 0;
+        transform: rotate(45deg);
+      }
+      input[type='checkbox']:focus-visible {
+        outline: 2px solid var(--primary-color, #03a9f4);
+        outline-offset: 1px;
       }
       input[type='text'] {
         width: 100%;
@@ -205,8 +169,6 @@ export class LucarneChoresCardEditor extends LitElement {
   @state() private _config?: LucarneChoresCardConfig;
   @state() private _familyState: FamilyState | null = null;
   @state() private _avatarModalMember: MemberSummary | null = null;
-  @state() private _dragIndex: number | null = null;
-  @state() private _dragOverIndex: number | null = null;
 
   private _unsubFamily?: () => void;
 
@@ -292,53 +254,11 @@ export class LucarneChoresCardEditor extends LitElement {
     this._commitMembers(ordered.map((m) => m.slug), next);
   }
 
-  private _moveMember(slug: string, direction: -1 | 1) {
-    const { ordered, hidden } = this._membersModel();
-    const slugs = ordered.map((m) => m.slug);
-    const idx = slugs.indexOf(slug);
-    if (idx < 0) return;
-    const target = idx + direction;
-    if (target < 0 || target >= slugs.length) return;
-    [slugs[idx], slugs[target]] = [slugs[target], slugs[idx]];
-    this._commitMembers(slugs, hidden);
-  }
-
-  // Drag-to-reorder the unified members list, mirroring the Today card editor.
-  // Reordering never changes a member's hidden state, so a hidden member can be
+  // Reorder never changes a member's hidden state, so a hidden member can be
   // dragged into any slot and still stay off the card.
-  private _onDragStart(index: number, e: DragEvent) {
-    this._dragIndex = index;
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move';
-      // Some browsers require data to be set for a drag to begin.
-      e.dataTransfer.setData('text/plain', String(index));
-    }
-  }
-
-  private _onDragOver(index: number, e: DragEvent) {
-    if (this._dragIndex === null || this._dragIndex === index) return;
-    e.preventDefault();
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
-    if (this._dragOverIndex !== index) this._dragOverIndex = index;
-  }
-
-  private _onDrop(index: number, e: DragEvent) {
-    e.preventDefault();
-    const from = this._dragIndex;
-    this._dragIndex = null;
-    this._dragOverIndex = null;
-    if (from === null || from === index) return;
-    const { ordered, hidden } = this._membersModel();
-    const slugs = ordered.map((m) => m.slug);
-    if (from < 0 || from >= slugs.length || index < 0 || index >= slugs.length) return;
-    const [moved] = slugs.splice(from, 1);
-    slugs.splice(index, 0, moved);
-    this._commitMembers(slugs, hidden);
-  }
-
-  private _onDragEnd() {
-    this._dragIndex = null;
-    this._dragOverIndex = null;
+  private _onMembersReorder(order: string[]) {
+    const { hidden } = this._membersModel();
+    this._commitMembers(order, hidden);
   }
 
   private _toggleChanged(
@@ -347,6 +267,39 @@ export class LucarneChoresCardEditor extends LitElement {
   ) {
     const v = (e.target as HTMLInputElement).checked;
     this._fire({ ...this._config!, [field]: v });
+  }
+
+  private _renderMemberContent(m: MemberSummary, isHidden: boolean): TemplateResult {
+    return html`
+      <div class="member-content ${isHidden ? 'hidden-member' : ''}" slot=${m.slug} data-slug=${m.slug}>
+        <div class="member-avatar">
+          ${m.avatar && m.avatar.startsWith('/local/')
+            ? html`<img src=${m.avatar} alt=${m.name} style="width:100%;height:100%;object-fit:cover;" />`
+            : html`${m.avatar ?? m.name[0]}`}
+        </div>
+        <span class="member-name">${m.name}</span>
+        <button
+          class="icon-btn visibility-btn"
+          type="button"
+          aria-label="${isHidden ? 'Show' : 'Hide'} ${m.name} on the card"
+          title="${isHidden ? 'Show on card' : 'Hide from card'}"
+          @click=${() => this._toggleVisibility(m.slug)}
+        >
+          <ha-icon icon=${isHidden ? 'mdi:eye-off-outline' : 'mdi:eye-outline'}></ha-icon>
+        </button>
+        ${m.slug !== 'household'
+          ? html`<button
+              class="icon-btn change-avatar-btn"
+              type="button"
+              title="Edit avatar"
+              aria-label="Edit avatar for ${m.name}"
+              @click=${() => { this._avatarModalMember = m; }}
+            >
+              <ha-icon icon="mdi:pencil-outline"></ha-icon>
+            </button>`
+          : ''}
+      </div>
+    `;
   }
 
   render() {
@@ -368,71 +321,7 @@ export class LucarneChoresCardEditor extends LitElement {
     }
 
     const { ordered, hidden } = this._membersModel();
-
-    const renderRow = (m: MemberSummary, index: number) => {
-      const isHidden = hidden.has(m.slug);
-      const dragging = this._dragIndex === index ? 'dragging' : '';
-      const dragOver = this._dragOverIndex === index ? 'drag-over' : '';
-      return html`
-        <div
-          class="member-row ${isHidden ? 'hidden-member' : ''} ${dragging} ${dragOver}"
-          data-slug=${m.slug}
-          draggable="true"
-          @dragstart=${(e: DragEvent) => this._onDragStart(index, e)}
-          @dragover=${(e: DragEvent) => this._onDragOver(index, e)}
-          @drop=${(e: DragEvent) => this._onDrop(index, e)}
-          @dragend=${this._onDragEnd}
-        >
-          <span class="grab-handle" aria-hidden="true" title="Drag to reorder">≡</span>
-          <div class="move-btns">
-            <button
-              class="move-up-btn"
-              type="button"
-              title="Move up"
-              aria-label="Move ${m.name} up"
-              ?disabled=${index === 0}
-              @click=${() => this._moveMember(m.slug, -1)}
-            >▲</button>
-            <button
-              class="move-down-btn"
-              type="button"
-              title="Move down"
-              aria-label="Move ${m.name} down"
-              ?disabled=${index === ordered.length - 1}
-              @click=${() => this._moveMember(m.slug, 1)}
-            >▼</button>
-          </div>
-          <div class="member-avatar">
-            ${m.avatar && m.avatar.startsWith('/local/')
-              ? html`<img src=${m.avatar} alt=${m.name} style="width:100%;height:100%;object-fit:cover;" />`
-              : html`${m.avatar ?? m.name[0]}`}
-          </div>
-          <span class="member-name">${m.name}</span>
-          <div class="row-actions">
-            <button
-              class="icon-btn visibility-btn"
-              type="button"
-              aria-label="${isHidden ? 'Show' : 'Hide'} ${m.name} on the card"
-              title="${isHidden ? 'Show on card' : 'Hide from card'}"
-              @click=${() => this._toggleVisibility(m.slug)}
-            >
-              <ha-icon icon=${isHidden ? 'mdi:eye-off-outline' : 'mdi:eye-outline'}></ha-icon>
-            </button>
-            ${m.slug !== 'household'
-              ? html`<button
-                  class="icon-btn change-avatar-btn"
-                  type="button"
-                  title="Edit avatar"
-                  aria-label="Edit avatar for ${m.name}"
-                  @click=${() => { this._avatarModalMember = m; }}
-                >
-                  <ha-icon icon="mdi:pencil-outline"></ha-icon>
-                </button>`
-              : ''}
-          </div>
-        </div>
-      `;
-    };
+    const items: ReorderItem[] = ordered.map((m) => ({ key: m.slug, label: m.name }));
 
     return html`
       <div class="section-label">General</div>
@@ -445,9 +334,13 @@ export class LucarneChoresCardEditor extends LitElement {
       />
 
       <div class="section-label">Members</div>
-      <div class="members-list" role="list" aria-label="Members (drag to reorder, eye to show/hide)">
-        ${ordered.map((m, idx) => renderRow(m, idx))}
-      </div>
+      <lucarne-reorder-list
+        label="Members (drag to reorder, eye to show or hide)"
+        .items=${items}
+        @reorder=${(e: CustomEvent) => this._onMembersReorder(e.detail.order as string[])}
+      >
+        ${ordered.map((m) => this._renderMemberContent(m, hidden.has(m.slug)))}
+      </lucarne-reorder-list>
 
       ${this._avatarModalMember
         ? html`<lucarne-avatar-upload-modal
