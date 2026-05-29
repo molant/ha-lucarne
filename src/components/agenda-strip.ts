@@ -11,11 +11,26 @@ function parseEventBoundary(value: string): Date {
   return value.length === 10 ? new Date(value + 'T00:00:00') : new Date(value);
 }
 
-export function filterAndSortEvents(events: CalendarEvent[], now: Date, limit: number): CalendarEvent[] {
+/** 1 = today only; 2 = today + tomorrow. */
+export type AgendaWindowDays = 1 | 2;
+
+/**
+ * Keep the events relevant to the agenda window: still ongoing (end > now) AND
+ * starting before the window closes. windowDays=1 shows only today; windowDays=2
+ * adds tomorrow. The window boundary is computed in LOCAL time so date-only
+ * all-day events line up with the viewer's calendar day rather than UTC.
+ */
+export function filterAndSortEvents(
+  events: CalendarEvent[],
+  now: Date,
+  windowDays: AgendaWindowDays,
+): CalendarEvent[] {
+  const windowEnd = new Date(now);
+  windowEnd.setHours(0, 0, 0, 0);
+  windowEnd.setDate(windowEnd.getDate() + windowDays);
   return events
-    .filter((e) => parseEventBoundary(e.end) > now)
-    .sort((a, b) => parseEventBoundary(a.start).getTime() - parseEventBoundary(b.start).getTime())
-    .slice(0, limit);
+    .filter((e) => parseEventBoundary(e.end) > now && parseEventBoundary(e.start) < windowEnd)
+    .sort((a, b) => parseEventBoundary(a.start).getTime() - parseEventBoundary(b.start).getTime());
 }
 
 function formatTimePill(start: Date, end: Date, now: Date): string {
@@ -61,6 +76,10 @@ export class LucarneAgendaStrip extends LitElement {
         display: block;
         padding: var(--lucarne-spacing-md) var(--lucarne-spacing-lg);
         container-type: inline-size;
+        /* A long today-list scrolls within the section instead of stretching
+           the card. The host card can tune the cap via --lucarne-agenda-max-height. */
+        max-height: var(--lucarne-agenda-max-height, 360px);
+        overflow-y: auto;
       }
       .empty-state {
         display: flex;
@@ -150,11 +169,11 @@ export class LucarneAgendaStrip extends LitElement {
 
   @property({ type: Array }) events: CalendarEvent[] = [];
   @property({ type: Object }) calendarColors: Map<string, string> = new Map();
-  @property({ type: Number }) limit = 5;
+  @property({ type: Number }) windowDays: AgendaWindowDays = 1;
 
   render() {
     const now = new Date();
-    const sorted = filterAndSortEvents(this.events, now, this.limit);
+    const sorted = filterAndSortEvents(this.events, now, this.windowDays);
 
     if (sorted.length === 0) {
       return html`<div class="empty-state">${STRINGS.nothingOnCalendar}</div>`;

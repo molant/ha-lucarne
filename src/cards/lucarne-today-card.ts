@@ -44,7 +44,8 @@ export interface LucarneTodayCardConfig {
   weather?: string;
   tasks?: string;
   presence?: { entity: string; name: string }[];
-  agenda_limit?: number;
+  /** If true, the agenda shows today + tomorrow; otherwise today only. */
+  agenda_show_tomorrow?: boolean;
   /** If true, ignores tasks: setting and reads household tasks from the integration */
   household_tasks_from_integration?: boolean;
   /** If true, shows N/M members ready pill in header */
@@ -409,7 +410,7 @@ export class LucarneTodayCard extends LitElement {
         <lucarne-agenda-strip
           .events=${this._mergedEvents}
           .calendarColors=${this._calendarColorMap}
-          .limit=${this._config?.agenda_limit ?? 5}
+          .windowDays=${this._config?.agenda_show_tomorrow ? 2 : 1}
         ></lucarne-agenda-strip>
       </div>
     `;
