@@ -19,6 +19,14 @@ updates:
       python-dependencies:
         patterns:
           - "*"
+    # pytest and pytest-asyncio are exact-pinned by
+    # pytest-homeassistant-custom-component (it mirrors HA core's test stack),
+    # so they update transitively whenever phccc is bumped. Bumping either
+    # directly raises the pyproject floor above phccc's pin and makes pip
+    # resolution impossible (see PR #45).
+    ignore:
+      - dependency-name: "pytest"
+      - dependency-name: "pytest-asyncio"
 
   # CI workflows under .github/workflows
   - package-ecosystem: github-actions
