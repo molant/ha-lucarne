@@ -2,6 +2,7 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { MemberSummary, RenderableTask, TimeOfDay } from '../shared/types.js';
 import { coerceTimeOfDay } from '../shared/types.js';
+import { iconTimeMorning, iconTimeAfternoon, iconTimeNight } from '../shared/icons.js';
 
 import './member-avatar.js';
 import './task-row.js';
@@ -16,6 +17,13 @@ const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
   afternoon: 'Afternoon',
   night: 'Night',
   anytime: 'Anytime',
+};
+
+// Weather-style glyph per dated bucket; 'anytime' stays icon-less.
+const TIME_OF_DAY_ICONS: Partial<Record<TimeOfDay, typeof iconTimeMorning>> = {
+  morning: iconTimeMorning,
+  afternoon: iconTimeAfternoon,
+  night: iconTimeNight,
 };
 
 function choreCompare(a: RenderableTask, b: RenderableTask): number {
@@ -130,12 +138,23 @@ export class LucarneMemberColumn extends LitElement {
       flex-direction: column;
     }
     .section-header {
+      display: flex;
+      align-items: center;
+      gap: 4px;
       font-size: 0.7rem;
       font-weight: 600;
       color: var(--secondary-text-color, #727272);
       text-transform: uppercase;
       letter-spacing: 0.05em;
       padding: 6px 4px 2px;
+    }
+    .section-icon {
+      display: inline-flex;
+      flex-shrink: 0;
+    }
+    .section-icon svg {
+      width: 14px;
+      height: 14px;
     }
     .streak-area {
       padding-top: 12px;
@@ -230,7 +249,12 @@ export class LucarneMemberColumn extends LitElement {
         <div class="lists">
           ${buckets.map(({ bucket, tasks }) => html`
             <div class="section">
-              <div class="section-header">${TIME_OF_DAY_LABELS[bucket]}</div>
+              <div class="section-header">
+                ${TIME_OF_DAY_ICONS[bucket]
+                  ? html`<span class="section-icon">${TIME_OF_DAY_ICONS[bucket]}</span>`
+                  : ''}
+                ${TIME_OF_DAY_LABELS[bucket]}
+              </div>
               ${tasks.map((t) => html`
                 <lucarne-task-row
                   .task=${t}
