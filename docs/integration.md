@@ -244,14 +244,19 @@ members:
   - anna                # member slug (derived from member name: "Anna" → "anna")
   - bob
   - household           # optional; shows todo.lucarne_household
+hidden_members:         # optional; members kept in `members` ordering but hidden from the card
+  - bob                 #   (bob holds its slot in the editor list but isn't rendered)
 show_routines: true     # optional, default true; show routine-type tasks
 show_tasks: true        # optional, default true; show chore-type tasks due today or overdue
 show_streak: true       # optional, default true; show streak counter in column footer
 hide_names: false       # optional, default false; hide member names (avatars only)
 ```
 
-The visual editor (click **Visual editor** after adding the card) populates the member
-checkbox list from the integration automatically.
+The visual editor (click **Visual editor** after adding the card) lists every family
+member in one drag-to-reorder list. Each row has an **eye** toggle
+(`mdi:eye-outline` / `mdi:eye-off-outline`) to show/hide that member on the card — a
+hidden member keeps its position in the order. Members are hidden by default until you
+show them.
 
 ### What the card does
 

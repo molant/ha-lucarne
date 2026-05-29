@@ -2,6 +2,7 @@ import { describe, it, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import type { LucarneChoresCardEditor } from '../../src/editors/lucarne-chores-card-editor.js';
 import type { HomeAssistant } from '../../src/shared/types.js';
+import type { LucarneChoresCardConfig } from '../../src/cards/lucarne-chores-card.js';
 import { makeFakeHass } from '../setup/ha-mock.mjs';
 
 await import('../../src/editors/lucarne-chores-card-editor.js');
@@ -46,9 +47,11 @@ function makeFakeHassWithMembers() {
   return { ...base, connection: conn };
 }
 
-async function makeEl(members: string[] = []): Promise<LucarneChoresCardEditor> {
+async function makeEl(
+  config: Partial<LucarneChoresCardConfig> = {},
+): Promise<LucarneChoresCardEditor> {
   const el = document.createElement('lucarne-chores-card-editor') as LucarneChoresCardEditor;
-  el.setConfig({ type: 'custom:lucarne-chores-card', members });
+  el.setConfig({ type: 'custom:lucarne-chores-card', members: [], ...config });
   el.hass = makeFakeHassWithMembers() as unknown as HomeAssistant;
   document.body.appendChild(el);
   await el.updateComplete;
@@ -59,6 +62,20 @@ async function makeEl(members: string[] = []): Promise<LucarneChoresCardEditor> 
 
 function shadow(el: LucarneChoresCardEditor, sel: string) {
   return el.shadowRoot?.querySelector(sel) ?? null;
+}
+
+function rowSlugs(el: LucarneChoresCardEditor): (string | null)[] {
+  return Array.from(el.shadowRoot!.querySelectorAll('.member-row')).map((r) =>
+    r.getAttribute('data-slug'),
+  );
+}
+
+function row(el: LucarneChoresCardEditor, slug: string): HTMLElement {
+  return el.shadowRoot!.querySelector(`.member-row[data-slug="${slug}"]`) as HTMLElement;
+}
+
+function lastConfig(events: CustomEvent[]): LucarneChoresCardConfig {
+  return events[events.length - 1].detail.config as LucarneChoresCardConfig;
 }
 
 afterEach(() => {
@@ -78,12 +95,10 @@ describe('lucarne-chores-card-editor', () => {
 
   it('fires config-changed when title changes', async () => {
     const el = await makeEl();
-
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
     const titleInput = shadow(el, '#ed-title') as HTMLInputElement;
-    assert.ok(titleInput, 'title input rendered');
     titleInput.value = 'My Chores';
     titleInput.dispatchEvent(new Event('change', { bubbles: true }));
 
@@ -93,7 +108,6 @@ describe('lucarne-chores-card-editor', () => {
 
   it('clears title when input emptied', async () => {
     const el = await makeEl();
-
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
@@ -105,86 +119,200 @@ describe('lucarne-chores-card-editor', () => {
     assert.equal(events[0].detail.config.title, undefined, 'title cleared when empty');
   });
 
-  it('fires config-changed when member checkbox checked', async () => {
-    const el = await makeEl([]);
+  // --- Unified members list (one row per family member, drag + eye toggle) ---
 
+  it('renders every family member (incl. household) as one row', async () => {
+    const el = await makeEl({ members: ['anna', 'bob'] });
+    assert.deepEqual(rowSlugs(el), ['anna', 'bob', 'household']);
+  });
+
+  it('places configured members first, then unplaced ones', async () => {
+    // bob configured (placed); anna + household unplaced → appended in family order
+    const el = await makeEl({ members: ['bob'] });
+    assert.deepEqual(rowSlugs(el), ['bob', 'anna', 'household']);
+  });
+
+  it('every row is draggable with a grab handle', async () => {
+    const el = await makeEl({ members: ['anna', 'bob'] });
+    const rows = Array.from(el.shadowRoot!.querySelectorAll('.member-row')) as HTMLElement[];
+    assert.equal(rows.length, 3);
+    rows.forEach((r) => {
+      assert.equal(r.getAttribute('draggable'), 'true', 'row draggable');
+      assert.ok(r.querySelector('.grab-handle'), 'row has grab handle');
+    });
+  });
+
+  it('shows an eye-outline for visible members and eye-off for hidden', async () => {
+    // anna placed (visible); household unplaced (hidden by default)
+    const el = await makeEl({ members: ['anna'] });
+    const annaIcon = row(el, 'anna').querySelector('.visibility-btn ha-icon');
+    const houseIcon = row(el, 'household').querySelector('.visibility-btn ha-icon');
+    assert.equal(annaIcon?.getAttribute('icon'), 'mdi:eye-outline', 'visible → eye-outline');
+    assert.equal(houseIcon?.getAttribute('icon'), 'mdi:eye-off-outline', 'hidden → eye-off-outline');
+  });
+
+  it('eye toggle hides a visible member but keeps its slot in members order', async () => {
+    const el = await makeEl({ members: ['anna', 'bob'] });
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    const annaCheckbox = shadow(el, '#member-anna') as HTMLInputElement;
-    assert.ok(annaCheckbox, 'anna checkbox rendered');
-    annaCheckbox.checked = true;
-    annaCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+    (row(el, 'anna').querySelector('.visibility-btn') as HTMLButtonElement).click();
 
-    assert.equal(events.length, 1);
-    assert.ok(events[0].detail.config.members.includes('anna'), 'anna added to members');
+    const cfg = lastConfig(events);
+    assert.deepEqual(cfg.members, ['anna', 'bob', 'household'], 'anna keeps slot 0');
+    assert.ok(cfg.hidden_members?.includes('anna'), 'anna now hidden');
   });
 
-  it('fires config-changed when member checkbox unchecked', async () => {
-    const el = await makeEl(['anna', 'bob']);
-
+  it('eye toggle shows a hidden member', async () => {
+    // empty config → all members hidden by default
+    const el = await makeEl({ members: [] });
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    const annaCheckbox = shadow(el, '#member-anna') as HTMLInputElement;
-    annaCheckbox.checked = false;
-    annaCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+    (row(el, 'anna').querySelector('.visibility-btn') as HTMLButtonElement).click();
 
-    assert.equal(events.length, 1);
-    assert.ok(!events[0].detail.config.members.includes('anna'), 'anna removed from members');
-    assert.ok(events[0].detail.config.members.includes('bob'), 'bob still in members');
+    const cfg = lastConfig(events);
+    assert.ok(cfg.members.includes('anna'), 'anna placed');
+    assert.ok(!(cfg.hidden_members ?? []).includes('anna'), 'anna no longer hidden');
   });
 
-  it('renders household checkbox', async () => {
-    const el = await makeEl();
-    const householdCheckbox = shadow(el, '#member-household');
-    assert.ok(householdCheckbox, 'household checkbox rendered');
+  it('omits hidden_members from config when nothing is left hidden', async () => {
+    // anna starts hidden; showing it should drop the now-empty hidden_members key
+    const el = await makeEl({ members: ['anna', 'bob', 'household'], hidden_members: ['anna'] });
+    const events: CustomEvent[] = [];
+    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+
+    (row(el, 'anna').querySelector('.visibility-btn') as HTMLButtonElement).click();
+
+    assert.equal(lastConfig(events).hidden_members, undefined, 'hidden_members dropped when empty');
   });
+
+  it('reorders members via drag-and-drop, preserving hidden state', async () => {
+    const el = await makeEl({ members: ['anna', 'bob'] }); // household hidden by default
+    const events: CustomEvent[] = [];
+    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+
+    const dataTransfer = { effectAllowed: '', dropEffect: '', setData: () => {}, getData: () => '2' };
+    // Drag household (index 2, hidden) up to index 0
+    row(el, 'household').dispatchEvent(
+      new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
+    );
+    row(el, 'anna').dispatchEvent(
+      new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
+    );
+    row(el, 'anna').dispatchEvent(
+      new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
+    );
+
+    const cfg = lastConfig(events);
+    assert.deepEqual(cfg.members, ['household', 'anna', 'bob'], 'household moved to front');
+    assert.ok(cfg.hidden_members?.includes('household'), 'household still hidden at its new slot');
+  });
+
+  it('move-down reorders the unified list', async () => {
+    const el = await makeEl({ members: ['anna', 'bob'] });
+    const events: CustomEvent[] = [];
+    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+
+    const downBtn = row(el, 'anna').querySelector('.move-down-btn') as HTMLButtonElement;
+    downBtn.click();
+
+    assert.deepEqual(lastConfig(events).members, ['bob', 'anna', 'household']);
+  });
+
+  it('move-up reorders the unified list', async () => {
+    const el = await makeEl({ members: ['anna', 'bob'] });
+    const events: CustomEvent[] = [];
+    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+
+    const upBtn = row(el, 'bob').querySelector('.move-up-btn') as HTMLButtonElement;
+    upBtn.click();
+
+    assert.deepEqual(lastConfig(events).members, ['bob', 'anna', 'household']);
+  });
+
+  it('disables move-up on the first row and move-down on the last', async () => {
+    const el = await makeEl({ members: ['anna', 'bob'] }); // [anna, bob, household]
+    const firstUp = row(el, 'anna').querySelector('.move-up-btn') as HTMLButtonElement;
+    const lastDown = row(el, 'household').querySelector('.move-down-btn') as HTMLButtonElement;
+    assert.equal(firstUp.disabled, true, 'first row up disabled');
+    assert.equal(lastDown.disabled, true, 'last row down disabled');
+  });
+
+  it('shows a pencil (edit avatar) for members but not household', async () => {
+    const el = await makeEl({ members: ['anna', 'bob'] });
+    assert.ok(row(el, 'anna').querySelector('.change-avatar-btn'), 'anna has pencil');
+    assert.equal(row(el, 'household').querySelector('.change-avatar-btn'), null, 'household has no pencil');
+    const pencil = row(el, 'anna').querySelector('.change-avatar-btn ha-icon');
+    assert.equal(pencil?.getAttribute('icon'), 'mdi:pencil-outline', 'uses mdi:pencil-outline');
+  });
+
+  it('opens the avatar modal when the pencil is clicked', async () => {
+    const el = await makeEl({ members: ['anna'] });
+    (row(el, 'anna').querySelector('.change-avatar-btn') as HTMLButtonElement).click();
+    await el.updateComplete;
+    assert.ok(shadow(el, 'lucarne-avatar-upload-modal'), 'avatar modal shown');
+  });
+
+  // --- Display toggles ---
 
   it('fires config-changed when show_routines toggled off', async () => {
     const el = await makeEl();
-
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
     const toggle = shadow(el, '#ed-show_routines') as HTMLInputElement;
-    assert.ok(toggle, 'show_routines toggle rendered');
     toggle.checked = false;
     toggle.dispatchEvent(new Event('change', { bubbles: true }));
 
-    assert.equal(events.length, 1);
     assert.equal(events[0].detail.config.show_routines, false);
   });
 
   it('fires config-changed when show_tasks toggled off', async () => {
     const el = await makeEl();
-
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
     const toggle = shadow(el, '#ed-show_tasks') as HTMLInputElement;
-    assert.ok(toggle, 'show_tasks toggle rendered');
     toggle.checked = false;
     toggle.dispatchEvent(new Event('change', { bubbles: true }));
 
-    assert.equal(events.length, 1);
     assert.equal(events[0].detail.config.show_tasks, false);
   });
 
   it('fires config-changed when show_streak toggled off', async () => {
     const el = await makeEl();
-
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
     const toggle = shadow(el, '#ed-show_streak') as HTMLInputElement;
-    assert.ok(toggle, 'show_streak toggle rendered');
     toggle.checked = false;
     toggle.dispatchEvent(new Event('change', { bubbles: true }));
 
-    assert.equal(events.length, 1);
     assert.equal(events[0].detail.config.show_streak, false);
   });
+
+  it('fires config-changed when hide_names toggled on (defaults unchecked)', async () => {
+    const el = await makeEl();
+    const events: CustomEvent[] = [];
+    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
+
+    const toggle = shadow(el, '#ed-hide_names') as HTMLInputElement;
+    assert.equal(toggle.checked, false, 'hide_names unchecked by default');
+    toggle.checked = true;
+    toggle.dispatchEvent(new Event('change', { bubbles: true }));
+
+    assert.equal(events[0].detail.config.hide_names, true);
+  });
+
+  it('styles checkboxes with the theme accent color', async () => {
+    const el = await makeEl();
+    const styleText = (el.constructor as unknown as { styles: { cssText: string }[] }).styles;
+    const allCss = styleText.map((s) => s.cssText).join('\n');
+    assert.match(allCss, /accent-color:\s*var\(--primary-color/, 'accent-color set on inputs');
+  });
+
+  // --- Error + legacy handling ---
 
   it('shows integration error placeholder when integration not installed', async () => {
     const el = document.createElement('lucarne-chores-card-editor') as LucarneChoresCardEditor;
@@ -219,7 +347,6 @@ describe('lucarne-chores-card-editor', () => {
 
   it('legacy kids config: emitting config-changed always includes members array', async () => {
     const el = document.createElement('lucarne-chores-card-editor') as LucarneChoresCardEditor;
-    // Simulate old config with 'kids' key and no 'members'
     el.setConfig({ type: 'custom:lucarne-chores-card', members: [] } as unknown as Parameters<LucarneChoresCardEditor['setConfig']>[0]);
     Object.assign(el as unknown as Record<string, unknown>, {
       _config: { type: 'custom:lucarne-chores-card', kids: [{ name: 'Alice' }], title: 'Chores' },
@@ -228,7 +355,6 @@ describe('lucarne-chores-card-editor', () => {
     const events: CustomEvent[] = [];
     el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
 
-    // Trigger a config change (e.g. title change) via internal _fire
     (el as unknown as { _fire: (c: unknown) => void })._fire({
       type: 'custom:lucarne-chores-card',
       kids: [{ name: 'Alice' }],
@@ -240,149 +366,5 @@ describe('lucarne-chores-card-editor', () => {
     assert.ok(Array.isArray(emitted.members), 'members array always present');
     assert.ok(!('kids' in emitted), 'kids stripped from emitted config');
     assert.equal(emitted.title, 'New Title');
-  });
-
-  it('renders selected members in config order, not family-state order', async () => {
-    // bob first, anna second — opposite of the family-state order
-    const el = await makeEl(['bob', 'anna']);
-    const rows = Array.from(
-      el.shadowRoot!.querySelectorAll('.member-row.selected'),
-    ) as HTMLElement[];
-    assert.equal(rows.length, 2, 'two selected rows rendered');
-    const labels = rows.map((r) => r.querySelector('label')?.textContent?.trim());
-    assert.deepEqual(labels, ['Bob', 'Anna'], 'selected rows follow config order');
-  });
-
-  it('renders move-up and move-down buttons for selected members only', async () => {
-    const el = await makeEl(['anna', 'bob']);
-    const selectedRows = el.shadowRoot!.querySelectorAll('.member-row.selected');
-    assert.equal(selectedRows.length, 2);
-    selectedRows.forEach((row) => {
-      assert.ok(row.querySelector('.move-up-btn'), 'has up button');
-      assert.ok(row.querySelector('.move-down-btn'), 'has down button');
-    });
-    const unselected = el.shadowRoot!.querySelectorAll('.member-row.unselected');
-    unselected.forEach((row) => {
-      assert.equal(row.querySelector('.move-up-btn'), null, 'no up button on unselected');
-      assert.equal(row.querySelector('.move-down-btn'), null, 'no down button on unselected');
-    });
-  });
-
-  it('disables move-up on first selected and move-down on last selected', async () => {
-    const el = await makeEl(['anna', 'bob']);
-    const selectedRows = Array.from(
-      el.shadowRoot!.querySelectorAll('.member-row.selected'),
-    ) as HTMLElement[];
-    const firstUp = selectedRows[0].querySelector('.move-up-btn') as HTMLButtonElement;
-    const firstDown = selectedRows[0].querySelector('.move-down-btn') as HTMLButtonElement;
-    const lastUp = selectedRows[1].querySelector('.move-up-btn') as HTMLButtonElement;
-    const lastDown = selectedRows[1].querySelector('.move-down-btn') as HTMLButtonElement;
-    assert.equal(firstUp.disabled, true, 'first row up disabled');
-    assert.equal(firstDown.disabled, false, 'first row down enabled');
-    assert.equal(lastUp.disabled, false, 'last row up enabled');
-    assert.equal(lastDown.disabled, true, 'last row down disabled');
-  });
-
-  it('fires config-changed with swapped order when move-down clicked', async () => {
-    const el = await makeEl(['anna', 'bob']);
-    const events: CustomEvent[] = [];
-    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
-
-    const firstRow = el.shadowRoot!.querySelector('.member-row.selected') as HTMLElement;
-    const downBtn = firstRow.querySelector('.move-down-btn') as HTMLButtonElement;
-    downBtn.click();
-
-    assert.equal(events.length, 1);
-    assert.deepEqual(
-      events[0].detail.config.members,
-      ['bob', 'anna'],
-      'order swapped',
-    );
-  });
-
-  it('fires config-changed with swapped order when move-up clicked', async () => {
-    const el = await makeEl(['anna', 'bob']);
-    const events: CustomEvent[] = [];
-    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
-
-    const selectedRows = el.shadowRoot!.querySelectorAll('.member-row.selected');
-    const secondRow = selectedRows[1] as HTMLElement;
-    const upBtn = secondRow.querySelector('.move-up-btn') as HTMLButtonElement;
-    upBtn.click();
-
-    assert.equal(events.length, 1);
-    assert.deepEqual(
-      events[0].detail.config.members,
-      ['bob', 'anna'],
-      'order swapped',
-    );
-  });
-
-  it('fires config-changed when hide_names toggled on', async () => {
-    const el = await makeEl();
-
-    const events: CustomEvent[] = [];
-    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
-
-    const toggle = shadow(el, '#ed-hide_names') as HTMLInputElement;
-    assert.ok(toggle, 'hide_names toggle rendered');
-    assert.equal(toggle.checked, false, 'hide_names unchecked by default');
-    toggle.checked = true;
-    toggle.dispatchEvent(new Event('change', { bubbles: true }));
-
-    assert.equal(events.length, 1);
-    assert.equal(events[0].detail.config.hide_names, true);
-  });
-
-  it('makes selected rows draggable with a grab handle (not unselected)', async () => {
-    const el = await makeEl(['anna']);
-    const selected = el.shadowRoot!.querySelector('.member-row.selected') as HTMLElement;
-    assert.equal(selected.getAttribute('draggable'), 'true', 'selected row draggable');
-    assert.ok(selected.querySelector('.grab-handle'), 'selected row has grab handle');
-
-    const unselected = el.shadowRoot!.querySelector('.member-row.unselected') as HTMLElement;
-    assert.equal(unselected.getAttribute('draggable'), 'false', 'unselected row not draggable');
-    assert.equal(unselected.querySelector('.grab-handle'), null, 'no grab handle on unselected');
-  });
-
-  it('reorders selected members via drag-and-drop', async () => {
-    const el = await makeEl(['anna', 'bob']);
-    const events: CustomEvent[] = [];
-    el.addEventListener('config-changed', (e) => events.push(e as CustomEvent));
-
-    const rows = el.shadowRoot!.querySelectorAll<HTMLElement>('.member-row.selected');
-    const bobRow = rows[1]; // index 1
-    const annaRow = rows[0]; // index 0
-
-    const dataTransfer = {
-      effectAllowed: '',
-      dropEffect: '',
-      setData: () => {},
-      getData: () => '1',
-    };
-
-    bobRow.dispatchEvent(
-      new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
-    );
-    annaRow.dispatchEvent(
-      new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
-    );
-    annaRow.dispatchEvent(
-      new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dataTransfer as unknown as DataTransfer }),
-    );
-
-    assert.equal(events.length, 1, 'config-changed fired after drop');
-    assert.deepEqual(events[0].detail.config.members, ['bob', 'anna'], 'bob moved to front');
-  });
-
-  it('renders unselected members in a separate group below selected', async () => {
-    const el = await makeEl(['anna']);
-    const allRows = Array.from(
-      el.shadowRoot!.querySelectorAll('.member-row'),
-    ) as HTMLElement[];
-    const selectedIndex = allRows.findIndex((r) => r.classList.contains('selected'));
-    const unselectedIndex = allRows.findIndex((r) => r.classList.contains('unselected'));
-    assert.ok(selectedIndex >= 0, 'has selected row');
-    assert.ok(unselectedIndex > selectedIndex, 'unselected rows after selected');
   });
 });

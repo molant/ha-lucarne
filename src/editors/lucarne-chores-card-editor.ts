@@ -32,29 +32,35 @@ export class LucarneChoresCardEditor extends LitElement {
       .section-label:first-of-type {
         margin-top: 0;
       }
-      .member-row,
-      .toggle-row {
+      /* Single bordered list of all members, matching the Today card editor's
+         section-order control. */
+      .members-list {
+        display: flex;
+        flex-direction: column;
+        border: 1px solid var(--divider-color, rgba(0, 0, 0, 0.12));
+        border-radius: var(--lucarne-radius-md);
+        overflow: hidden;
+      }
+      .member-row {
         display: flex;
         align-items: center;
         gap: var(--lucarne-spacing-sm);
-        padding: var(--lucarne-spacing-xs) 0;
+        padding: var(--lucarne-spacing-sm) var(--lucarne-spacing-md);
+        background: var(--ha-card-background, var(--card-background-color, #fff));
       }
-      .member-row label,
-      .toggle-row label {
-        font-size: var(--lucarne-fs-md);
-        color: var(--lucarne-on-surface);
-        cursor: pointer;
-        flex: 1;
-      }
-      .member-row.selected {
-        cursor: grab;
+      .member-row + .member-row {
+        border-top: 1px solid var(--divider-color, rgba(0, 0, 0, 0.06));
       }
       .member-row.dragging {
         opacity: 0.5;
       }
       .member-row.drag-over {
         background: var(--secondary-background-color, rgba(0, 0, 0, 0.04));
-        border-radius: var(--lucarne-radius-sm);
+      }
+      /* Dim hidden members so the eye state reads at a glance. */
+      .member-row.hidden-member .member-avatar,
+      .member-row.hidden-member .member-name {
+        opacity: 0.45;
       }
       .grab-handle {
         cursor: grab;
@@ -67,6 +73,15 @@ export class LucarneChoresCardEditor extends LitElement {
       }
       .grab-handle:active {
         cursor: grabbing;
+      }
+      .member-name {
+        flex: 1;
+        min-width: 0;
+        font-size: var(--lucarne-fs-md);
+        color: var(--lucarne-on-surface);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .move-btns {
         display: flex;
@@ -99,45 +114,64 @@ export class LucarneChoresCardEditor extends LitElement {
         opacity: 0.3;
         cursor: not-allowed;
       }
-      .unselected-hint {
-        font-size: var(--lucarne-fs-sm);
+      .row-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex-shrink: 0;
+      }
+      .icon-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
         color: var(--lucarne-on-surface-muted);
-        font-style: italic;
-        margin: var(--lucarne-spacing-xs) 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: var(--lucarne-radius-sm);
+      }
+      .icon-btn:hover {
+        background: rgba(0, 0, 0, 0.05);
+        color: var(--lucarne-on-surface);
+      }
+      .icon-btn ha-icon {
+        --mdc-icon-size: 20px;
+        width: 20px;
+        height: 20px;
       }
       .member-avatar {
         width: 28px;
         height: 28px;
         border-radius: 50%;
         object-fit: cover;
-        border: 1px solid rgba(0,0,0,0.1);
+        border: 1px solid rgba(0, 0, 0, 0.1);
         flex-shrink: 0;
         font-size: 1.1rem;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: rgba(0,0,0,0.05);
+        background: rgba(0, 0, 0, 0.05);
         overflow: hidden;
       }
-      .change-avatar-btn {
-        background: none;
-        border: none;
-        padding: 2px 6px;
-        font-size: 1rem;
-        line-height: 1;
-        cursor: pointer;
-        color: var(--lucarne-on-surface-muted);
-        flex-shrink: 0;
-        border-radius: var(--lucarne-radius-sm);
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: var(--lucarne-spacing-sm);
+        padding: var(--lucarne-spacing-xs) 0;
       }
-      .change-avatar-btn:hover {
-        background: rgba(0,0,0,0.05);
+      .toggle-row label {
+        font-size: var(--lucarne-fs-md);
+        color: var(--lucarne-on-surface);
+        cursor: pointer;
+        flex: 1;
       }
       input[type='checkbox'] {
         width: 18px;
         height: 18px;
         cursor: pointer;
         flex-shrink: 0;
+        accent-color: var(--primary-color, #03a9f4);
       }
       input[type='text'] {
         width: 100%;
@@ -212,35 +246,66 @@ export class LucarneChoresCardEditor extends LitElement {
     fireEvent(this, 'config-changed', { config: out as unknown as LucarneChoresCardConfig });
   }
 
+  /**
+   * Resolve the editor's unified members list from config + family state.
+   *
+   * `members` is the full display order (visible AND hidden); a member not yet
+   * placed is appended (in family order) and treated as hidden-by-default. The
+   * card renders `members` minus `hidden`, so a hidden member keeps its slot.
+   */
+  private _membersModel(): { ordered: MemberSummary[]; hidden: Set<string> } {
+    const family = [...(this._familyState?.members ?? []), SYNTHETIC_HOUSEHOLD];
+    const slugToMember = new Map(family.map((m) => [m.slug, m]));
+    const placed = this._config?.members ?? [];
+    const inPlaced = new Set(placed);
+    const orderedSlugs = [
+      ...placed.filter((s) => slugToMember.has(s)),
+      ...family.filter((m) => !inPlaced.has(m.slug)).map((m) => m.slug),
+    ];
+    const explicitHidden = new Set(this._config?.hidden_members ?? []);
+    const hidden = new Set<string>();
+    for (const s of orderedSlugs) {
+      if (explicitHidden.has(s) || !inPlaced.has(s)) hidden.add(s);
+    }
+    return { ordered: orderedSlugs.map((s) => slugToMember.get(s)!), hidden };
+  }
+
+  /** Persist the full order + hidden set (omitting hidden_members when empty). */
+  private _commitMembers(orderedSlugs: string[], hidden: Set<string>) {
+    const out = { ...this._config! } as Record<string, unknown>;
+    out['members'] = orderedSlugs;
+    if (hidden.size) out['hidden_members'] = [...hidden];
+    else delete out['hidden_members'];
+    this._fire(out as unknown as LucarneChoresCardConfig);
+  }
+
   private _titleChanged(e: Event) {
     const v = (e.target as HTMLInputElement).value;
     this._fire({ ...this._config!, title: v || undefined });
   }
 
-  private _memberToggled(slug: string, checked: boolean) {
-    const current = [...(this._config?.members ?? [])];
-    if (checked) {
-      if (!current.includes(slug)) current.push(slug);
-    } else {
-      const idx = current.indexOf(slug);
-      if (idx >= 0) current.splice(idx, 1);
-    }
-    this._fire({ ...this._config!, members: current });
+  private _toggleVisibility(slug: string) {
+    const { ordered, hidden } = this._membersModel();
+    const next = new Set(hidden);
+    if (next.has(slug)) next.delete(slug);
+    else next.add(slug);
+    this._commitMembers(ordered.map((m) => m.slug), next);
   }
 
   private _moveMember(slug: string, direction: -1 | 1) {
-    const current = [...(this._config?.members ?? [])];
-    const idx = current.indexOf(slug);
+    const { ordered, hidden } = this._membersModel();
+    const slugs = ordered.map((m) => m.slug);
+    const idx = slugs.indexOf(slug);
     if (idx < 0) return;
     const target = idx + direction;
-    if (target < 0 || target >= current.length) return;
-    [current[idx], current[target]] = [current[target], current[idx]];
-    this._fire({ ...this._config!, members: current });
+    if (target < 0 || target >= slugs.length) return;
+    [slugs[idx], slugs[target]] = [slugs[target], slugs[idx]];
+    this._commitMembers(slugs, hidden);
   }
 
-  // Drag-to-reorder for the selected members list, mirroring the Today card
-  // editor's section-order control. The rendered selected rows map 1:1 (in
-  // order) to _config.members, so indices reorder the slug array directly.
+  // Drag-to-reorder the unified members list, mirroring the Today card editor.
+  // Reordering never changes a member's hidden state, so a hidden member can be
+  // dragged into any slot and still stay off the card.
   private _onDragStart(index: number, e: DragEvent) {
     this._dragIndex = index;
     if (e.dataTransfer) {
@@ -263,11 +328,12 @@ export class LucarneChoresCardEditor extends LitElement {
     this._dragIndex = null;
     this._dragOverIndex = null;
     if (from === null || from === index) return;
-    const current = [...(this._config?.members ?? [])];
-    if (from < 0 || from >= current.length || index < 0 || index >= current.length) return;
-    const [moved] = current.splice(from, 1);
-    current.splice(index, 0, moved);
-    this._fire({ ...this._config!, members: current });
+    const { ordered, hidden } = this._membersModel();
+    const slugs = ordered.map((m) => m.slug);
+    if (from < 0 || from >= slugs.length || index < 0 || index >= slugs.length) return;
+    const [moved] = slugs.splice(from, 1);
+    slugs.splice(index, 0, moved);
+    this._commitMembers(slugs, hidden);
   }
 
   private _onDragEnd() {
@@ -301,79 +367,71 @@ export class LucarneChoresCardEditor extends LitElement {
       return html`<div class="loading">Loading members…</div>`;
     }
 
-    const allMembers = [...this._familyState.members, SYNTHETIC_HOUSEHOLD];
-    const selectedSlugs = this._config.members ?? [];
-    const slugToMember = new Map(allMembers.map((m) => [m.slug, m]));
-    const selectedMembers = selectedSlugs
-      .map((slug) => slugToMember.get(slug))
-      .filter((m): m is MemberSummary => Boolean(m));
-    const unselectedMembers = allMembers.filter((m) => !selectedSlugs.includes(m.slug));
+    const { ordered, hidden } = this._membersModel();
 
-    const renderRow = (
-      m: MemberSummary,
-      opts: { selected: boolean; isFirst?: boolean; isLast?: boolean; index?: number },
-    ) => {
-      const i = opts.index ?? -1;
-      const dragClasses = opts.selected
-        ? `${this._dragIndex === i ? 'dragging' : ''} ${this._dragOverIndex === i ? 'drag-over' : ''}`
-        : '';
+    const renderRow = (m: MemberSummary, index: number) => {
+      const isHidden = hidden.has(m.slug);
+      const dragging = this._dragIndex === index ? 'dragging' : '';
+      const dragOver = this._dragOverIndex === index ? 'drag-over' : '';
       return html`
-      <div
-        class="member-row ${opts.selected ? 'selected' : 'unselected'} ${dragClasses}"
-        draggable=${opts.selected ? 'true' : 'false'}
-        @dragstart=${opts.selected ? (e: DragEvent) => this._onDragStart(i, e) : null}
-        @dragover=${opts.selected ? (e: DragEvent) => this._onDragOver(i, e) : null}
-        @drop=${opts.selected ? (e: DragEvent) => this._onDrop(i, e) : null}
-        @dragend=${opts.selected ? this._onDragEnd : null}
-      >
-        ${opts.selected
-          ? html`<span class="grab-handle" aria-hidden="true" title="Drag to reorder">≡</span>`
-          : ''}
-        <input
-          type="checkbox"
-          id="member-${m.slug}"
-          .checked=${opts.selected}
-          @change=${(e: Event) =>
-            this._memberToggled(m.slug, (e.target as HTMLInputElement).checked)}
-        />
-        ${opts.selected
-          ? html`
-              <div class="move-btns">
-                <button
-                  class="move-up-btn"
+        <div
+          class="member-row ${isHidden ? 'hidden-member' : ''} ${dragging} ${dragOver}"
+          data-slug=${m.slug}
+          draggable="true"
+          @dragstart=${(e: DragEvent) => this._onDragStart(index, e)}
+          @dragover=${(e: DragEvent) => this._onDragOver(index, e)}
+          @drop=${(e: DragEvent) => this._onDrop(index, e)}
+          @dragend=${this._onDragEnd}
+        >
+          <span class="grab-handle" aria-hidden="true" title="Drag to reorder">≡</span>
+          <div class="move-btns">
+            <button
+              class="move-up-btn"
+              type="button"
+              title="Move up"
+              aria-label="Move ${m.name} up"
+              ?disabled=${index === 0}
+              @click=${() => this._moveMember(m.slug, -1)}
+            >▲</button>
+            <button
+              class="move-down-btn"
+              type="button"
+              title="Move down"
+              aria-label="Move ${m.name} down"
+              ?disabled=${index === ordered.length - 1}
+              @click=${() => this._moveMember(m.slug, 1)}
+            >▼</button>
+          </div>
+          <div class="member-avatar">
+            ${m.avatar && m.avatar.startsWith('/local/')
+              ? html`<img src=${m.avatar} alt=${m.name} style="width:100%;height:100%;object-fit:cover;" />`
+              : html`${m.avatar ?? m.name[0]}`}
+          </div>
+          <span class="member-name">${m.name}</span>
+          <div class="row-actions">
+            <button
+              class="icon-btn visibility-btn"
+              type="button"
+              aria-label="${isHidden ? 'Show' : 'Hide'} ${m.name} on the card"
+              title="${isHidden ? 'Show on card' : 'Hide from card'}"
+              @click=${() => this._toggleVisibility(m.slug)}
+            >
+              <ha-icon icon=${isHidden ? 'mdi:eye-off-outline' : 'mdi:eye-outline'}></ha-icon>
+            </button>
+            ${m.slug !== 'household'
+              ? html`<button
+                  class="icon-btn change-avatar-btn"
                   type="button"
-                  title="Move up"
-                  aria-label="Move ${m.name} up"
-                  ?disabled=${opts.isFirst}
-                  @click=${() => this._moveMember(m.slug, -1)}
-                >▲</button>
-                <button
-                  class="move-down-btn"
-                  type="button"
-                  title="Move down"
-                  aria-label="Move ${m.name} down"
-                  ?disabled=${opts.isLast}
-                  @click=${() => this._moveMember(m.slug, 1)}
-                >▼</button>
-              </div>
-            `
-          : ''}
-        <div class="member-avatar">
-          ${m.avatar && m.avatar.startsWith('/local/')
-            ? html`<img src=${m.avatar} alt=${m.name} style="width:100%;height:100%;object-fit:cover;" />`
-            : html`${m.avatar ?? m.name[0]}`}
+                  title="Edit avatar"
+                  aria-label="Edit avatar for ${m.name}"
+                  @click=${() => { this._avatarModalMember = m; }}
+                >
+                  <ha-icon icon="mdi:pencil-outline"></ha-icon>
+                </button>`
+              : ''}
+          </div>
         </div>
-        <label for="member-${m.slug}">${m.name}</label>
-        ${m.slug !== 'household'
-          ? html`<button
-              class="change-avatar-btn"
-              title="Edit avatar"
-              aria-label="Edit avatar for ${m.name}"
-              @click=${() => { this._avatarModalMember = m; }}
-            >✏️</button>`
-          : ''}
-      </div>
-    `;
+      `;
     };
 
     return html`
@@ -387,18 +445,9 @@ export class LucarneChoresCardEditor extends LitElement {
       />
 
       <div class="section-label">Members</div>
-      ${selectedMembers.map((m, idx) =>
-        renderRow(m, {
-          selected: true,
-          isFirst: idx === 0,
-          isLast: idx === selectedMembers.length - 1,
-          index: idx,
-        }),
-      )}
-      ${unselectedMembers.length > 0 && selectedMembers.length > 0
-        ? html`<div class="unselected-hint">Available members</div>`
-        : ''}
-      ${unselectedMembers.map((m) => renderRow(m, { selected: false }))}
+      <div class="members-list" role="list" aria-label="Members (drag to reorder, eye to show/hide)">
+        ${ordered.map((m, idx) => renderRow(m, idx))}
+      </div>
 
       ${this._avatarModalMember
         ? html`<lucarne-avatar-upload-modal
