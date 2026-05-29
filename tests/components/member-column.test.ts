@@ -85,6 +85,30 @@ describe('lucarne-member-column', () => {
     assert.equal(rows.length, 1);
   });
 
+  it('renders a weather glyph in dated time-of-day headers but not Anytime', async () => {
+    const morning = makeTask({
+      uid: 'm1',
+      summary: 'Get dressed',
+      metadata: { ...makeTask().metadata, type: 'routine', time_of_day: 'morning' },
+    });
+    const anytime = makeTask({
+      uid: 'a1',
+      summary: 'Tidy room',
+      metadata: { ...makeTask().metadata, type: 'routine', time_of_day: 'anytime' },
+    });
+    const el = makeEl([morning, anytime]);
+    await el.updateComplete;
+
+    const headers = shadowAll(el, '.section-header');
+    const morningHeader = headers.find((h) => h.textContent?.trim() === 'Morning');
+    const anytimeHeader = headers.find((h) => h.textContent?.trim() === 'Anytime');
+
+    assert.ok(morningHeader, 'Morning header present');
+    assert.ok(morningHeader!.querySelector('.section-icon svg'), 'Morning header has an icon');
+    assert.ok(anytimeHeader, 'Anytime header present');
+    assert.equal(anytimeHeader!.querySelector('.section-icon'), null, 'Anytime header has no icon');
+  });
+
   it('buckets an untagged chore into Anytime (no separate Tasks section)', async () => {
     const chore = makeTask({
       uid: 'c1',
