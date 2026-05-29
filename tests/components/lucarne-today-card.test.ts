@@ -509,22 +509,26 @@ describe('lucarne-today-card — max_tasks clamp', () => {
 });
 
 describe('lucarne-today-card — fill height', () => {
-  it('pins the card body to the shared fill-height constant', async () => {
+  it('pins the card to the shared outer fill-height constant', async () => {
     const el = await makeCard({});
     const body = el.shadowRoot!.querySelector('.card-body');
     assert.ok(body, '.card-body rendered');
+    assert.ok(el.shadowRoot!.querySelector('ha-card'), 'ha-card rendered');
 
     // jsdom does not resolve CSS custom properties / calc(), so assert against
-    // the component's static styles instead of computed values.
+    // the component's static styles instead of computed values. The shared
+    // outer height lives on ha-card; the body flexes to fill it.
     const styleText = (
       (el.constructor as { styles?: Array<{ cssText?: string }> }).styles ?? []
     )
       .map((s) => s.cssText ?? '')
       .join('\n');
+    // ha-card sets a fixed `height: var(--lucarne-card-fill-height)`; the
+    // leading [^-] avoids matching a min-/max-height variant.
     assert.match(
       styleText,
-      /min-height:\s*var\(--lucarne-card-fill-height\)/,
-      'card body uses the shared fill-height variable',
+      /[^-]height:\s*var\(--lucarne-card-fill-height\)/,
+      'card uses the shared fill-height variable on ha-card',
     );
   });
 });
