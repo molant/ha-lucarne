@@ -104,9 +104,17 @@ export class LucarneTodayCard extends LitElement {
       .card-body {
         display: flex;
         flex-direction: column;
+        /* Match the calendar card's scroll-area height so the two line up. */
+        min-height: var(--lucarne-card-fill-height);
       }
       .section + .section {
         border-top: 1px solid rgba(0, 0, 0, 0.07);
+      }
+      /* Tasks absorb any vertical slack so the card fills to the shared height
+         with the list at the bottom rather than a blank gap. */
+      .section-tasks {
+        flex: 1 1 auto;
+        min-height: 0;
       }
     `,
   ];

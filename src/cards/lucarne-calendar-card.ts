@@ -106,8 +106,9 @@ export class LucarneCalendarCard extends LitElement {
       }
       .grid-area {
         overflow: auto;
-        max-height: calc(100vh - 280px);
-        max-height: calc(100dvh - 280px);
+        /* Shared constant so the Today card matches this card's height exactly. */
+        min-height: var(--lucarne-card-fill-height);
+        max-height: var(--lucarne-card-fill-height);
         touch-action: pan-y;
         -webkit-overflow-scrolling: touch;
       }

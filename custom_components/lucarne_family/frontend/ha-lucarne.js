@@ -22,7 +22,7 @@ let Ha = class {
     return this.cssText;
   }
 };
-const Ba = (t) => new Ha(typeof t == "string" ? t : t + "", void 0, vr), E = (t, ...e) => {
+const Ba = (t) => new Ha(typeof t == "string" ? t : t + "", void 0, vr), M = (t, ...e) => {
   const r = t.length === 1 ? t[0] : e.reduce((a, i, n) => a + ((s) => {
     if (s._$cssResult$ === !0) return s.cssText;
     if (typeof s == "number") return s;
@@ -45,7 +45,7 @@ const Ba = (t) => new Ha(typeof t == "string" ? t : t + "", void 0, vr), E = (t,
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const { is: Di, defineProperty: Ei, getOwnPropertyDescriptor: Mi, getOwnPropertyNames: Si, getOwnPropertySymbols: Ti, getPrototypeOf: Ai } = Object, $e = globalThis, Lr = $e.trustedTypes, Oi = Lr ? Lr.emptyScript : "", Zt = $e.reactiveElementPolyfillSupport, ut = (t, e) => t, Lt = { toAttribute(t, e) {
+const { is: Di, defineProperty: Mi, getOwnPropertyDescriptor: Ei, getOwnPropertyNames: Si, getOwnPropertySymbols: Ti, getPrototypeOf: Ai } = Object, $e = globalThis, Lr = $e.trustedTypes, Oi = Lr ? Lr.emptyScript : "", Zt = $e.reactiveElementPolyfillSupport, ut = (t, e) => t, Lt = { toAttribute(t, e) {
   switch (e) {
     case Boolean:
       t = t ? Oi : null;
@@ -85,11 +85,11 @@ let We = class extends HTMLElement {
   static createProperty(e, r = Hr) {
     if (r.state && (r.attribute = !1), this._$Ei(), this.prototype.hasOwnProperty(e) && ((r = Object.create(r)).wrapped = !0), this.elementProperties.set(e, r), !r.noAccessor) {
       const a = Symbol(), i = this.getPropertyDescriptor(e, a, r);
-      i !== void 0 && Ei(this.prototype, e, i);
+      i !== void 0 && Mi(this.prototype, e, i);
     }
   }
   static getPropertyDescriptor(e, r, a) {
-    const { get: i, set: n } = Mi(this.prototype, e) ?? { get() {
+    const { get: i, set: n } = Ei(this.prototype, e) ?? { get() {
       return this[r];
     }, set(s) {
       this[r] = s;
@@ -556,7 +556,7 @@ tr == null || tr({ LitElement: D });
  * Copyright 2017 Google LLC
  * SPDX-License-Identifier: BSD-3-Clause
  */
-const M = (t) => (e, r) => {
+const E = (t) => (e, r) => {
   r !== void 0 ? r.addInitializer(() => {
     customElements.define(t, e);
   }) : customElements.define(t, e);
@@ -623,7 +623,7 @@ function _r(t, e) {
     } });
   };
 }
-const N = E`
+const N = M`
   :host {
     --lucarne-spacing-xs: 4px;
     --lucarne-spacing-sm: 8px;
@@ -661,6 +661,17 @@ const N = E`
     --lucarne-skeleton-highlight: rgba(0, 0, 0, 0.12);
     --lucarne-pan-easing: cubic-bezier(0.32, 0.72, 0, 1);
     --lucarne-pan-duration: 240ms;
+
+    /* Constant fill height shared by the Today + Calendar cards so they line up
+       side by side. The 240px offset (header/pills/chrome) leaves slightly more
+       vertical room than the cards' previous 280px so the iPad space is used. */
+    --lucarne-card-fill-height: calc(100vh - 240px);
+  }
+
+  @supports (height: 100dvh) {
+    :host {
+      --lucarne-card-fill-height: calc(100dvh - 240px);
+    }
   }
 
   @media (prefers-color-scheme: dark) {
@@ -983,7 +994,7 @@ let Ze = class extends D {
 };
 Ze.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         padding: var(--lucarne-spacing-md) var(--lucarne-spacing-lg);
@@ -1088,7 +1099,7 @@ Wt([
   g({ type: Number })
 ], Ze.prototype, "windowDays", 2);
 Ze = Wt([
-  M("lucarne-agenda-strip")
+  E("lucarne-agenda-strip")
 ], Ze);
 const Gr = ne`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
   <circle cx="12" cy="12" r="4"/>
@@ -1219,7 +1230,7 @@ let _t = class extends D {
 };
 _t.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         padding: var(--lucarne-spacing-md) var(--lucarne-spacing-lg);
@@ -1292,7 +1303,7 @@ wr([
   g({ type: Array })
 ], _t.prototype, "forecast", 2);
 _t = wr([
-  M("lucarne-weather-block")
+  E("lucarne-weather-block")
 ], _t);
 var un = Object.defineProperty, pn = Object.getOwnPropertyDescriptor, Yt = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? pn(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -1326,7 +1337,7 @@ let Je = class extends D {
     `;
   }
 };
-Je.styles = E`
+Je.styles = M`
     :host {
       display: block;
     }
@@ -1368,7 +1379,7 @@ Yt([
   g()
 ], Je.prototype, "avatar", 2);
 Je = Yt([
-  M("lucarne-member-avatar")
+  E("lucarne-member-avatar")
 ], Je);
 var mn = Object.defineProperty, fn = Object.getOwnPropertyDescriptor, Vt = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? fn(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -1450,7 +1461,7 @@ let et = class extends D {
     return t;
   }
 };
-et.styles = E`
+et.styles = M`
     :host {
       display: block;
     }
@@ -1549,7 +1560,7 @@ Vt([
   g({ type: Boolean, reflect: !0 })
 ], et.prototype, "compact", 2);
 et = Vt([
-  M("lucarne-task-row")
+  E("lucarne-task-row")
 ], et);
 var vn = Object.defineProperty, yn = Object.getOwnPropertyDescriptor, De = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? yn(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -1689,7 +1700,7 @@ let de = class extends D {
 };
 de.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         padding: var(--lucarne-spacing-md) var(--lucarne-spacing-lg);
@@ -1796,7 +1807,7 @@ De([
   g({ type: Boolean })
 ], de.prototype, "refillOnComplete", 2);
 de = De([
-  M("lucarne-tasks-summary")
+  E("lucarne-tasks-summary")
 ], de);
 var wn = Object.defineProperty, xn = Object.getOwnPropertyDescriptor, Qa = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? xn(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -1822,7 +1833,7 @@ let Bt = class extends D {
 };
 Bt.styles = [
   N,
-  E`
+  M`
       :host {
         display: flex;
         flex-wrap: wrap;
@@ -1869,7 +1880,7 @@ Qa([
   g({ type: Array })
 ], Bt.prototype, "entries", 2);
 Bt = Qa([
-  M("lucarne-presence-pills")
+  E("lucarne-presence-pills")
 ], Bt);
 const tt = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"];
 function xr(t) {
@@ -2051,10 +2062,10 @@ function Dn(t, e = /* @__PURE__ */ new Date()) {
   }
   return t.mode === "yearly" ? e.getMonth() + 1 !== t.month || e.getDate() !== t.dayOfMonth ? !1 : r === 1 ? !0 : (e.getFullYear() - 1970) % r === 0 : !1;
 }
-var En = Object.defineProperty, Mn = Object.getOwnPropertyDescriptor, $r = (t, e, r, a) => {
-  for (var i = a > 1 ? void 0 : a ? Mn(e, r) : e, n = t.length - 1, s; n >= 0; n--)
+var Mn = Object.defineProperty, En = Object.getOwnPropertyDescriptor, $r = (t, e, r, a) => {
+  for (var i = a > 1 ? void 0 : a ? En(e, r) : e, n = t.length - 1, s; n >= 0; n--)
     (s = t[n]) && (i = (a ? s(e, r, i) : s(i)) || i);
-  return a && i && En(e, r, i), i;
+  return a && i && Mn(e, r, i), i;
 };
 let wt = class extends D {
   constructor() {
@@ -2094,7 +2105,7 @@ let wt = class extends D {
 };
 wt.styles = [
   N,
-  E`
+  M`
       :host {
         display: inline-block;
       }
@@ -2134,7 +2145,7 @@ $r([
   g({ attribute: !1 })
 ], wt.prototype, "tasksByMember", 2);
 wt = $r([
-  M("lucarne-family-ready-pill")
+  E("lucarne-family-ready-pill")
 ], wt);
 var Sn = Object.defineProperty, Tn = Object.getOwnPropertyDescriptor, je = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? Tn(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -2430,7 +2441,7 @@ let me = class extends D {
 };
 me.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         width: 100%;
@@ -2463,9 +2474,17 @@ me.styles = [
       .card-body {
         display: flex;
         flex-direction: column;
+        /* Match the calendar card's scroll-area height so the two line up. */
+        min-height: var(--lucarne-card-fill-height);
       }
       .section + .section {
         border-top: 1px solid rgba(0, 0, 0, 0.07);
+      }
+      /* Tasks absorb any vertical slack so the card fills to the shared height
+         with the list at the bottom rather than a blank gap. */
+      .section-tasks {
+        flex: 1 1 auto;
+        min-height: 0;
       }
     `
 ];
@@ -2488,9 +2507,9 @@ je([
   v()
 ], me.prototype, "_familyState", 2);
 me = je([
-  M("lucarne-today-card")
+  E("lucarne-today-card")
 ], me);
-const ei = E`
+const ei = M`
   :host {
     display: flex;
     flex-direction: column;
@@ -2719,7 +2738,7 @@ var kr = function(t, e, r, a) {
   a = a || {}, r = r ?? {};
   var i = new Event(e, { bubbles: a.bubbles === void 0 || a.bubbles, cancelable: !!a.cancelable, composed: a.composed === void 0 || a.composed });
   return i.detail = r, t.dispatchEvent(i), i;
-}, In = Object.defineProperty, Rn = Object.getOwnPropertyDescriptor, Et = (t, e, r, a) => {
+}, In = Object.defineProperty, Rn = Object.getOwnPropertyDescriptor, Mt = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? Rn(e, r) : e, n = t.length - 1, s; n >= 0; n--)
     (s = t[n]) && (i = (a ? s(e, r, i) : s(i)) || i);
   return a && i && In(e, r, i), i;
@@ -2790,7 +2809,7 @@ let Ne = class extends D {
     `;
   }
 };
-Ne.styles = E`
+Ne.styles = M`
     .reorder-list {
       display: flex;
       flex-direction: column;
@@ -2847,20 +2866,20 @@ Ne.styles = E`
       cursor: not-allowed;
     }
   `;
-Et([
+Mt([
   g({ attribute: !1 })
 ], Ne.prototype, "items", 2);
-Et([
+Mt([
   g()
 ], Ne.prototype, "label", 2);
-Et([
+Mt([
   v()
 ], Ne.prototype, "_dragIndex", 2);
-Et([
+Mt([
   v()
 ], Ne.prototype, "_dragOverIndex", 2);
-Ne = Et([
-  M("lucarne-reorder-list")
+Ne = Mt([
+  E("lucarne-reorder-list")
 ], Ne);
 var Nn = Object.defineProperty, zn = Object.getOwnPropertyDescriptor, Xt = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? zn(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -2871,7 +2890,7 @@ const la = {
   calendar: "Calendar",
   weather: "Weather",
   tasks: "Tasks"
-}, Ln = E`
+}, Ln = M`
   .section-label-cell {
     font-size: var(--lucarne-fs-md);
     color: var(--lucarne-on-surface);
@@ -3139,7 +3158,7 @@ Xt([
   v()
 ], rt.prototype, "_haReady", 2);
 rt = Xt([
-  M("lucarne-today-card-editor")
+  E("lucarne-today-card-editor")
 ], rt);
 function ri(t, e) {
   var a, i, n;
@@ -3484,7 +3503,7 @@ let xt = class extends D {
 };
 xt.styles = [
   N,
-  E`
+  M`
       :host {
         display: flex;
         flex-wrap: wrap;
@@ -3534,7 +3553,7 @@ Cr([
   g({ type: Object })
 ], xt.prototype, "visibleIds", 2);
 xt = Cr([
-  M("lucarne-visibility-pills")
+  E("lucarne-visibility-pills")
 ], xt);
 /**
  * @license
@@ -3622,7 +3641,7 @@ let fe = class extends D {
 };
 fe.styles = [
   N,
-  E`
+  M`
       :host {
         /* Position/size is controlled by inline style from the parent day column.
          * display:block so the host fills its inline-style-determined box. */
@@ -3681,9 +3700,9 @@ Ue([
   g({ type: Number })
 ], fe.prototype, "heightPercent", 2);
 fe = Ue([
-  M("lucarne-calendar-event-block")
+  E("lucarne-calendar-event-block")
 ], fe);
-var rs = Object.defineProperty, as = Object.getOwnPropertyDescriptor, Mt = (t, e, r, a) => {
+var rs = Object.defineProperty, as = Object.getOwnPropertyDescriptor, Et = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? as(e, r) : e, n = t.length - 1, s; n >= 0; n--)
     (s = t[n]) && (i = (a ? s(e, r, i) : s(i)) || i);
   return a && i && rs(e, r, i), i;
@@ -3742,7 +3761,7 @@ let ze = class extends D {
 };
 ze.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
       }
@@ -3818,20 +3837,20 @@ ze.styles = [
       }
     `
 ];
-Mt([
+Et([
   g({ type: Array })
 ], ze.prototype, "events", 2);
-Mt([
+Et([
   g({ type: String })
 ], ze.prototype, "label", 2);
-Mt([
+Et([
   g({ type: Object })
 ], ze.prototype, "eventColors", 2);
-Mt([
+Et([
   v()
 ], ze.prototype, "_open", 2);
-ze = Mt([
-  M("lucarne-out-of-band-stub")
+ze = Et([
+  E("lucarne-out-of-band-stub")
 ], ze);
 var is = Object.defineProperty, ns = Object.getOwnPropertyDescriptor, qt = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? ns(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -3869,7 +3888,7 @@ let at = class extends D {
 };
 at.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         width: 100%;
@@ -3930,7 +3949,7 @@ qt([
   g({ type: Number })
 ], at.prototype, "hourHeightPx", 2);
 at = qt([
-  M("lucarne-skeleton-day-column")
+  E("lucarne-skeleton-day-column")
 ], at);
 var ls = Object.defineProperty, cs = Object.getOwnPropertyDescriptor, ue = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? cs(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -4150,7 +4169,7 @@ let ee = class extends D {
 };
 ee.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         position: relative;
@@ -4448,7 +4467,7 @@ ue([
   g({ attribute: !1 })
 ], ee.prototype, "cachedDayKeys", 2);
 ee = ue([
-  M("lucarne-calendar-grid")
+  E("lucarne-calendar-grid")
 ], ee);
 const ds = 500;
 function hs(t, e, r) {
@@ -4596,7 +4615,7 @@ let ke = class extends D {
     `;
   }
 };
-ke.styles = E`
+ke.styles = M`
     :host {
       display: block;
       overflow: hidden;
@@ -4629,7 +4648,7 @@ it([
   _r("slot")
 ], ke.prototype, "_slot", 2);
 ke = it([
-  M("lucarne-calendar-day-pan")
+  E("lucarne-calendar-day-pan")
 ], ke);
 var ms = Object.defineProperty, fs = Object.getOwnPropertyDescriptor, ge = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? fs(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -4759,7 +4778,7 @@ let ae = class extends D {
 };
 ae.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         position: fixed;
@@ -4916,7 +4935,7 @@ ge([
   v()
 ], ae.prototype, "_deleteError", 2);
 ae = ge([
-  M("lucarne-calendar-event-popover")
+  E("lucarne-calendar-event-popover")
 ], ae);
 var vs = Object.defineProperty, ys = Object.getOwnPropertyDescriptor, W = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? ys(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -5117,7 +5136,7 @@ let j = class extends D {
 };
 j.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         position: fixed;
@@ -5341,7 +5360,7 @@ W([
   v()
 ], j.prototype, "_saving", 2);
 j = W([
-  M("lucarne-create-event-popover")
+  E("lucarne-create-event-popover")
 ], j);
 var bs = Object.defineProperty, _s = Object.getOwnPropertyDescriptor, Y = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? _s(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -5637,7 +5656,7 @@ let U = class extends D {
 };
 U.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         font-family: var(--primary-font-family, sans-serif);
@@ -5694,8 +5713,9 @@ U.styles = [
       }
       .grid-area {
         overflow: auto;
-        max-height: calc(100vh - 280px);
-        max-height: calc(100dvh - 280px);
+        /* Shared constant so the Today card matches this card's height exactly. */
+        min-height: var(--lucarne-card-fill-height);
+        max-height: var(--lucarne-card-fill-height);
         touch-action: pan-y;
         -webkit-overflow-scrolling: touch;
       }
@@ -5744,7 +5764,7 @@ Y([
   v()
 ], U.prototype, "_deletedUids", 2);
 U = Y([
-  M("lucarne-calendar-card")
+  E("lucarne-calendar-card")
 ], U);
 var ws = Object.defineProperty, xs = Object.getOwnPropertyDescriptor, St = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? xs(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -5967,7 +5987,7 @@ St([
   v()
 ], Le.prototype, "_invalid", 2);
 Le = St([
-  M("lucarne-calendar-card-editor")
+  E("lucarne-calendar-card-editor")
 ], Le);
 const $s = [
   "anytime",
@@ -6001,7 +6021,7 @@ let jt = class extends D {
     `;
   }
 };
-jt.styles = E`
+jt.styles = M`
     :host {
       display: block;
       text-align: center;
@@ -6039,10 +6059,10 @@ si([
   g({ type: Number })
 ], jt.prototype, "streak", 2);
 jt = si([
-  M("lucarne-streak-display")
+  E("lucarne-streak-display")
 ], jt);
-var Ds = Object.defineProperty, Es = Object.getOwnPropertyDescriptor, Dr = (t, e, r, a) => {
-  for (var i = a > 1 ? void 0 : a ? Es(e, r) : e, n = t.length - 1, s; n >= 0; n--)
+var Ds = Object.defineProperty, Ms = Object.getOwnPropertyDescriptor, Dr = (t, e, r, a) => {
+  for (var i = a > 1 ? void 0 : a ? Ms(e, r) : e, n = t.length - 1, s; n >= 0; n--)
     (s = t[n]) && (i = (a ? s(e, r, i) : s(i)) || i);
   return a && i && Ds(e, r, i), i;
 };
@@ -6075,7 +6095,7 @@ let $t = class extends D {
     ` : u``;
   }
 };
-$t.styles = E`
+$t.styles = M`
     :host {
       position: absolute;
       inset: 0;
@@ -6104,12 +6124,12 @@ Dr([
   g({ type: Boolean })
 ], $t.prototype, "active", 2);
 $t = Dr([
-  M("lucarne-celebration-overlay")
+  E("lucarne-celebration-overlay")
 ], $t);
-var Ms = Object.defineProperty, Ss = Object.getOwnPropertyDescriptor, ve = (t, e, r, a) => {
+var Es = Object.defineProperty, Ss = Object.getOwnPropertyDescriptor, ve = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? Ss(e, r) : e, n = t.length - 1, s; n >= 0; n--)
     (s = t[n]) && (i = (a ? s(e, r, i) : s(i)) || i);
-  return a && i && Ms(e, r, i), i;
+  return a && i && Es(e, r, i), i;
 };
 const Ts = ["morning", "afternoon", "night", "anytime"], As = {
   morning: "Morning",
@@ -6224,7 +6244,7 @@ let ie = class extends D {
     );
   }
 };
-ie.styles = E`
+ie.styles = M`
     :host {
       display: block;
       position: relative;
@@ -6344,7 +6364,7 @@ ve([
   v()
 ], ie.prototype, "_celebrating", 2);
 ie = ve([
-  M("lucarne-member-column")
+  E("lucarne-member-column")
 ], ie);
 async function Rs(t, e) {
   const r = {
@@ -6726,7 +6746,7 @@ let R = class extends D {
 };
 R.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         position: fixed;
@@ -6954,7 +6974,7 @@ L([
   v()
 ], R.prototype, "_saving", 2);
 R = L([
-  M("lucarne-add-task-popover")
+  E("lucarne-add-task-popover")
 ], R);
 var Fs = Object.defineProperty, Ws = Object.getOwnPropertyDescriptor, I = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? Ws(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -7342,7 +7362,7 @@ let O = class extends D {
 };
 O.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         position: fixed;
@@ -7627,7 +7647,7 @@ I([
   v()
 ], O.prototype, "_confirmingDelete", 2);
 O = I([
-  M("lucarne-edit-task-popover")
+  E("lucarne-edit-task-popover")
 ], O);
 var Ys = Object.defineProperty, Vs = Object.getOwnPropertyDescriptor, nt = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? Vs(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -7790,7 +7810,7 @@ let Ce = class extends D {
 };
 Ce.styles = [
   N,
-  E`
+  M`
       :host {
         display: block;
         font-family: var(--primary-font-family, sans-serif);
@@ -7893,7 +7913,7 @@ nt([
   v()
 ], Ce.prototype, "_editTask", 2);
 Ce = nt([
-  M("lucarne-chores-card")
+  E("lucarne-chores-card")
 ], Ce);
 /*!
  * Cropper.js v1.6.2
@@ -7996,7 +8016,7 @@ function eo() {
   throw new TypeError(`Invalid attempt to spread non-iterable instance.
 In order to be iterable, non-array objects must have a [Symbol.iterator]() method.`);
 }
-var Gt = typeof window < "u" && typeof window.document < "u", he = Gt ? window : {}, Er = Gt && he.document.documentElement ? "ontouchstart" in he.document.documentElement : !1, Mr = Gt ? "PointerEvent" in he : !1, T = "cropper", Sr = "all", di = "crop", hi = "move", ui = "zoom", Te = "e", Ae = "w", Fe = "s", be = "n", lt = "ne", ct = "nw", dt = "se", ht = "sw", lr = "".concat(T, "-crop"), $a = "".concat(T, "-disabled"), Q = "".concat(T, "-hidden"), ka = "".concat(T, "-hide"), to = "".concat(T, "-invisible"), Ut = "".concat(T, "-modal"), cr = "".concat(T, "-move"), kt = "".concat(T, "Action"), Rt = "".concat(T, "Preview"), Tr = "crop", pi = "move", mi = "none", dr = "crop", hr = "cropend", ur = "cropmove", pr = "cropstart", Ca = "dblclick", ro = Er ? "touchstart" : "mousedown", ao = Er ? "touchmove" : "mousemove", io = Er ? "touchend touchcancel" : "mouseup", Da = Mr ? "pointerdown" : ro, Ea = Mr ? "pointermove" : ao, Ma = Mr ? "pointerup pointercancel" : io, Sa = "ready", Ta = "resize", Aa = "wheel", mr = "zoom", Oa = "image/jpeg", no = /^e|w|s|n|se|sw|ne|nw|all|crop|move|zoom$/, so = /^data:/, oo = /^data:image\/jpeg;base64,/, lo = /^img|canvas$/i, fi = 200, gi = 100, Pa = {
+var Gt = typeof window < "u" && typeof window.document < "u", he = Gt ? window : {}, Mr = Gt && he.document.documentElement ? "ontouchstart" in he.document.documentElement : !1, Er = Gt ? "PointerEvent" in he : !1, T = "cropper", Sr = "all", di = "crop", hi = "move", ui = "zoom", Te = "e", Ae = "w", Fe = "s", be = "n", lt = "ne", ct = "nw", dt = "se", ht = "sw", lr = "".concat(T, "-crop"), $a = "".concat(T, "-disabled"), Q = "".concat(T, "-hidden"), ka = "".concat(T, "-hide"), to = "".concat(T, "-invisible"), Ut = "".concat(T, "-modal"), cr = "".concat(T, "-move"), kt = "".concat(T, "Action"), Rt = "".concat(T, "Preview"), Tr = "crop", pi = "move", mi = "none", dr = "crop", hr = "cropend", ur = "cropmove", pr = "cropstart", Ca = "dblclick", ro = Mr ? "touchstart" : "mousedown", ao = Mr ? "touchmove" : "mousemove", io = Mr ? "touchend touchcancel" : "mouseup", Da = Er ? "pointerdown" : ro, Ma = Er ? "pointermove" : ao, Ea = Er ? "pointerup pointercancel" : io, Sa = "ready", Ta = "resize", Aa = "wheel", mr = "zoom", Oa = "image/jpeg", no = /^e|w|s|n|se|sw|ne|nw|all|crop|move|zoom$/, so = /^data:/, oo = /^data:image\/jpeg;base64,/, lo = /^img|canvas$/i, fi = 200, gi = 100, Pa = {
   // Define the view mode of the cropper
   viewMode: 0,
   // 0, 1, 2, 3
@@ -8333,7 +8353,7 @@ function xo(t) {
   };
 }
 function $o(t, e, r, a) {
-  var i = e.aspectRatio, n = e.naturalWidth, s = e.naturalHeight, o = e.rotate, l = o === void 0 ? 0 : o, d = e.scaleX, c = d === void 0 ? 1 : d, h = e.scaleY, p = h === void 0 ? 1 : h, f = r.aspectRatio, y = r.naturalWidth, _ = r.naturalHeight, b = a.fillColor, w = b === void 0 ? "transparent" : b, x = a.imageSmoothingEnabled, k = x === void 0 ? !0 : x, Z = a.imageSmoothingQuality, F = Z === void 0 ? "low" : Z, m = a.maxWidth, C = m === void 0 ? 1 / 0 : m, S = a.maxHeight, V = S === void 0 ? 1 / 0 : S, X = a.minWidth, se = X === void 0 ? 0 : X, Ee = a.minHeight, ye = Ee === void 0 ? 0 : Ee, oe = document.createElement("canvas"), q = oe.getContext("2d"), Me = xe({
+  var i = e.aspectRatio, n = e.naturalWidth, s = e.naturalHeight, o = e.rotate, l = o === void 0 ? 0 : o, d = e.scaleX, c = d === void 0 ? 1 : d, h = e.scaleY, p = h === void 0 ? 1 : h, f = r.aspectRatio, y = r.naturalWidth, _ = r.naturalHeight, b = a.fillColor, w = b === void 0 ? "transparent" : b, x = a.imageSmoothingEnabled, k = x === void 0 ? !0 : x, Z = a.imageSmoothingQuality, F = Z === void 0 ? "low" : Z, m = a.maxWidth, C = m === void 0 ? 1 / 0 : m, S = a.maxHeight, V = S === void 0 ? 1 / 0 : S, X = a.minWidth, se = X === void 0 ? 0 : X, Me = a.minHeight, ye = Me === void 0 ? 0 : Me, oe = document.createElement("canvas"), q = oe.getContext("2d"), Ee = xe({
     aspectRatio: f,
     width: C,
     height: V
@@ -8341,7 +8361,7 @@ function $o(t, e, r, a) {
     aspectRatio: f,
     width: se,
     height: ye
-  }, "cover"), Kt = Math.min(Me.width, Math.max(At.width, y)), Qt = Math.min(Me.height, Math.max(At.height, _)), Or = xe({
+  }, "cover"), Kt = Math.min(Ee.width, Math.max(At.width, y)), Qt = Math.min(Ee.height, Math.max(At.height, _)), Or = xe({
     aspectRatio: i,
     width: C,
     height: V
@@ -8369,12 +8389,12 @@ function Do(t) {
     i[s] = r.charCodeAt(s);
   }), a;
 }
-function Eo(t, e) {
+function Mo(t, e) {
   for (var r = [], a = 8192, i = new Uint8Array(t); i.length > 0; )
     r.push(wi.apply(null, vi(i.subarray(0, a)))), i = i.subarray(a);
   return "data:".concat(e, ";base64,").concat(btoa(r.join("")));
 }
-function Mo(t) {
+function Eo(t) {
   var e = new DataView(t), r;
   try {
     var a, i, n;
@@ -8601,14 +8621,14 @@ var To = {
     G(r.cropstart) && J(e, pr, r.cropstart), G(r.cropmove) && J(e, ur, r.cropmove), G(r.cropend) && J(e, hr, r.cropend), G(r.crop) && J(e, dr, r.crop), G(r.zoom) && J(e, mr, r.zoom), J(a, Da, this.onCropStart = this.cropStart.bind(this)), r.zoomable && r.zoomOnWheel && J(a, Aa, this.onWheel = this.wheel.bind(this), {
       passive: !1,
       capture: !0
-    }), r.toggleDragModeOnDblclick && J(a, Ca, this.onDblclick = this.dblclick.bind(this)), J(e.ownerDocument, Ea, this.onCropMove = this.cropMove.bind(this)), J(e.ownerDocument, Ma, this.onCropEnd = this.cropEnd.bind(this)), r.responsive && J(window, Ta, this.onResize = this.resize.bind(this));
+    }), r.toggleDragModeOnDblclick && J(a, Ca, this.onDblclick = this.dblclick.bind(this)), J(e.ownerDocument, Ma, this.onCropMove = this.cropMove.bind(this)), J(e.ownerDocument, Ea, this.onCropEnd = this.cropEnd.bind(this)), r.responsive && J(window, Ta, this.onResize = this.resize.bind(this));
   },
   unbind: function() {
     var e = this.element, r = this.options, a = this.cropper;
     G(r.cropstart) && re(e, pr, r.cropstart), G(r.cropmove) && re(e, ur, r.cropmove), G(r.cropend) && re(e, hr, r.cropend), G(r.crop) && re(e, dr, r.crop), G(r.zoom) && re(e, mr, r.zoom), re(a, Da, this.onCropStart), r.zoomable && r.zoomOnWheel && re(a, Aa, this.onWheel, {
       passive: !1,
       capture: !0
-    }), r.toggleDragModeOnDblclick && re(a, Ca, this.onDblclick), re(e.ownerDocument, Ea, this.onCropMove), re(e.ownerDocument, Ma, this.onCropEnd), r.responsive && re(window, Ta, this.onResize);
+    }), r.toggleDragModeOnDblclick && re(a, Ca, this.onDblclick), re(e.ownerDocument, Ma, this.onCropMove), re(e.ownerDocument, Ea, this.onCropEnd), r.responsive && re(window, Ta, this.onResize);
   }
 }, Po = {
   resize: function() {
@@ -9066,12 +9086,12 @@ var To = {
     b.width = Ge(y), b.height = Ge(_), w.fillStyle = e.fillColor || "transparent", w.fillRect(0, 0, y, _);
     var x = e.imageSmoothingEnabled, k = x === void 0 ? !0 : x, Z = e.imageSmoothingQuality;
     w.imageSmoothingEnabled = k, Z && (w.imageSmoothingQuality = Z);
-    var F = a.width, m = a.height, C = n, S = s, V, X, se, Ee, ye, oe;
-    C <= -o || C > F ? (C = 0, V = 0, se = 0, ye = 0) : C <= 0 ? (se = -C, C = 0, V = Math.min(F, o + C), ye = V) : C <= F && (se = 0, V = Math.min(o, F - C), ye = V), V <= 0 || S <= -l || S > m ? (S = 0, X = 0, Ee = 0, oe = 0) : S <= 0 ? (Ee = -S, S = 0, X = Math.min(m, l + S), oe = X) : S <= m && (Ee = 0, X = Math.min(l, m - S), oe = X);
+    var F = a.width, m = a.height, C = n, S = s, V, X, se, Me, ye, oe;
+    C <= -o || C > F ? (C = 0, V = 0, se = 0, ye = 0) : C <= 0 ? (se = -C, C = 0, V = Math.min(F, o + C), ye = V) : C <= F && (se = 0, V = Math.min(o, F - C), ye = V), V <= 0 || S <= -l || S > m ? (S = 0, X = 0, Me = 0, oe = 0) : S <= 0 ? (Me = -S, S = 0, X = Math.min(m, l + S), oe = X) : S <= m && (Me = 0, X = Math.min(l, m - S), oe = X);
     var q = [C, S, V, X];
     if (ye > 0 && oe > 0) {
-      var Me = y / o;
-      q.push(se * Me, Ee * Me, ye * Me, oe * Me);
+      var Ee = y / o;
+      q.push(se * Ee, Me * Ee, ye * Ee, oe * Ee);
     }
     return w.drawImage.apply(w, [a].concat(ci(q.map(function(At) {
       return Math.floor(Ge(At));
@@ -9147,9 +9167,9 @@ var To = {
   }, {
     key: "read",
     value: function(r) {
-      var a = this.options, i = this.imageData, n = Mo(r), s = 0, o = 1, l = 1;
+      var a = this.options, i = this.imageData, n = Eo(r), s = 0, o = 1, l = 1;
       if (n > 1) {
-        this.url = Eo(r, Oa);
+        this.url = Mo(r, Oa);
         var d = So(n);
         s = d.rotate, o = d.scaleX, l = d.scaleY;
       }
@@ -9750,7 +9770,7 @@ let te = class extends D {
 te.styles = [
   N,
   Ba(zo),
-  E`
+  M`
       :host {
         display: block;
       }
@@ -9963,7 +9983,7 @@ pe([
   _r("#crop-image")
 ], te.prototype, "_cropImage", 2);
 te = pe([
-  M("lucarne-avatar-upload-modal")
+  E("lucarne-avatar-upload-modal")
 ], te);
 var Fo = Object.defineProperty, Wo = Object.getOwnPropertyDescriptor, Tt = (t, e, r, a) => {
   for (var i = a > 1 ? void 0 : a ? Wo(e, r) : e, n = t.length - 1, s; n >= 0; n--)
@@ -10134,7 +10154,7 @@ let Be = class extends D {
 };
 Be.styles = [
   N,
-  E`
+  M`
       :host {
         display: flex;
         flex-direction: column;
@@ -10296,5 +10316,5 @@ Tt([
   v()
 ], Be.prototype, "_avatarModalMember", 2);
 Be = Tt([
-  M("lucarne-chores-card-editor")
+  E("lucarne-chores-card-editor")
 ], Be);
