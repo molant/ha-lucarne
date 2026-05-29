@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=82.0.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,17 +7,17 @@ name = "lucarne_family"
 version = "0.0.0"
 requires-python = ">=3.14"
 dependencies = [
-    "python-dateutil>=2.8",
+    "python-dateutil>=2.9.0.post0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
-    "pytest-homeassistant-custom-component>=0.13.0",
-    "ruff>=0.4",
-    "mypy>=1.10",
-    "ical==8.2.0",
+    "pytest-homeassistant-custom-component>=0.13.334",
+    "ruff>=0.15.15",
+    "mypy>=2.1.0",
+    "ical==13.2.5",
 ]
 
 [tool.setuptools.packages.find]
