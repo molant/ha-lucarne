@@ -23,8 +23,8 @@ Lovelace cards that turn a wall-mounted iPad 9 into a Skylight-style family dash
 Three cards with a consistent visual language (soft pastels, `clamp()`-based typography, 44px
 touch targets):
 
-- **Today card** — next 7 days of agenda (per-person color dots), today's weather + tomorrow's
-  forecast, task-count badge, who's home presence pills
+- **Today card** — today's agenda (per-person color dots; optionally include tomorrow), today's
+  weather + tomorrow's forecast, a priority-sorted task list, who's home presence pills
 - **Calendar card** — rolling N-day window (auto-fits 3–7 days to the available width) with
   per-person color coding, calendar visibility toggle pills, touch-swipe day navigation,
   tap-to-see-details popover, tap-to-create-event flow

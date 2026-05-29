@@ -203,7 +203,12 @@ presence:                           # optional; shows home/away pills in header
     name: M
   - entity: binary_sensor.ingrid_home
     name: I
-agenda_limit: 5                     # optional, default 5
+agenda_show_tomorrow: false         # optional, default false; agenda shows today only,
+                                    #   set true to also include tomorrow (scrolls if long)
+max_tasks: 5                        # optional, default 5; max tasks shown, scrolls past it
+refill_tasks_on_complete: false     # optional, default false; when false a completed task
+                                    #   disappears and its slot is NOT refilled from the
+                                    #   backlog. Set true for a rolling list.
 section_order:                      # optional; drag to reorder in the visual editor
   - calendar
   - weather

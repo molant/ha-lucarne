@@ -52,6 +52,17 @@ Lucarne scales gracefully to larger iPads:
 
 The cards have no hard-coded `max-width` constraints, so they fill the container naturally.
 
+## Equal card heights
+
+The Today and Calendar cards share a single height constant, `--lucarne-card-fill-height`
+(`calc(100dvh - 114px)`, with a `100vh` fallback), defined once in `design-tokens.ts`. Each
+card applies it as a fixed `height` on its own `ha-card` and lays the card out as a flex column,
+so the two cards line up side by side regardless of their differing header/chrome heights. The
+inner scroll region flexes to fill: the calendar's `.grid-area` and the Today card's `.card-body`
+each take the remaining space below their header and scroll internally rather than stretching
+(or clipping) the card. The `114px` offset is the dashboard chrome above the card plus the gap
+below it — tune it there if the viewport chrome changes.
+
 ## Touch targets
 
 All interactive elements (chore checkboxes, calendar nav buttons, visibility pills, create-event
