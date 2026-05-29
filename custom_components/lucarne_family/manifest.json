@@ -1,7 +1,7 @@
 {
   "domain": "lucarne_family",
   "name": "Lucarne Family",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "homeassistant": "2026.3.0",
   "config_flow": true,
   "integration_type": "service",

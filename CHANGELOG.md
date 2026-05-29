@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.1.0 — 2026-05-29
+
+**Features:**
+-  shared constant fill-height for today + calendar (#38)
+-  task priority sort, configurable limit, refill toggle (#38)
+-  agenda shows today only, tomorrow opt-in, scrolls (#38)
+-  add icons to time-of-day separators (#36)
+-  auto-register bundled Lucarne theme at startup
+
+**Fixes:**
+-  equalize today + calendar height via fixed outer height (#38)
+-  robust slot burn + clamp max_tasks (PR #39 review)
+-  style unchecked checkboxes from theme tokens (#36)
+-  validate tokens and don't clobber user theme
+
+
 > **Release flow.** Versions are not bumped by hand. `scripts/create-release.sh`
 > reads commits since the last `bump:` commit / `vX.Y.Z` tag, infers the bump
 > type (`feat:` → minor, `fix:` → patch, `breaking:` → major), updates
