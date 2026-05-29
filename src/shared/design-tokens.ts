@@ -76,6 +76,17 @@ export const lucarneStyles = css`
     --lucarne-skeleton-highlight: rgba(0, 0, 0, 0.12);
     --lucarne-pan-easing: cubic-bezier(0.32, 0.72, 0, 1);
     --lucarne-pan-duration: 240ms;
+
+    /* Constant fill height shared by the Today + Calendar cards so they line up
+       side by side. The 240px offset (header/pills/chrome) leaves slightly more
+       vertical room than the cards' previous 280px so the iPad space is used. */
+    --lucarne-card-fill-height: calc(100vh - 240px);
+  }
+
+  @supports (height: 100dvh) {
+    :host {
+      --lucarne-card-fill-height: calc(100dvh - 240px);
+    }
   }
 
   @media (prefers-color-scheme: dark) {

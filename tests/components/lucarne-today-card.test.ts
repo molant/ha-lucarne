@@ -487,3 +487,24 @@ describe('lucarne-today-card — raw-mode metadata enrichment', () => {
     assert.ok(taskRow.hasAttribute('compact'), 'compact attribute reflected on task-row');
   });
 });
+
+describe('lucarne-today-card — fill height', () => {
+  it('pins the card body to the shared fill-height constant', async () => {
+    const el = await makeCard({});
+    const body = el.shadowRoot!.querySelector('.card-body');
+    assert.ok(body, '.card-body rendered');
+
+    // jsdom does not resolve CSS custom properties / calc(), so assert against
+    // the component's static styles instead of computed values.
+    const styleText = (
+      (el.constructor as { styles?: Array<{ cssText?: string }> }).styles ?? []
+    )
+      .map((s) => s.cssText ?? '')
+      .join('\n');
+    assert.match(
+      styleText,
+      /min-height:\s*var\(--lucarne-card-fill-height\)/,
+      'card body uses the shared fill-height variable',
+    );
+  });
+});
