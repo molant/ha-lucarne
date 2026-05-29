@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import logging
 import os
 import uuid
@@ -24,6 +25,20 @@ from .store import LucarneFamilyStore
 _LOGGER = logging.getLogger(__name__)
 
 
+def _bundle_digest(path: Path) -> str:
+    """Short content hash of the card bundle, used to cache-bust the ?v= query.
+
+    The URL changes whenever the bundle bytes change, so a rebuilt card busts
+    the browser and frontend service-worker caches without a manifest version
+    bump. Reading the file is blocking I/O — call via async_add_executor_job.
+    """
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()[:8]
+    except OSError as err:
+        _LOGGER.warning("Could not hash card bundle %s for cache-busting: %s", path, err)
+        return "0"
+
+
 async def async_setup(hass: HomeAssistant, _config: dict[str, Any]) -> bool:
     """Set up the Lucarne Family integration.
 
@@ -36,7 +51,8 @@ async def async_setup(hass: HomeAssistant, _config: dict[str, Any]) -> bool:
         [StaticPathConfig(FRONTEND_URL, str(js_file), cache_headers=True)]
     )
     integration = await async_get_integration(hass, DOMAIN)
-    add_extra_js_url(hass, f"{FRONTEND_URL}?v={integration.version}")
+    digest = await hass.async_add_executor_job(_bundle_digest, js_file)
+    add_extra_js_url(hass, f"{FRONTEND_URL}?v={integration.version}.{digest}")
     return True
 
 
