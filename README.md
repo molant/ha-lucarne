@@ -128,20 +128,21 @@ automatically — there is no Lovelace resource to add.
 Open your dashboard in edit mode and add the cards via YAML (see [Configuration](#configuration)).
 Each card has a visual editor — click **Visual editor** after adding.
 
-### Step 5 — (Optional) Install the Lucarne theme
+### Step 5 — (Optional) Apply the Lucarne theme
 
-A pastel theme ships at `themes/lucarne.yaml`. It pairs the cards with the calm cream/pastel palette
-they were designed against and widens HA's `type: sections` views past the default 500px cap (via
-`ha-view-sections-column-max-width: 1200px`) so cards render side-by-side at full tablet width.
+The integration ships a pastel **Lucarne** theme and registers it automatically — no
+`configuration.yaml` edits and no manual file copy. It pairs the cards with the calm cream/pastel
+palette they were designed against and widens HA's `type: sections` views past the default 500px cap
+(via `ha-view-sections-column-max-width: 1200px`) so cards render side-by-side at full tablet width.
 
-1. Copy `themes/lucarne.yaml` to your HA `<config>/themes/` directory.
-2. Ensure `configuration.yaml` has:
-   ```yaml
-   frontend:
-     themes: !include_dir_merge_named themes
-   ```
-3. Reload themes: **Developer tools → Services → `frontend.reload_themes`**.
-4. Per-user: **Profile → Theme → Lucarne**.
+Just select it per-user: **Profile → Theme → Lucarne**.
+
+> The theme is registered in-process at startup. If you run **Developer tools → Actions →
+> `frontend.reload_themes`**, HA rebuilds its theme list from `configuration.yaml` and the bundled
+> theme disappears until the next Home Assistant restart re-registers it. To make the theme survive a
+> manual reload (or to tweak the palette), copy
+> `custom_components/lucarne_family/themes/lucarne.yaml` into your `<config>/themes/` directory and add
+> `frontend: { themes: !include_dir_merge_named themes }` to `configuration.yaml`.
 
 ### Step 6 — (Optional) Set up the Mac mini Reminders bridge
 

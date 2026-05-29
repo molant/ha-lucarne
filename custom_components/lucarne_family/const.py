@@ -7,6 +7,11 @@ STORAGE_VERSION = 1
 # Frontend bundle served + auto-registered by the integration (see __init__.async_setup).
 FRONTEND_URL = "/lucarne_family_frontend/ha-lucarne.js"
 
+# Pastel theme bundled with the integration and auto-registered in async_setup.
+# THEME_NAME must match the top-level key inside THEME_FILE.
+THEME_FILE = "themes/lucarne.yaml"
+THEME_NAME = "Lucarne"
+
 DEFAULT_RESET_TIME = "04:00"
 DEFAULT_STREAK_CHECK_TIME = "21:00"
 
