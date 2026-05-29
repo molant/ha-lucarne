@@ -7,11 +7,13 @@ function makeEvent(start: string, end: string, summary = 'Test'): CalendarEvent 
   return { start, end, summary };
 }
 
+// Tests run under TZ=America/Los_Angeles (see package.json). At this instant it
+// is 2026-05-21 03:00 PDT, so "today" is May 21 and "tomorrow" is May 22 local.
 const now = new Date('2026-05-21T10:00:00.000Z');
 
 describe('filterAndSortEvents', () => {
   it('returns empty array for no events', () => {
-    assert.deepEqual(filterAndSortEvents([], now, 5), []);
+    assert.deepEqual(filterAndSortEvents([], now, 1), []);
   });
 
   it('filters out events that have already ended', () => {
@@ -19,14 +21,14 @@ describe('filterAndSortEvents', () => {
       makeEvent('2026-05-21T07:00:00Z', '2026-05-21T09:00:00Z', 'Past'),
       makeEvent('2026-05-21T11:00:00Z', '2026-05-21T12:00:00Z', 'Future'),
     ];
-    const result = filterAndSortEvents(events, now, 5);
+    const result = filterAndSortEvents(events, now, 1);
     assert.equal(result.length, 1);
     assert.equal(result[0].summary, 'Future');
   });
 
   it('includes events that are currently happening', () => {
     const events = [makeEvent('2026-05-21T09:30:00Z', '2026-05-21T10:30:00Z', 'Active')];
-    const result = filterAndSortEvents(events, now, 5);
+    const result = filterAndSortEvents(events, now, 1);
     assert.equal(result.length, 1);
     assert.equal(result[0].summary, 'Active');
   });
@@ -37,25 +39,35 @@ describe('filterAndSortEvents', () => {
       makeEvent('2026-05-21T11:00:00Z', '2026-05-21T12:00:00Z', 'A'),
       makeEvent('2026-05-21T13:00:00Z', '2026-05-21T14:00:00Z', 'B'),
     ];
-    const result = filterAndSortEvents(events, now, 5);
+    const result = filterAndSortEvents(events, now, 1);
     assert.deepEqual(result.map((e) => e.summary), ['A', 'B', 'C']);
   });
 
-  it('respects the limit', () => {
-    const events = Array.from({ length: 10 }, (_, i) => {
-      const h = String(i + 11).padStart(2, '0');
-      return makeEvent(`2026-05-21T${h}:00:00Z`, `2026-05-21T${h}:30:00Z`, `Event${i}`);
-    });
-    const result = filterAndSortEvents(events, now, 3);
-    assert.equal(result.length, 3);
+  it('today-only window excludes a tomorrow event', () => {
+    const events = [
+      makeEvent('2026-05-21T18:00:00Z', '2026-05-21T19:00:00Z', 'Today'),
+      // 2026-05-22 09:00 PDT — tomorrow, local.
+      makeEvent('2026-05-22T16:00:00Z', '2026-05-22T17:00:00Z', 'Tomorrow'),
+    ];
+    const result = filterAndSortEvents(events, now, 1);
+    assert.deepEqual(result.map((e) => e.summary), ['Today']);
   });
 
-  it('returns all if events count is less than limit', () => {
+  it('two-day window includes tomorrow but not the day after', () => {
     const events = [
-      makeEvent('2026-05-21T11:00:00Z', '2026-05-21T12:00:00Z', 'One'),
-      makeEvent('2026-05-21T13:00:00Z', '2026-05-21T14:00:00Z', 'Two'),
+      makeEvent('2026-05-21T18:00:00Z', '2026-05-21T19:00:00Z', 'Today'),
+      makeEvent('2026-05-22T16:00:00Z', '2026-05-22T17:00:00Z', 'Tomorrow'),
+      // 2026-05-23 09:00 PDT — day after tomorrow, local.
+      makeEvent('2026-05-23T16:00:00Z', '2026-05-23T17:00:00Z', 'DayAfter'),
     ];
-    const result = filterAndSortEvents(events, now, 10);
-    assert.equal(result.length, 2);
+    const result = filterAndSortEvents(events, now, 2);
+    assert.deepEqual(result.map((e) => e.summary), ['Today', 'Tomorrow']);
+  });
+
+  it('includes an all-day event covering today', () => {
+    // Date-only boundaries parse to local midnight: starts today, ends tomorrow.
+    const events = [makeEvent('2026-05-21', '2026-05-22', 'AllDayToday')];
+    const result = filterAndSortEvents(events, now, 1);
+    assert.deepEqual(result.map((e) => e.summary), ['AllDayToday']);
   });
 });

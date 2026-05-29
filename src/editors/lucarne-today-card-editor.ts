@@ -81,10 +81,9 @@ export class LucarneTodayCardEditor extends LitElement {
     return !!(this.hass?.states?.[SYNTHETIC_HOUSEHOLD.todo_entity_id]);
   }
 
-  private _agendaLimitChanged(e: Event) {
-    const input = e.target as HTMLInputElement;
-    const v = parseInt(input.value, 10);
-    this._fire({ ...this._config!, agenda_limit: isNaN(v) ? undefined : Math.min(10, Math.max(1, v)) });
+  private _agendaShowTomorrowChanged(e: Event) {
+    const checked = (e.target as HTMLInputElement).checked;
+    this._fire({ ...this._config!, agenda_show_tomorrow: checked || undefined });
   }
 
   private _calEntityChanged(index: number, e: CustomEvent) {
@@ -177,15 +176,12 @@ export class LucarneTodayCardEditor extends LitElement {
           @change=${this._titleChanged}
         />
       </label>
-      <label class="field">
-        <span class="field-label">Agenda limit (1–10)</span>
+      <label class="field field-inline">
+        <span class="field-label">Also show tomorrow in agenda</span>
         <input
-          class="text-input"
-          type="number"
-          min="1"
-          max="10"
-          .value=${String(this._config.agenda_limit ?? 5)}
-          @change=${this._agendaLimitChanged}
+          type="checkbox"
+          .checked=${this._config.agenda_show_tomorrow ?? false}
+          @change=${this._agendaShowTomorrowChanged}
         />
       </label>
 
