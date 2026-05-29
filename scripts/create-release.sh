@@ -12,6 +12,10 @@ cd "$REPO_DIR"
 # so it is committed, not uploaded as a release asset.
 BUNDLE="custom_components/lucarne_family/frontend/ha-lucarne.js"
 
+# HACS/HA report the integration version from manifest.json's "version" key, so it
+# must track package.json. npm version only bumps package.json; we sync this too.
+MANIFEST="custom_components/lucarne_family/manifest.json"
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -154,6 +158,16 @@ log_info "Updating files..."
 
 npm version --no-git-tag-version "$NEW_VERSION" --allow-same-version
 
+# Sync manifest.json's "version" to match. Surgical line replace (via temp file,
+# portable across BSD/GNU sed) so the rest of the manifest is untouched.
+if ! grep -qE '"version": *"[^"]+"' "$MANIFEST"; then
+    log_error "No \"version\" key found in $MANIFEST — cannot sync manifest version."
+    exit 1
+fi
+sed -E "s/(\"version\": *\")[^\"]+(\")/\1${NEW_VERSION}\2/" "$MANIFEST" > "${MANIFEST}.tmp"
+mv "${MANIFEST}.tmp" "$MANIFEST"
+log_success "manifest.json version → $NEW_VERSION"
+
 # Insert the new entry below the "# Changelog" H1, preserving the header.
 CHANGELOG_TEMP=$(mktemp)
 # Emit the H1 header line (first line of CHANGELOG.md) and its trailing blank line.
@@ -195,7 +209,7 @@ log_success "Build complete (${BUNDLE_SIZE_KB} KB)"
 
 log_info "Committing changes..."
 
-git add package.json package-lock.json CHANGELOG.md "$BUNDLE"
+git add package.json package-lock.json "$MANIFEST" CHANGELOG.md "$BUNDLE"
 git commit -m "bump: v${NEW_VERSION}"
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
