@@ -662,15 +662,16 @@ const N = M`
     --lucarne-pan-easing: cubic-bezier(0.32, 0.72, 0, 1);
     --lucarne-pan-duration: 240ms;
 
-    /* Constant fill height shared by the Today + Calendar cards so they line up
-       side by side. The 240px offset (header/pills/chrome) leaves slightly more
-       vertical room than the cards' previous 280px so the iPad space is used. */
-    --lucarne-card-fill-height: calc(100vh - 240px);
+    /* Shared OUTER height for the Today + Calendar cards so their ha-card boxes
+       line up side by side regardless of differing header/chrome heights. Applied
+       to each card's ha-card; the inner scroll region flexes to fill. The ~114px
+       offset is the dashboard chrome above the card plus the gap below it. */
+    --lucarne-card-fill-height: calc(100vh - 114px);
   }
 
   @supports (height: 100dvh) {
     :host {
-      --lucarne-card-fill-height: calc(100dvh - 240px);
+      --lucarne-card-fill-height: calc(100dvh - 114px);
     }
   }
 
@@ -2464,6 +2465,11 @@ me.styles = [
         width: 100%;
         padding: 0;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        /* Fixed outer height shared with the Calendar card; the body flexes to
+           fill the remainder below the header. */
+        height: var(--lucarne-card-fill-height);
       }
       .card-header {
         display: flex;
@@ -2486,8 +2492,12 @@ me.styles = [
       .card-body {
         display: flex;
         flex-direction: column;
-        /* Match the calendar card's scroll-area height so the two line up. */
-        min-height: var(--lucarne-card-fill-height);
+        /* Fill the space below the header; section-tasks absorbs the slack when
+           content is short, and the body scrolls if it would overflow the fixed
+           card height instead of being clipped. */
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
       }
       .section + .section {
         border-top: 1px solid rgba(0, 0, 0, 0.07);
@@ -5676,6 +5686,12 @@ U.styles = [
       ha-card {
         padding: 0;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        /* Fixed outer height shared with the Today card; the grid-area flexes to
+           fill the remainder and scrolls internally (not a min-height — that lets
+           the tall time-grid push the card open instead of capping it). */
+        height: var(--lucarne-card-fill-height);
       }
       .card-header {
         display: flex;
@@ -5725,9 +5741,9 @@ U.styles = [
       }
       .grid-area {
         overflow: auto;
-        /* Shared constant so the Today card matches this card's height exactly. */
-        min-height: var(--lucarne-card-fill-height);
-        max-height: var(--lucarne-card-fill-height);
+        /* Fill the space below the header + pills; ha-card sets the card height. */
+        flex: 1 1 auto;
+        min-height: 0;
         touch-action: pan-y;
         -webkit-overflow-scrolling: touch;
       }

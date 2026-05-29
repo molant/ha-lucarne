@@ -57,6 +57,12 @@ export class LucarneCalendarCard extends LitElement {
       ha-card {
         padding: 0;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        /* Fixed outer height shared with the Today card; the grid-area flexes to
+           fill the remainder and scrolls internally (not a min-height — that lets
+           the tall time-grid push the card open instead of capping it). */
+        height: var(--lucarne-card-fill-height);
       }
       .card-header {
         display: flex;
@@ -106,9 +112,9 @@ export class LucarneCalendarCard extends LitElement {
       }
       .grid-area {
         overflow: auto;
-        /* Shared constant so the Today card matches this card's height exactly. */
-        min-height: var(--lucarne-card-fill-height);
-        max-height: var(--lucarne-card-fill-height);
+        /* Fill the space below the header + pills; ha-card sets the card height. */
+        flex: 1 1 auto;
+        min-height: 0;
         touch-action: pan-y;
         -webkit-overflow-scrolling: touch;
       }

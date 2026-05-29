@@ -82,6 +82,11 @@ export class LucarneTodayCard extends LitElement {
         width: 100%;
         padding: 0;
         overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        /* Fixed outer height shared with the Calendar card; the body flexes to
+           fill the remainder below the header. */
+        height: var(--lucarne-card-fill-height);
       }
       .card-header {
         display: flex;
@@ -104,8 +109,12 @@ export class LucarneTodayCard extends LitElement {
       .card-body {
         display: flex;
         flex-direction: column;
-        /* Match the calendar card's scroll-area height so the two line up. */
-        min-height: var(--lucarne-card-fill-height);
+        /* Fill the space below the header; section-tasks absorbs the slack when
+           content is short, and the body scrolls if it would overflow the fixed
+           card height instead of being clipped. */
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
       }
       .section + .section {
         border-top: 1px solid rgba(0, 0, 0, 0.07);
