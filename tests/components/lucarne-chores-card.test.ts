@@ -122,6 +122,19 @@ describe('lucarne-chores-card', () => {
     assert.equal(col.hideName, false, 'names shown by default');
   });
 
+  it('skips hidden_members but keeps the others', async () => {
+    const el = document.createElement('lucarne-chores-card') as LucarneChoresCard;
+    el.setConfig({ type: 'custom:lucarne-chores-card', members: ['anna', 'bob'], hidden_members: ['bob'] });
+    el.hass = makeFakeHassWithMembers() as unknown as HomeAssistant;
+    document.body.appendChild(el);
+    await el.updateComplete;
+    await new Promise((r) => setTimeout(r, 50));
+    await el.updateComplete;
+
+    const cells = el.shadowRoot!.querySelectorAll('.member-cell');
+    assert.equal(cells.length, 1, 'only the non-hidden member renders');
+  });
+
   it('renders integration error block when integration is not installed', async () => {
     const el = await makeCard(['anna'], makeFakeHassIntegrationMissing());
     const errorBlock = shadow(el, '.error-block');

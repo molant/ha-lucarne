@@ -13,6 +13,8 @@ export interface LucarneChoresCardConfig {
   type: 'custom:lucarne-chores-card';
   title?: string;
   members: string[];
+  /** Members hidden from the card; they keep their slot in `members` ordering. */
+  hidden_members?: string[];
   show_routines?: boolean;
   show_tasks?: boolean;
   show_streak?: boolean;
@@ -188,6 +190,9 @@ export class LucarneChoresCard extends LitElement {
   private _resolveMembers(): Array<{ member: MemberSummary; tasks: RenderableTask[]; streak: number }> {
     if (!this._config || !this._familyState) return [];
     const { members: slugs } = this._config;
+    // Hidden members stay in `members` (to keep their slot in the editor's
+    // ordering) but are skipped when rendering the card.
+    const hidden = new Set(this._config.hidden_members ?? []);
     const showRoutines = this._config.show_routines ?? true;
     const showTasks = this._config.show_tasks ?? true;
 
@@ -196,6 +201,7 @@ export class LucarneChoresCard extends LitElement {
 
     const result: Array<{ member: MemberSummary; tasks: RenderableTask[]; streak: number }> = [];
     for (const slug of slugs) {
+      if (hidden.has(slug)) continue;
       const member =
         slug === 'household'
           ? SYNTHETIC_HOUSEHOLD
