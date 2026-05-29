@@ -13,6 +13,7 @@
 
 ### Added
 
+- `lucarne_family` integration: the bundled **Lucarne** pastel theme is now registered automatically at startup (in-process via `hass.data[DATA_THEMES]`) — it appears under **Profile → Theme → Lucarne** with no `configuration.yaml` edits or manual file copy. The theme YAML moved into the package at `custom_components/lucarne_family/themes/lucarne.yaml` so HACS ships it. A manual `frontend.reload_themes` drops it until the next restart; copy the file into `<config>/themes/` to make it permanent.
 - `lucarne-today-card` — optional `household_tasks_from_integration: true` flag: reads household tasks from the `lucarne_family` integration (`todo.lucarne_household`) instead of a raw `tasks:` entity; renders task metadata (icon, due date) for richer display.
 - `lucarne-today-card` — optional `show_family_ready_pill: true` flag: shows a compact N/M pill in the card header indicating how many members have completed all their routines due today.
 - New `family-ready-pill` Lit component: computes readiness by filtering routines due today via the RRULE engine (not the streak counter, which can be stale until `streak_check_time`).

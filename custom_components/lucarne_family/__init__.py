@@ -9,15 +9,17 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.frontend import DATA_THEMES, add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.components.todo import TodoItem
 from homeassistant.components.todo.const import TodoItemStatus
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EVENT_THEMES_UPDATED
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.loader import async_get_integration
 
-from .const import DOMAIN, FRONTEND_URL, PRESET_ADULT_NONE
+from .const import DOMAIN, FRONTEND_URL, PRESET_ADULT_NONE, THEME_FILE, THEME_NAME
 from .models import Member, RoutinePreset
 from .presets import BUILTIN_PRESETS
 from .store import LucarneFamilyStore
@@ -39,12 +41,32 @@ def _bundle_digest(path: Path) -> str:
         return "0"
 
 
+def _load_theme(path: Path) -> dict[str, Any]:
+    """Parse the bundled theme YAML into a {theme_name: tokens} mapping.
+
+    Blocking file read + YAML parse — call via async_add_executor_job. Returns an
+    empty dict on any failure so a missing/corrupt theme never blocks setup.
+    """
+    from homeassistant.util.yaml import load_yaml
+
+    try:
+        parsed = load_yaml(str(path))
+    except (OSError, HomeAssistantError) as err:
+        _LOGGER.warning("Could not load bundled theme %s: %s", path, err)
+        return {}
+    if not isinstance(parsed, dict):
+        _LOGGER.warning("Bundled theme %s did not parse to a mapping; skipping", path)
+        return {}
+    return parsed
+
+
 async def async_setup(hass: HomeAssistant, _config: dict[str, Any]) -> bool:
     """Set up the Lucarne Family integration.
 
     Serves the bundled Lovelace card JS and registers it as a frontend module so
     the cards load automatically — no separate HACS plugin or manual Lovelace
-    resource needed.
+    resource needed. Also registers the bundled "Lucarne" theme in-process so it
+    appears under Profile → Theme without any configuration.yaml edits.
     """
     js_file = Path(__file__).parent / "frontend" / "ha-lucarne.js"
     await hass.http.async_register_static_paths(
@@ -53,7 +75,34 @@ async def async_setup(hass: HomeAssistant, _config: dict[str, Any]) -> bool:
     integration = await async_get_integration(hass, DOMAIN)
     digest = await hass.async_add_executor_job(_bundle_digest, js_file)
     add_extra_js_url(hass, f"{FRONTEND_URL}?v={integration.version}.{digest}")
+
+    await _async_register_theme(hass)
     return True
+
+
+async def _async_register_theme(hass: HomeAssistant) -> None:
+    """Merge the bundled theme into the frontend theme registry.
+
+    Mirrors how the card bundle is wired up: the integration registers the theme
+    itself rather than relying on a `frontend: themes:` include the user would
+    have to add by hand. Injecting into hass.data[DATA_THEMES] is the only
+    in-process path HA offers — there is no public register-theme helper. A manual
+    `frontend.reload_themes` rebuilds that dict from config and drops the theme
+    until the next restart re-runs async_setup; that is the documented trade-off.
+    """
+    theme_path = Path(__file__).parent / THEME_FILE
+    theme = await hass.async_add_executor_job(_load_theme, theme_path)
+    if THEME_NAME not in theme:
+        _LOGGER.warning(
+            "Bundled theme %s is missing the %r key; theme not registered",
+            theme_path,
+            THEME_NAME,
+        )
+        return
+    themes = hass.data.setdefault(DATA_THEMES, {})
+    themes[THEME_NAME] = theme[THEME_NAME]
+    hass.bus.async_fire(EVENT_THEMES_UPDATED)
+    _LOGGER.debug("Registered bundled %r theme", THEME_NAME)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
