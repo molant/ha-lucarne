@@ -36,7 +36,7 @@ function makeTask(overrides: Partial<RenderableTask> = {}): RenderableTask {
 
 function makeEl(
   tasks: RenderableTask[] = [],
-  opts: { showRoutines?: boolean; showTasks?: boolean; showStreak?: boolean } = {},
+  opts: { showRoutines?: boolean; showTasks?: boolean; showStreak?: boolean; hideName?: boolean } = {},
 ): LucarneMemberColumn {
   const el = document.createElement('lucarne-member-column') as LucarneMemberColumn;
   el.member = MEMBER;
@@ -45,6 +45,7 @@ function makeEl(
   el.showRoutines = opts.showRoutines !== undefined ? opts.showRoutines : true;
   el.showTasks = opts.showTasks !== undefined ? opts.showTasks : true;
   el.showStreak = opts.showStreak !== undefined ? opts.showStreak : true;
+  el.hideName = opts.hideName ?? false;
   document.body.appendChild(el);
   return el;
 }
@@ -84,7 +85,7 @@ describe('lucarne-member-column', () => {
     assert.equal(rows.length, 1);
   });
 
-  it('renders chore tasks in Tasks section', async () => {
+  it('buckets an untagged chore into Anytime (no separate Tasks section)', async () => {
     const chore = makeTask({
       uid: 'c1',
       summary: 'Take out trash',
@@ -95,7 +96,30 @@ describe('lucarne-member-column', () => {
 
     const headers = shadowAll(el, '.section-header');
     const headerTexts = headers.map((h) => h.textContent?.trim());
-    assert.ok(headerTexts.includes('Tasks'), 'Tasks section header present');
+    assert.ok(headerTexts.includes('Anytime'), 'untagged chore lands in Anytime');
+    assert.ok(!headerTexts.includes('Tasks'), 'no separate Tasks section');
+    assert.equal(shadowAll(el, 'lucarne-task-row').length, 1);
+  });
+
+  it('places a chore in its time-of-day bucket alongside routines', async () => {
+    const routine = makeTask({
+      uid: 'r1',
+      summary: 'Brush teeth',
+      metadata: { ...makeTask().metadata, type: 'routine', time_of_day: 'morning' },
+    });
+    const chore = makeTask({
+      uid: 'c1',
+      summary: 'Make bed',
+      metadata: { ...makeTask().metadata, type: 'chore', time_of_day: 'morning' },
+    });
+    const el = makeEl([routine, chore]);
+    await el.updateComplete;
+
+    const headers = shadowAll(el, '.section-header');
+    const headerTexts = headers.map((h) => h.textContent?.trim());
+    assert.deepEqual(headerTexts, ['Morning'], 'both items under a single Morning section');
+    assert.ok(!headerTexts.includes('Tasks'), 'no separate Tasks section');
+    assert.equal(shadowAll(el, 'lucarne-task-row').length, 2, 'routine + chore both render');
   });
 
   it('hides all routine bucket sections when showRoutines=false', async () => {
@@ -116,14 +140,15 @@ describe('lucarne-member-column', () => {
     assert.equal(rows.length, 0, 'no task rows rendered');
   });
 
-  it('hides Tasks section when showTasks=false', async () => {
+  it('hides chores when showTasks=false', async () => {
     const chore = makeTask({ uid: 'c1', metadata: { ...makeTask().metadata, type: 'chore' } });
     const el = makeEl([chore], { showTasks: false });
     await el.updateComplete;
 
     const headers = shadowAll(el, '.section-header');
     const headerTexts = headers.map((h) => h.textContent?.trim());
-    assert.ok(!headerTexts.includes('Tasks'), 'Tasks section hidden');
+    assert.ok(!headerTexts.includes('Anytime'), 'chore bucket hidden');
+    assert.equal(shadowAll(el, 'lucarne-task-row').length, 0, 'no chore rows rendered');
   });
 
   it('hides streak when showStreak=false', async () => {
@@ -157,7 +182,7 @@ describe('lucarne-member-column', () => {
     assert.equal(events[0].detail.memberSlug, 'anna');
   });
 
-  it('renders routine bucket section and chores section for mixed task lists', async () => {
+  it('merges untagged routines and chores into a single Anytime bucket', async () => {
     const routine = makeTask({ uid: 'r1', summary: 'Brush teeth', metadata: { ...makeTask().metadata, type: 'routine' } });
     const chore = makeTask({ uid: 'c1', summary: 'Take out trash', metadata: { ...makeTask().metadata, type: 'chore' } });
     const el = makeEl([routine, chore]);
@@ -165,11 +190,18 @@ describe('lucarne-member-column', () => {
 
     const headers = shadowAll(el, '.section-header');
     const headerTexts = headers.map((h) => h.textContent?.trim());
-    assert.ok(headerTexts.includes('Anytime'), 'Routine Anytime bucket present');
-    assert.ok(headerTexts.includes('Tasks'), 'Tasks section present');
+    assert.deepEqual(headerTexts, ['Anytime'], 'one Anytime bucket, no Tasks section');
 
     const rows = shadowAll(el, 'lucarne-task-row');
     assert.equal(rows.length, 2, 'two task rows rendered');
+  });
+
+  it('hides the member name when hide-name is set', async () => {
+    const el = makeEl([], { hideName: true });
+    await el.updateComplete;
+    assert.equal(shadow(el, '.member-name'), null, 'name hidden');
+    assert.ok(shadow(el, 'lucarne-member-avatar'), 'avatar still shown');
+    assert.ok(shadow(el, '.add-task-btn'), 'add-task button still shown');
   });
 
   it('groups routines into time-of-day buckets in Morning→Afternoon→Night→Anytime order', async () => {

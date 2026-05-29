@@ -35,10 +35,10 @@ export class LucarneTaskRow extends LitElement {
     }
     .check {
       flex-shrink: 0;
-      width: 28px;
-      height: 28px;
+      width: 22px;
+      height: 22px;
       border-radius: 50%;
-      border: 2.5px solid rgba(0, 0, 0, 0.2);
+      border: 2px solid rgba(0, 0, 0, 0.2);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -58,6 +58,8 @@ export class LucarneTaskRow extends LitElement {
       border-color: var(--member-color, #a8d8b9);
     }
     .check svg {
+      width: 14px;
+      height: 14px;
       opacity: 0;
       transition: opacity 0.15s;
     }
@@ -74,7 +76,7 @@ export class LucarneTaskRow extends LitElement {
       min-width: 0;
     }
     .label {
-      font-size: clamp(0.875rem, 1.2vw, 1rem);
+      font-size: clamp(0.95rem, 1.2vw, 1.05rem);
       color: var(--primary-text-color, #212121);
       font-family: var(--primary-font-family, sans-serif);
       transition: text-decoration 0.15s, color 0.15s;

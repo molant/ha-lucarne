@@ -8,8 +8,8 @@ import './task-row.js';
 import './streak-display.js';
 import './celebration-overlay.js';
 
-// Display order for the per-bucket sub-sections inside the Routines section.
-// Anytime is last so dated buckets surface first.
+// Display order for the time-of-day bucket sections (routines + one-off
+// chores share these buckets). Anytime is last so dated buckets surface first.
 const TIME_OF_DAY_ORDER: readonly TimeOfDay[] = ['morning', 'afternoon', 'night', 'anytime'];
 const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
   morning: 'Morning',
@@ -18,12 +18,32 @@ const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = {
   anytime: 'Anytime',
 };
 
-function bucketRoutines(tasks: RenderableTask[]): Array<{ bucket: TimeOfDay; tasks: RenderableTask[] }> {
+function choreCompare(a: RenderableTask, b: RenderableTask): number {
+  if (a.due && b.due) return a.due.localeCompare(b.due);
+  if (a.due) return -1;
+  if (b.due) return 1;
+  return a.summary.localeCompare(b.summary);
+}
+
+// Within a time-of-day bucket, routines list first (alpha) then one-off chores
+// (by due date, then alpha), so recurring items stay above ad-hoc tasks.
+function sortWithinBucket(tasks: RenderableTask[]): RenderableTask[] {
+  const routines = tasks
+    .filter((t) => t.metadata.type === 'routine')
+    .sort((a, b) => a.summary.localeCompare(b.summary));
+  const chores = tasks.filter((t) => t.metadata.type === 'chore').sort(choreCompare);
+  return [...routines, ...chores];
+}
+
+// Bucket every task — routines AND one-off chores — by its time_of_day, so a
+// chore tagged "morning" sits in the Morning section alongside routines instead
+// of a separate "Tasks" pile.
+function bucketTasks(tasks: RenderableTask[]): Array<{ bucket: TimeOfDay; tasks: RenderableTask[] }> {
   const byBucket = new Map<TimeOfDay, RenderableTask[]>();
   for (const t of tasks) {
     // coerceTimeOfDay collapses unrecognized values (typos, future enum
     // extensions, legacy imports that bypassed the voluptuous validator)
-    // into 'anytime', so a stray value never silently drops the routine.
+    // into 'anytime', so a stray value never silently drops the task.
     const bucket = coerceTimeOfDay(t.metadata.time_of_day);
     const arr = byBucket.get(bucket) ?? [];
     arr.push(t);
@@ -33,19 +53,9 @@ function bucketRoutines(tasks: RenderableTask[]): Array<{ bucket: TimeOfDay; tas
   for (const bucket of TIME_OF_DAY_ORDER) {
     const bucketTasks = byBucket.get(bucket);
     if (!bucketTasks || bucketTasks.length === 0) continue;
-    bucketTasks.sort((a, b) => a.summary.localeCompare(b.summary));
-    result.push({ bucket, tasks: bucketTasks });
+    result.push({ bucket, tasks: sortWithinBucket(bucketTasks) });
   }
   return result;
-}
-
-function sortChores(tasks: RenderableTask[]): RenderableTask[] {
-  return [...tasks].sort((a, b) => {
-    if (a.due && b.due) return a.due.localeCompare(b.due);
-    if (a.due) return -1;
-    if (b.due) return 1;
-    return a.summary.localeCompare(b.summary);
-  });
 }
 
 @customElement('lucarne-member-column')
@@ -54,6 +64,7 @@ export class LucarneMemberColumn extends LitElement {
     :host {
       display: block;
       position: relative;
+      height: 100%;
     }
     .column {
       display: flex;
@@ -61,6 +72,8 @@ export class LucarneMemberColumn extends LitElement {
       gap: 4px;
       padding: 16px 12px;
       position: relative;
+      height: 100%;
+      box-sizing: border-box;
     }
     .header {
       display: flex;
@@ -70,13 +83,7 @@ export class LucarneMemberColumn extends LitElement {
       padding-bottom: 12px;
       border-bottom: 1px solid rgba(0, 0, 0, 0.07);
       margin-bottom: 8px;
-    }
-    .header-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      width: 100%;
-      gap: 8px;
+      flex: 0 0 auto;
     }
     .member-name {
       font-size: clamp(1rem, 1.5vw, 1.25rem);
@@ -84,22 +91,39 @@ export class LucarneMemberColumn extends LitElement {
       color: var(--primary-text-color, #212121);
       font-family: var(--primary-font-family, sans-serif);
       text-align: center;
-      flex: 1;
     }
     .add-task-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      z-index: 2;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: none;
       border: 1px dashed rgba(0, 0, 0, 0.25);
-      border-radius: 6px;
-      padding: 4px 8px;
-      font-size: 0.8rem;
+      border-radius: 50%;
+      font-size: 1.35rem;
+      line-height: 1;
       color: var(--secondary-text-color, #727272);
       cursor: pointer;
-      white-space: nowrap;
-      min-height: 32px;
-      flex-shrink: 0;
     }
     .add-task-btn:hover {
       background: rgba(0, 0, 0, 0.04);
+    }
+    /* Scrollable list region: flex:1 pushes the streak to the bottom of every
+       column (so streaks align across equal-height columns), and the cap makes
+       an overlong list scroll internally instead of stretching the card. */
+    .lists {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      max-height: var(--lucarne-chores-list-max-height, 420px);
     }
     .section {
       display: flex;
@@ -117,6 +141,7 @@ export class LucarneMemberColumn extends LitElement {
       padding-top: 12px;
       border-top: 1px solid rgba(0, 0, 0, 0.07);
       margin-top: 8px;
+      flex: 0 0 auto;
     }
   `;
 
@@ -126,6 +151,7 @@ export class LucarneMemberColumn extends LitElement {
   @property({ type: Boolean, attribute: 'show-routines' }) showRoutines = true;
   @property({ type: Boolean, attribute: 'show-tasks' }) showTasks = true;
   @property({ type: Boolean, attribute: 'show-streak' }) showStreak = true;
+  @property({ type: Boolean, attribute: 'hide-name' }) hideName = false;
 
   @state() private _celebrating = false;
   private _celebrationTimer: ReturnType<typeof setTimeout> | null = null;
@@ -167,8 +193,15 @@ export class LucarneMemberColumn extends LitElement {
   render() {
     if (!this.member) return html``;
 
-    const routineBuckets = bucketRoutines(this.tasks.filter((t) => t.metadata.type === 'routine'));
-    const chores = sortChores(this.tasks.filter((t) => t.metadata.type === 'chore'));
+    // Honor the per-type visibility toggles, then bucket the survivors by
+    // time-of-day. The card already pre-filters, but keeping the gate here
+    // means the component stays correct when driven directly (and in tests).
+    const visibleTasks = this.tasks.filter((t) => {
+      if (t.metadata.type === 'routine') return this.showRoutines;
+      if (t.metadata.type === 'chore') return this.showTasks;
+      return false;
+    });
+    const buckets = bucketTasks(visibleTasks);
 
     return html`
       <div class="column" style="--member-color:${this.member.color}">
@@ -177,51 +210,36 @@ export class LucarneMemberColumn extends LitElement {
           ?active=${this._celebrating}
         ></lucarne-celebration-overlay>
 
+        <button
+          class="add-task-btn"
+          @click=${this._onAddTask}
+          aria-label="Add task for ${this.member.name}"
+        ><span aria-hidden="true">+</span></button>
+
         <div class="header">
           <lucarne-member-avatar
             name=${this.member.name}
             color=${this.member.color}
             .avatar=${this.member.avatar}
           ></lucarne-member-avatar>
-          <div class="header-row">
-            <div class="member-name">${this.member.name}</div>
-            <button
-              class="add-task-btn"
-              @click=${this._onAddTask}
-              aria-label="Add task for ${this.member.name}"
-            >+ Add task</button>
-          </div>
+          ${this.hideName
+            ? ''
+            : html`<div class="member-name">${this.member.name}</div>`}
         </div>
 
-        ${this.showRoutines && routineBuckets.length > 0
-          ? html`
-              ${routineBuckets.map(({ bucket, tasks }) => html`
-                <div class="section">
-                  <div class="section-header">${TIME_OF_DAY_LABELS[bucket]}</div>
-                  ${tasks.map((t) => html`
-                    <lucarne-task-row
-                      .task=${t}
-                      .memberColor=${this.member.color}
-                    ></lucarne-task-row>
-                  `)}
-                </div>
+        <div class="lists">
+          ${buckets.map(({ bucket, tasks }) => html`
+            <div class="section">
+              <div class="section-header">${TIME_OF_DAY_LABELS[bucket]}</div>
+              ${tasks.map((t) => html`
+                <lucarne-task-row
+                  .task=${t}
+                  .memberColor=${this.member.color}
+                ></lucarne-task-row>
               `)}
-            `
-          : ''}
-
-        ${this.showTasks && chores.length > 0
-          ? html`
-              <div class="section">
-                <div class="section-header">Tasks</div>
-                ${chores.map((t) => html`
-                  <lucarne-task-row
-                    .task=${t}
-                    .memberColor=${this.member.color}
-                  ></lucarne-task-row>
-                `)}
-              </div>
-            `
-          : ''}
+            </div>
+          `)}
+        </div>
 
         ${this.showStreak
           ? html`
