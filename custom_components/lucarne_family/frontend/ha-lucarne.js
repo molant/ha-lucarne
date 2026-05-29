@@ -1729,8 +1729,10 @@ de.styles = [
       .task-list {
         display: flex;
         flex-direction: column;
-        /* Cap the visible rows and scroll the rest; the host card can tune the
-           cap via --lucarne-tasks-max-height. */
+        /* Only up to "limit" rows are rendered (backlog beyond it is
+           intentionally not shown). This is a safety cap: if the host card sets
+           --lucarne-tasks-max-height and those rendered rows exceed it, they
+           scroll rather than overflow. Uncapped (none) by default. */
         max-height: var(--lucarne-tasks-max-height, none);
         overflow-y: auto;
       }
