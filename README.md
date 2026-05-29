@@ -205,7 +205,8 @@ presence:                           # optional; shows home/away pills in header
     name: I
 agenda_show_tomorrow: false         # optional, default false; agenda shows today only,
                                     #   set true to also include tomorrow (scrolls if long)
-max_tasks: 5                        # optional, default 5; max tasks shown, scrolls past it
+max_tasks: 5                        # optional, default 5; max tasks shown — extra tasks
+                                    #   stay hidden (not scrollable)
 refill_tasks_on_complete: false     # optional, default false; when false a completed task
                                     #   disappears and its slot is NOT refilled from the
                                     #   backlog. Set true for a rolling list.
