@@ -4,6 +4,10 @@
 
 ### Via HACS (recommended)
 
+[![Add to Home Assistant via HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Babel-Innovations&repository=ha-lucarne&category=integration)
+
+The button above opens HACS and pre-fills this repository. To add it by hand instead:
+
 1. Open HA → **HACS** → **Integrations** → **⋮** → **Custom repositories**
 2. Paste `https://github.com/Babel-Innovations/ha-lucarne` and set Type to **Integration**
 3. Search for **Lucarne Family** and click **Download**
