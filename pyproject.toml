@@ -14,6 +14,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
     "pytest-homeassistant-custom-component>=0.13.334",
     "ruff>=0.15.15",
     "mypy>=2.1.0",
@@ -47,6 +48,16 @@ testpaths = ["tests/python"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["."]
+addopts = "--cov=custom_components/lucarne_family --cov-report=term-missing"
 filterwarnings = [
     "error::DeprecationWarning:custom_components.lucarne_family",
 ]
+
+[tool.coverage.run]
+source = ["custom_components/lucarne_family"]
+
+[tool.coverage.report]
+# Statement-coverage floor, floored from the 86% baseline. coverage.py's
+# fail_under is a single total, so (unlike the TS suite, where Node enforces
+# line/branch/funcs separately) Python enforces its primary metric: statements.
+fail_under = 86

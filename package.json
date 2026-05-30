@@ -10,7 +10,8 @@
     "deploy": "bash scripts/deploy-integration.sh",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "TZ=America/Los_Angeles node --import tsx --import ./tests/setup/dom-globals.mjs --test 'tests/**/*.test.ts'"
+    "test": "TZ=America/Los_Angeles node --import tsx --import ./tests/setup/dom-globals.mjs --test 'tests/**/*.test.ts'",
+    "test:coverage": "TZ=America/Los_Angeles node --import tsx --import ./tests/setup/dom-globals.mjs --experimental-test-coverage --test-coverage-exclude='tests/**' --test-coverage-lines=88 --test-coverage-branches=80 --test-coverage-functions=73 --test 'tests/**/*.test.ts'"
   },
   "dependencies": {
     "cropperjs": "^1.6.2",
