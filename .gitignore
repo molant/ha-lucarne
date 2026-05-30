@@ -10,3 +10,7 @@ __pycache__/
 .claude/
 
 uv.lock
+
+# Coverage artifacts
+.coverage
+coverage/

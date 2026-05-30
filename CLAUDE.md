@@ -56,9 +56,14 @@ scripts/
 ```bash
 npm run build         # Vite build → custom_components/lucarne_family/frontend/ha-lucarne.js (single ESM, committed)
 npm test              # node:test runner (NOT vitest — see pitfalls)
+npm run test:coverage # same suite + Node coverage, fails under line 88 / branch 80 / funcs 73 (CI gate)
 npm run typecheck     # tsc --noEmit
 npm run lint          # eslint src
 ```
+
+CI runs `test:coverage`, not `test`. The thresholds are floored from the
+current numbers — raise them as coverage improves, never lower to make a PR
+pass. `npm test` stays coverage-free for fast local iteration.
 
 The built bundle is **committed** — HACS ships repo files for an integration and does not run a build. Rebuild and commit `frontend/ha-lucarne.js` whenever card sources change.
 
@@ -68,8 +73,11 @@ The built bundle is **committed** — HACS ships repo files for an integration a
 # From repo root (pyproject.toml is here)
 ruff check custom_components/lucarne_family/
 mypy custom_components/lucarne_family/
-pytest tests/python/
+pytest tests/python/   # coverage on by default (addopts); fails under statement floor 86
 ```
+
+Coverage is wired into pytest `addopts`, so a bare `pytest` reports it and
+enforces `fail_under = 86` (statement coverage) from `[tool.coverage.report]`.
 
 pytest requires `pytest-homeassistant-custom-component`. Install dev deps:
 ```bash
@@ -79,9 +87,12 @@ pip install -e ".[dev]"
 ### Both (baseline gate before any commit)
 
 ```bash
-npm test && npm run lint && npm run typecheck && npm run build
+npm run test:coverage && npm run lint && npm run typecheck && npm run build
 pytest tests/python/
 ```
+
+Use `test:coverage` here (not `test`) so the local gate matches CI's coverage
+floors. Bare `pytest` already enforces the Python floor via `addopts`.
 
 ## Deploy
 
