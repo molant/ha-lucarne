@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.1.1 — 2026-05-30
+
+**Fixes:**
+-  sort keys per hassfest (domain, name, then alphabetical)
+-  satisfy hassfest manifest + translation rules
+
+
 ## v1.1.0 — 2026-05-29
 
 **Features:**
