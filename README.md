@@ -126,7 +126,9 @@ automatically — there is no Lovelace resource to add.
 ### Step 4 — Add cards to your dashboard
 
 Open your dashboard in edit mode and add the cards via YAML (see [Configuration](#configuration)).
-Each card has a visual editor — click **Visual editor** after adding.
+Each card has a visual editor — click **Visual editor** after adding. For how to arrange them — a
+full-width **panel view** (recommended, works on any theme) or `sections` + the Lucarne theme — see
+[Layout options](#layout-options).
 
 ### Step 5 — (Optional) Apply the Lucarne theme
 
@@ -134,6 +136,8 @@ The integration ships a pastel **Lucarne** theme and registers it automatically 
 `configuration.yaml` edits and no manual file copy. It pairs the cards with the calm cream/pastel
 palette they were designed against and widens HA's `type: sections` views past the default 500px cap
 (via `ha-view-sections-column-max-width: 1200px`) so cards render side-by-side at full tablet width.
+It's a good fit for a wall-mounted tablet, but it's **optional** — a [panel view](#layout-options)
+gives you the same full width on any theme.
 
 Just select it per-user: **Profile → Theme → Lucarne**.
 
@@ -148,6 +152,61 @@ Just select it per-user: **Profile → Theme → Lucarne**.
 
 Follow [bridge/README.md](bridge/README.md) to install the launchd sync job on a Mac.
 Skip this step if you prefer to manage todo items directly in HA.
+
+---
+
+## Layout options
+
+The three cards work on **any theme** — you don't need the Lucarne theme to use them. How much
+horizontal room a card wants differs by card, so pick the layout that matches what you're building.
+
+> **Why layout matters.** In a `type: sections` view each column is capped at
+> `ha-view-sections-column-max-width` (HA default **500px**) and centered. A single card copes fine
+> with that, but placing **Today + Calendar side-by-side** in one 500px column squeezes them. The
+> wide "wall tablet" experience therefore needs a layout that gives the cards room — either escape
+> the cap (panel view) or raise it (Lucarne theme).
+
+### Recommended — panel view (widest, any theme)
+
+A `type: panel` view ignores the sections column cap and renders edge-to-edge on whatever theme you
+already use. It's the simplest way to get the full Today + Calendar wall layout without switching
+themes. Wrap the two cards in a `horizontal-stack`.
+
+This is a **view (dashboard) definition, not card YAML** — `type: panel` is the *view* type, so it
+belongs in your dashboard config, not in an individual card's YAML editor. Add it via **Edit
+dashboard → ⋮ → Raw configuration editor**, as one entry under the dashboard's `views:` list:
+
+```yaml
+# Under your dashboard's `views:` — this whole block is one view, not a card.
+views:
+  - type: panel
+    title: Family
+    cards:
+      - type: horizontal-stack
+        cards:
+          - type: custom:lucarne-today-card
+            # ...your today-card config (see Configuration below)...
+          - type: custom:lucarne-calendar-card
+            # ...your calendar-card config...
+```
+
+A panel view shows just this one stack (no badges or extra sections), which is usually exactly what
+you want on a dedicated tablet.
+
+### Built-in Lucarne theme (designed for wall-mounted tablets)
+
+The integration ships and auto-registers a pastel **Lucarne** theme ([Step 5](#step-5--optional-apply-the-lucarne-theme)).
+It's tuned for **wall-mounted / kiosk tablets**: a calm cream-and-pastel palette the cards were
+designed against, plus it widens `type: sections` columns to 1200px
+(`ha-view-sections-column-max-width`) so Today + Calendar sit side-by-side at full tablet width
+*without* a panel view. Select it per-user under **Profile → Theme → Lucarne**. Choose this if you
+want the look in the screenshots or prefer to keep building with `sections` views.
+
+### Single card in an existing dashboard
+
+Just want one card on a dashboard you already have? Drop any single card into your normal `sections`
+or `masonry` view — no theme or panel needed. The calendar auto-fits to fewer day columns in a
+narrow space, the chores card wraps, and the today card adapts to its container.
 
 ---
 
