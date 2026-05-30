@@ -63,7 +63,7 @@
       },
       "rename_confirm": {
         "title": "Confirm member rename",
-        "description": "Renaming '{old_name}' to '{new_name}' will change the entity slug.\n\nDownstream impact:\n{impact}\n\nCheck the box to proceed.",
+        "description": "Renaming {old_name} to {new_name} will change the entity slug.\n\nDownstream impact:\n{impact}\n\nCheck the box to proceed.",
         "data": {
           "confirm": "I understand — proceed with rename"
         }
@@ -138,7 +138,7 @@
       },
       "add_preset_routine": {
         "title": "Add a routine to this preset",
-        "description": "Repeats uses a constrained RRULE subset. Examples:\n- Daily: `FREQ=DAILY`\n- Every other day: `FREQ=DAILY;INTERVAL=2`\n- Weekly on Mon/Wed/Fri: `FREQ=WEEKLY;BYDAY=MO,WE,FR`\n- 15th of the month: `FREQ=MONTHLY;BYMONTHDAY=15`\n- First Saturday every 6 months: `FREQ=MONTHLY;BYDAY=1SA;INTERVAL=6`\n- April 1st every year: `FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=1`\n\nRRULE background: https://dateutil.readthedocs.io/en/stable/rrule.html",
+        "description": "Repeats uses a constrained RRULE subset. Examples:\n- Daily: `FREQ=DAILY`\n- Every other day: `FREQ=DAILY;INTERVAL=2`\n- Weekly on Mon/Wed/Fri: `FREQ=WEEKLY;BYDAY=MO,WE,FR`\n- 15th of the month: `FREQ=MONTHLY;BYMONTHDAY=15`\n- First Saturday every 6 months: `FREQ=MONTHLY;BYDAY=1SA;INTERVAL=6`\n- April 1st every year: `FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=1`\n\nRRULE background: see the dateutil rrule documentation.",
         "data": {
           "summary": "Routine name",
           "icon": "Icon (emoji)",
