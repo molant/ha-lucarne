@@ -9,7 +9,7 @@
   "requirements": ["python-dateutil>=2.8"],
   "dependencies": ["counter", "file_upload", "http", "local_todo"],
   "after_dependencies": ["frontend"],
-  "codeowners": ["@molant"],
-  "documentation": "https://github.com/molant/ha-lucarne",
-  "issue_tracker": "https://github.com/molant/ha-lucarne/issues"
+  "codeowners": ["@Babel-Innovations"],
+  "documentation": "https://github.com/Babel-Innovations/ha-lucarne",
+  "issue_tracker": "https://github.com/Babel-Innovations/ha-lucarne/issues"
 }

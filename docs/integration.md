@@ -5,7 +5,7 @@
 ### Via HACS (recommended)
 
 1. Open HA → **HACS** → **Integrations** → **⋮** → **Custom repositories**
-2. Paste `https://github.com/molant/ha-lucarne` and set Type to **Integration**
+2. Paste `https://github.com/Babel-Innovations/ha-lucarne` and set Type to **Integration**
 3. Search for **Lucarne Family** and click **Download**
 4. Restart Home Assistant
 5. Go to **Settings → Devices & Services → Add Integration** and search for **Lucarne Family**
