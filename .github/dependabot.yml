@@ -9,6 +9,13 @@ updates:
       npm-dependencies:
         patterns:
           - "*"
+    # cropperjs 2.x is a class -> web-component rewrite; the avatar-crop UI in
+    # avatar-upload-modal.ts uses the v1 API (new Cropper(...), getCroppedCanvas)
+    # and migrating it needs its own spec (see CLAUDE.md). Keep cropperjs on the
+    # v1 line until then; major bumps break the typecheck (see PR #46).
+    ignore:
+      - dependency-name: "cropperjs"
+        update-types: ["version-update:semver-major"]
 
   # Python integration — pyproject.toml (runtime + [dev])
   - package-ecosystem: pip
