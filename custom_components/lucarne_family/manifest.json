@@ -1,14 +1,14 @@
 {
   "domain": "lucarne_family",
   "name": "Lucarne Family",
-  "version": "1.1.0",
-  "config_flow": true,
-  "integration_type": "service",
-  "iot_class": "local_push",
-  "requirements": ["python-dateutil>=2.8"],
-  "dependencies": ["counter", "file_upload", "http", "local_todo"],
   "after_dependencies": ["frontend"],
   "codeowners": ["@Babel-Innovations"],
+  "config_flow": true,
+  "dependencies": ["counter", "file_upload", "http", "local_todo"],
   "documentation": "https://github.com/Babel-Innovations/ha-lucarne",
-  "issue_tracker": "https://github.com/Babel-Innovations/ha-lucarne/issues"
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/Babel-Innovations/ha-lucarne/issues",
+  "requirements": ["python-dateutil>=2.8"],
+  "version": "1.1.0"
 }
