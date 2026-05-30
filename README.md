@@ -1,6 +1,6 @@
 # ha-lucarne — Family Calendar & Chores Dashboard for Home Assistant
 
-<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=integration"><img src="https://img.shields.io/badge/HACS-Add%20to%20Home%20Assistant-41BDF5.svg" alt="Add to Home Assistant via HACS"></a>
+<a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=Babel-Innovations&repository=ha-lucarne&category=integration"><img src="https://img.shields.io/badge/HACS-Add%20to%20Home%20Assistant-41BDF5.svg" alt="Add to Home Assistant via HACS"></a>
 <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 <a href="https://www.home-assistant.io/"><img src="https://img.shields.io/badge/Home%20Assistant-2026.3%2B-blue.svg" alt="Home Assistant 2026.3+"></a>
 
@@ -98,14 +98,14 @@ dashboard download and no manual Lovelace resource.
 
 ### Step 1 — Install via HACS
 
-[![Add to Home Assistant via HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=molant&repository=ha-lucarne&category=integration)
+[![Add to Home Assistant via HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Babel-Innovations&repository=ha-lucarne&category=integration)
 
 The button opens HACS in your Home Assistant and pre-fills this repository (it works without the repo
 being in the default HACS index) — then click **Download**. To do it by hand instead:
 
 1. Open HA → **HACS** → **Integrations**
 2. Click the three-dot menu (⋮) → **Custom repositories**
-3. Paste `https://github.com/molant/ha-lucarne` and set Type to **Integration**
+3. Paste `https://github.com/Babel-Innovations/ha-lucarne` and set Type to **Integration**
 4. Click **Add**, then search for **Lucarne Family** and click **Download**
 
 > Prefer not to use HACS at all? Copy `custom_components/lucarne_family/` from the repo into your HA
